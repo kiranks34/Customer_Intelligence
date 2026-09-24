@@ -58,7 +58,7 @@ Environment variables (names reused from the earlier project):
 ## 4. Data model (first cut)
 
 ```
-search(id, query, kind[product|category|audience], region, created_at)
+search(id, query, kind[product|family|category|audience], regions[], created_at)
 plan(search_id, version, keywords, sources, exclusions)
 post(id, source, source_id, url, author_hash, posted_at, title, text,
      text_hash, rating, lang, region, collected_at, search_id)
@@ -75,14 +75,46 @@ cost_event(search_id, provider, units, usd, created_at)
 ## 5. Connectors
 
 A connector has one interface: `collect(plan, since, budget) → Post[]`.
+Retail connectors also return **listings** (title, model, SKU/ASIN,
+country), which feed the product catalog.
 
-| Phase | Source | Via | Cost |
-|---|---|---|---|
-| 1 | YouTube videos + comments | YouTube Data API | Free quota |
-| 1 | Reddit posts + comment threads | Reddit OAuth API | Free |
-| 2 | TikTok, Instagram, Facebook | ScrapeCreators | Credits |
-| 2 | Amazon and retailer reviews | Apify actors | Free cycle resets on the 27th, then credits |
-| 3 | App-store reviews, public forums | TBD | |
+| Phase | Source | Region | Via | Cost |
+|---|---|---|---|---|
+| 1 | YouTube videos + comments | all | YouTube Data API | Free quota |
+| 1 | Reddit posts + comment threads | NA, India | Reddit OAuth API | Free |
+| 1 | Amazon.com listings + reviews | NA | Apify actor | Free monthly credit (resets on the 27th) |
+| 2 | Best Buy, Walmart, Target, Costco reviews | NA | Apify actors (to verify per retailer) | Credits |
+| 2 | Amazon.in, Flipkart | India | Apify actors | Credits |
+| 2 | Mercado Libre, Amazon MX/BR | LATAM | Apify actors | Credits |
+| 2 | TikTok, Instagram | NA, LATAM, India | ScrapeCreators | Credits |
+| 3 | JD.com, Tmall, Xiaohongshu, Bilibili | China | Apify actors (proxy needed, as in the earlier project) | Credits |
 
 Each connector reports its cost estimate *before* a run, and the search
-stops at the per-search cap.
+stops at the per-search cap. One source failing never fails the search.
+
+## 6. Product catalog
+
+```
+catalog_node(id, search_id, level[category|family|series|model|sku|service],
+             parent_id, name, aliases[], region, retailer_ids[])
+post_product(post_id, node_id, method[listing|jev|review], confidence)
+```
+
+- Built by Claude from retailer listings + a sample of posts. You edit it.
+- Retail review → model/SKU via its listing (method `listing`).
+- Social post → model via Jev with the catalog as options (method `jev`).
+- Regional names for the same model are aliases of one node, so
+  cross-region comparison works.
+
+## 7. Running on Vercel Hobby
+
+Hobby limits function run time and allows daily cron jobs only. Pulse is
+designed to fit:
+- The pipeline runs as **small resumable steps**. Each step handles one batch
+  (e.g. 20 posts through Jev) and saves progress, so no single call runs long.
+- Daily refresh of saved searches fits the Hobby daily cron.
+- Apify runs are started, then polled. We never wait inside one request.
+
+If a limit still blocks us (for example step chaining or run time), the
+options are Vercel Pro, or GitHub Actions as a free background worker. We
+decide when that happens.

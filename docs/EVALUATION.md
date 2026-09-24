@@ -16,7 +16,9 @@ adds them to the counts.
 
 ## 2. Feasibility gates (Phase 1)
 
-Run on two real searches: one product search and one audience search.
+Run on the first real search: **HP Smart Tank printers** (Phase 1 region
+scope per DECISIONS Q1). The model-mapping gate is added because Smart Tank
+is a family.
 
 | Gate | Pass if |
 |---|---|
@@ -24,6 +26,7 @@ Run on two real searches: one product search and one audience search.
 | Accuracy | Spot-check ≥ 18/20 on sentiment and on journey stage |
 | Coverage | ≥ 70% of relevant posts counted automatically (Jev ≥ 0.8) |
 | Journey | ≥ 4 stages with ≥ 20 posts each (product search) |
+| Model mapping | ≥ 90% of retail reviews mapped to a model. Spot-check 20 social posts mapped to a model: ≥ 18 right |
 | Cost | ≤ $1.50 per search, all APIs |
 | Speed | ≤ 15 minutes from search to report |
 | Value | You find ≥ 3 insights worth acting on |

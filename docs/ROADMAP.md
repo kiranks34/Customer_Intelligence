@@ -7,21 +7,26 @@ We move on only if the gates pass.
 - [x] Goal alignment
 - [x] PRD, architecture, Jev role, evaluation, design (this folder)
 - [ ] Your review of these docs
-- [ ] Pick the two feasibility searches
+- [x] First search: HP Smart Tank printers
+- [ ] Confirm Phase 1 region scope (DECISIONS Q1)
 
 ## Phase 1: Feasibility, "does it work on a few hundred posts?"
-Rough web app, not polished.
-1. Project setup: Next.js on Vercel, Postgres, passcode, env vars, cost meter
-2. Connectors: YouTube + Reddit (free)
+Rough web app, not polished. Proposed scope: **HP Smart Tank, North America**.
+1. Project setup: Next.js on Vercel Hobby, Postgres, passcode, env vars, cost meter
+2. Connectors: YouTube + Reddit (free) + Amazon.com via Apify (free credit)
 3. Search planner (Claude) with an editable plan
-4. Relevance gate + codebook discovery + classification (Jev)
-5. Review queue + 20-post spot-check screen
-6. Basic report: summary, themes, segments, a first journey map, drill-down to posts
-7. Integrity checks
-8. Run the two feasibility searches → **gate review** (EVALUATION.md §2)
+4. Product catalog from Amazon listings (Claude proposes, you edit)
+5. Relevance gate + codebook discovery + classification (Jev), incl. model mapping
+6. Test Jev on a few Spanish/Portuguese/Hindi posts (cheap check for Phase 2)
+7. Review queue + 20-post spot-check screen
+8. Basic report: summary, themes, segments, first journey map, filters by model/service, drill-down to posts
+9. Integrity checks
+10. Run the Smart Tank search → **gate review** (EVALUATION.md §2)
 
 ## Phase 2: MVP, "a tool I use every week"
-- ScrapeCreators (TikTok, Instagram) + Apify (Amazon/retail reviews)
+- More regions: India → LATAM → China, each with its retail and social sources
+- More NA retailers (Best Buy, Walmart, Target, Costco) + ScrapeCreators (TikTok, Instagram)
+- Region and cross-region model comparison (same printer, different regional names)
 - Full journey map (emotion curve, moments of truth, segment filter, touchpoints)
 - Saved searches with daily refresh, trends and "what changed"
 - Filters: segment, source, region, time

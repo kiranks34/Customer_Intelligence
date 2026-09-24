@@ -64,6 +64,46 @@ working level to leadership can read them and ask for a deeper study.
 | U9 | Share a read-only link or export a summary for leadership | 3 |
 | U10 | Ask a question about a report and get an answer that cites posts | 3 |
 
+## 4a. Products, services and regions as filters
+
+A search like **"HP Smart Tank printers"** is a *family*, not one product.
+It spans series, models and region-specific SKUs, and the same printer can
+sell under different names in different regions. Pulse builds a **product
+catalog** for each search, and every report can be filtered by it:
+
+```
+Category        Ink tank printers
+└─ Family       HP Smart Tank
+   └─ Series    e.g. Smart Tank 5100 series, 7000 series
+      └─ Model  e.g. Smart Tank 5101
+         └─ SKU region-specific product numbers / retailer listings (ASIN etc.)
+Services        e.g. Instant Ink, All-In Plan (print as a service), HP+, warranty/Care Pack
+```
+
+- **Claude proposes the catalog** from retailer listings: model names,
+  aliases, regional names and SKUs. You edit it.
+- **Retail reviews** are mapped to a model/SKU from the listing they were
+  posted on (reliable). Amazon shares reviews across variants, so we
+  deduplicate by text.
+- **Social posts** are mapped by Jev ("which model is discussed?", options
+  from the catalog + "family only / not stated").
+- **Filters on every report:** category · family · series · model · SKU ·
+  service · region/country · retailer/source · segment · journey stage ·
+  sentiment · rating · time.
+
+**Regions in scope:** North America, China, LATAM, India. Languages follow:
+English, Spanish, Portuguese, Chinese, Hindi/Hinglish.
+
+| Region | Retail | Social / community |
+|---|---|---|
+| North America | Amazon.com, Best Buy, Costco, Target, Walmart | Reddit, YouTube, TikTok, Instagram |
+| India | Amazon.in, Flipkart | YouTube, Reddit, Instagram |
+| LATAM | Mercado Libre, Amazon.com.mx / .com.br | YouTube, TikTok, Instagram |
+| China | JD.com, Tmall | Xiaohongshu (RED), Bilibili, Douyin, Zhihu |
+
+Which of these can actually be reached, and at what cost, is checked source
+by source (ARCHITECTURE.md §5).
+
 ## 5. What Pulse extracts
 
 | Dimension | How | Notes |

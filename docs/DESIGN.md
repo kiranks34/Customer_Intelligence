@@ -14,7 +14,8 @@
 | **Plan review** | How the search was interpreted: keywords, sources, post cap, cost estimate. Edit → Run |
 | **Progress** | Steps with live counts (collected, relevant, classified). Cost so far |
 | **Codebook review** | Proposed stages, segments, themes, touchpoints with definitions and example posts. Edit / merge / add → Classify |
-| **Report** | Summary · journey map · segments · pains, delights and needs · sources · methods and confidence |
+| **Catalog review** | Proposed product tree (family → series → model → SKU) and services, with aliases and regions. Edit / merge |
+| **Report** | Filter bar (product tree, service, region, retailer/source, segment, stage, time) · summary · journey map · segments · pains, delights and needs · model/region comparison · sources · methods and confidence |
 | **Posts explorer** | Filtered list of posts with Jev answers and confidence, source link, date |
 | **Review queue & spot-check** | One post at a time, keyboard shortcuts, right/wrong or correct answer |
 

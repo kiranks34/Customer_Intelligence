@@ -15,13 +15,17 @@
 | D9 | Single user, passcode access | Only you use it for now |
 | D10 | Headline feature: live customer journey map from real posts | Your "wow factor" |
 | D11 | The Python draft from the kickoff is discarded | Replaced by D3 |
+| D12 | First search: **HP Smart Tank printers** (a product family) | Your choice, 2026-09-24 |
+| D13 | Product catalog (category → family → series → model → SKU, plus services) is a first-class filter | Families span many models and regional SKUs |
+| D14 | Regions: North America, China, LATAM, India | Your choice |
+| D15 | Claude Opus 5 for planning, codebook, catalog and narrative | Your choice. ~$0.5–1 per search at this volume |
+| D16 | Vercel Hobby. Pipeline built as small resumable steps. Upgrade to Pro only if needed | Your choice |
 
 ## Open questions
 
 | # | Question | Needed by |
 |---|---|---|
-| Q1 | Which two searches for the Phase 1 feasibility test (one product, one audience)? | Phase 1 start |
-| Q2 | Which Claude model for planning, codebook and narrative? Proposed: Claude Opus 5 (~$0.5–1 per search at this volume); Sonnet 5 as a cheaper option if needed | Phase 1 |
-| Q3 | Jev: several questions per call? multi-select? input length limit? (We'll test) | Phase 1 |
-| Q4 | Default region(s) and languages for searches | Phase 1 |
-| Q5 | Vercel plan (Hobby vs Pro) affects background-job limits | Phase 1 setup |
+| Q1 | Phase 1 scope: NA only (Amazon.com + YouTube + Reddit), or all four regions from the start? | Phase 1 start |
+| Q2 | Audience-type test search (e.g. "Gen Z and printers"). Phase 1 or later? | Phase 1 |
+| Q3 | Jev: several questions per call? multi-select? input length? Spanish, Portuguese and Hindi quality? (We'll test; Chinese was validated earlier) | Phase 1 |
+| Q4 | Which retailers are reachable via Apify at acceptable cost (Best Buy, Costco, Target, Walmart, Flipkart, Mercado Libre, JD)? | Phase 2 |
