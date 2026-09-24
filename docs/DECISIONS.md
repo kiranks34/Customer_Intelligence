@@ -1,50 +1,27 @@
-# Decision log (ADRs) and open questions
+# Decisions and open questions
 
-## ADR-001: Python pipeline with pluggable stages
-**Decision:** Python 3.11. Every stage (connector, enricher, verifier) sits
-behind a small interface.
-**Why:** The data/ML ecosystem is in Python. Interfaces let us swap scrapers
-for licensed feeds, and the keyword baseline for the LLM, without touching
-the rest.
+## Decisions
 
-## ADR-002: Aspect-based, evidence-backed extraction
-**Decision:** The extractor returns sentiment per taxonomy aspect, with a
-verbatim evidence quote for each label.
-**Why:** Document-level sentiment hides mixed reviews. Evidence quotes make
-labels auditable and make Jev's grounding checks deterministic.
-
-## ADR-003: Jev as a tiered verifier gating metrics
-**Decision:** Only Jev-accepted (or human-corrected) records feed metrics.
-Deterministic checks run on 100% of records. The LLM judge runs on flagged,
-ambiguous and sampled records.
-**Why:** Trust at a sustainable cost. See JEV.md.
-
-## ADR-004: Claude via structured outputs; keyword baseline as control
-**Decision:** `ClaudeEnricher` uses the Anthropic SDK's structured outputs
-with `claude-opus-5` and server-side refusal fallbacks. The Batch API is used
-for backfills. `KeywordEnricher` is always run as the control.
-**Why:** Schema-valid output removes parsing failures. The control makes the
-value measurable.
-
-## ADR-005: SQLite for MVE, Postgres for MVP
-**Why:** Zero setup now. The schema is kept portable.
-
-## ADR-006: Study-as-config
-**Decision:** All product/brand/industry/region specifics live in
-`studies/*.yaml`.
-**Why:** Repeatability (PRD G2).
-
----
+| # | Decision | Why |
+|---|---|---|
+| D1 | Pulse is a search-driven platform. Any product, category or audience | Goal alignment 2026-09-24. Thermal printers were a past project, not the product |
+| D2 | Public data only. No company data | Hobby project. Company data can't be used |
+| D3 | Web app: Next.js + TypeScript on Vercel, Postgres | One codebase you can maintain alone. You already have Vercel |
+| D4 | All AI through Vercel AI Gateway (Claude + Jev) | You already have the key. One bill, spend visible |
+| D5 | Jev makes every per-post decision. Claude only plans, proposes the codebook and writes narrative | Jev is validated (≥ 0.8 → 92–100% match) and cheap enough to run on every post. Claude is used where text generation is needed |
+| D6 | Numbers from SQL, quotes from the database, Claude cites post IDs | Carries over "every number traces to posts" |
+| D7 | Budget ≤ $20/month for all APIs. Prove feasibility on a few hundred posts before scaling | Your constraint |
+| D8 | Free sources first (YouTube, Reddit), then ScrapeCreators and Apify | Cost and phasing |
+| D9 | Single user, passcode access | Only you use it for now |
+| D10 | Headline feature: live customer journey map from real posts | Your "wow factor" |
+| D11 | The Python draft from the kickoff is discarded | Replaced by D3 |
 
 ## Open questions
 
-| # | Question | Owner | Needed by |
-|---|---|---|---|
-| Q1 | What exactly is Jev today (prompt / model / rules / classifier)? Can we get the code or prompt? | Kiran | Sprint 1 |
-| Q2 | Which sources did the thermal-printer study use, and under what terms (API, scraper, vendor)? | Kiran | Sprint 1 |
-| Q3 | Can we have the thermal-printer dataset + audit notes to seed the golden set? | Kiran | Sprint 1 |
-| Q4 | Who are the 1–2 exec reviewers for the MVE report? | Kiran | Sprint 2 |
-| Q5 | Target cost budget per 1k mentions / per month? | Kiran | Sprint 2 |
-| Q6 | Preferred alert/digest channel (Slack, Teams, email)? | Kiran | Sprint 3 |
-| Q7 | Hosting preference for MVP (your cloud, Netlify + managed DB, internal)? | Kiran | Sprint 3 |
-| Q8 | Languages/regions in scope for the first live study? | Kiran | Sprint 3 |
+| # | Question | Needed by |
+|---|---|---|
+| Q1 | Which two searches for the Phase 1 feasibility test (one product, one audience)? | Phase 1 start |
+| Q2 | Which Claude model for planning, codebook and narrative? Proposed: Claude Opus 5 (~$0.5–1 per search at this volume); Sonnet 5 as a cheaper option if needed | Phase 1 |
+| Q3 | Jev: several questions per call? multi-select? input length limit? (We'll test) | Phase 1 |
+| Q4 | Default region(s) and languages for searches | Phase 1 |
+| Q5 | Vercel plan (Hobby vs Pro) affects background-job limits | Phase 1 setup |

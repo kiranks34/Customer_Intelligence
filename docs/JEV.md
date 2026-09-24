@@ -1,71 +1,56 @@
-# Jev: verification and decision layer
+# Jev in Pulse
 
-> **Assumption to confirm:** in the thermal-printer project, Jev acted as a
-> *decision model* that judged whether an assigned sentiment "made sense".
-> This document turns that role into a permanent, measurable pipeline stage.
-> If Jev has a specific implementation (prompt, model, rules or a trained
-> classifier), it plugs in behind the `Verifier` interface
-> (`src/pulse/jev/base.py`) and the design below still holds.
+## What Jev is
 
-## Why a separate verification layer
+Jev (TypeSafe AI) is a classification-only model. You give it text and a
+set of typed questions with fixed options. It returns one answer per question
+plus a calibrated confidence. It cannot generate text. It is reached through
+Vercel AI Gateway as `typesafe-ai/jev` and costs $0.042 per million input
+tokens (from 2026-09-25). Keep concurrency at 2 to avoid 429 errors.
 
-An LLM extractor is fluent and usually right. When it is wrong, the output
-still *looks* confident. Keyword search is wrong in predictable ways. Neither
-can grade itself. Jev's job is to make each label **earn its way into the
-metrics**:
+## What we already know (social-listening validation)
 
-1. **Grounding.** Is the claim supported by the customer's own words?
-2. **Consistency.** Do the labels agree with each other and with metadata
-   such as the star rating?
-3. **Judgment.** For hard cases (sarcasm, mixed, negation, comparisons),
-   would an independent reviewer reach the same label?
+Every hand-labelled item from the earlier project was sent to Jev
+(`jev_validate.py`, report in `scratchpad/jev_validation.md`):
 
-## Tiered design
+- Confidence **≥ 0.8** → matched the human verdict **92–100%** of the time,
+  across Reddit, Instagram, YouTube, buyer profiles, Chinese titles and
+  paper worries.
+- Confidence **< 0.5** → a coin flip.
+- Jev was stricter than keywords, and closer to the real complaint rate
+  (reassurances are not complaints). It also found real complaints that
+  keywords missed.
 
-| Tier | Runs on | Cost | Checks |
-|---|---|---|---|
-| **T1: deterministic** | 100% of records | ~0 | `evidence_grounded`: every evidence quote appears (normalized) in title+text · `taxonomy_valid`: aspects exist in the study taxonomy · `rating_consistency`: 4–5★ with negative overall (or 1–2★ with positive) is flagged · `ownership_grounded`: an ownership duration needs an evidence quote that is found in the text · `coverage`: a long text with zero aspects is suspicious · `ambiguity_cues`: sarcasm/negation/contrast markers ("not bad", "yeah right", "but") |
-| **T2: LLM judge** | T1 failures + ambiguity cues + a random audit sample (default 10%) | 1 LLM call | An independent re-read. Returns `agree`/`disagree` per field, a corrected overall sentiment if needed, and a rationale |
-| **T3: human** | `review` decisions | analyst time | Accept / correct. Corrections go to the golden set |
+## How Pulse uses it
 
-## Decision policy
+Jev answers every per-post question. Claude never labels individual posts.
 
-```
-if any hard failure (e.g. ungrounded evidence, invalid aspect)   -> review (or reject if the judge also disagrees)
-elif soft failure or ambiguity cue                               -> T2 judge
-     judge agrees                                                -> accept (confidence adjusted)
-     judge disagrees                                             -> review
-else                                                             -> accept
-```
+| Question | Options come from |
+|---|---|
+| Is this post about «search»? | yes / no / unclear |
+| Overall sentiment toward «subject» | positive / negative / neutral / mixed |
+| Journey stage | codebook stages + "not stated" |
+| User segment | codebook segments + "not stated" |
+| Themes present | codebook themes (one yes/no question per theme, or multi-select if supported) |
+| Touchpoints | codebook touchpoints |
 
-- `confidence` starts at 1.0 and loses a weighted penalty for each failed
-  check. The judge's agreement restores part of it.
-- Thresholds are in the study config. Starting values: accept ≥ 0.7.
-- `reject` is reserved for off-topic, spam, or unreadable input. Rejected
-  records are kept for audit but excluded from metrics.
+Claude writes the questions and option definitions once per search, when it
+proposes the codebook. You approve them. They are versioned.
 
-## How we measure Jev itself
+## Confidence policy
 
-Jev is a model too, so it gets its own metrics (see EVALUATION.md):
+| Confidence | Treatment |
+|---|---|
+| ≥ 0.8 | Counted |
+| 0.5 – 0.8 | Counted in an "uncertain" band, shown separately in charts |
+| < 0.5 | Review queue. Not counted until you read it |
 
-- **Flag precision:** of the records Jev sent to review, how many were
-  actually wrong? A low value means we are wasting analyst time.
-- **Miss rate:** of the records that are wrong in the golden set, how many
-  did Jev accept? A high value means untrustworthy dashboards.
-- **Auto-accept rate:** the ops load. Target ≥ 85%.
+Thresholds are settings. We check them per new category with a spot-check
+(EVALUATION.md), because the 92–100% figure comes from one category.
 
-We tune the thresholds to trade these off. For leadership metrics we prefer a
-low miss rate over a high auto-accept rate.
+## To confirm in Phase 1
 
-## Suggested improvements over the one-off Jev step
-
-1. **Evidence-first extraction.** The extractor *must* quote the text for
-   every label, which makes T1 grounding checks possible for free.
-2. **Aspect-level verification**, not just overall sentiment. Mixed reviews
-   are where keyword approaches fail most.
-3. **Independent judge prompt.** The judge does not see the extractor's
-   reasoning, only its labels, so it cannot simply agree with them.
-4. **Closed learning loop.** Human corrections become golden-set items and
-   few-shot examples. Every prompt change must pass the golden-set gate.
-5. **Show the verification.** Each chart shows "verified coverage %" so
-   leadership knows how much of the data backs the number.
+- Can one Jev call carry several questions? (That affects cost and speed.)
+- Is multi-select supported, or one yes/no question per theme?
+- Maximum input length per call (long Reddit threads, video transcripts).
+- Reuse the question-wording lessons from the `Q_*` dicts in `jev_validate.py`.

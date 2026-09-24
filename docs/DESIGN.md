@@ -1,41 +1,52 @@
-# Design requirements (UI/UX)
+# Design
 
 ## Principles
-1. **Answer first, then evidence.** Every screen opens with the conclusion
-   (e.g. "Net sentiment down 8 pts, driven by driver software"). Every
-   number is one click away from the quotes behind it.
-2. **Show how much to trust it.** Sample size and "verified coverage %" sit
-   next to every metric. Low-volume points are visibly de-emphasized.
-3. **Preempt, don't report.** Alerts and "what changed" come before static
-   totals.
-4. **Shareable.** Any view can be shared as a link or exported (PNG/PDF/CSV)
-   for leadership decks.
-5. **Study-agnostic.** No printer-specific UI. Everything comes from the
-   study config.
+1. **Answer first, evidence one click away.** Every number opens the posts behind it.
+2. **Show how sure we are.** Post counts and the uncertain band are visible, and thin data is marked.
+3. **Plain language.** Readable by anyone from working level to leadership.
+4. **Works on a phone** for reading. Editing can be desktop-first.
 
-## Information architecture (MVP)
+## Screens (Phase 1–2)
 
-| Screen | Purpose | Key components |
-|---|---|---|
-| **Leadership view** | 2-minute weekly read | KPI tiles (NSS, volume, verified %, open alerts) · NSS trend by product · top 3 drivers up/down with a quote each · alerts list |
-| **Explorer** | Slice and drill | Filters (study, product, source, date, aspect, stage, segment, sentiment, rating) · mention list with highlighted evidence · mention detail (full text, labels, Jev checks, source link) |
-| **Aspects** | What drives sentiment | Aspect × product heatmap (NSS) · aspect trend small multiples · driver waterfall between two periods |
-| **Journey** | When in the lifecycle | NSS by journey stage · ownership-months curve (sentiment vs. months owned) · touchpoint map |
-| **Compare** | Product vs. product / brand vs. brand | Side-by-side aspect NSS · share of voice · distinct pain points |
-| **Review queue** | Jev human-in-the-loop | Record + failed checks + judge rationale · accept/correct shortcuts · throughput stats |
-| **Study admin** | Onboard / tune | Products, competitors, sources, taxonomy editor, thresholds, run history |
+| Screen | Content |
+|---|---|
+| **Home / Search** | One search box, examples ("HP Sprocket", "what Gen Z says about printers"), recent and saved searches, month-to-date spend |
+| **Plan review** | How the search was interpreted: keywords, sources, post cap, cost estimate. Edit → Run |
+| **Progress** | Steps with live counts (collected, relevant, classified). Cost so far |
+| **Codebook review** | Proposed stages, segments, themes, touchpoints with definitions and example posts. Edit / merge / add → Classify |
+| **Report** | Summary · journey map · segments · pains, delights and needs · sources · methods and confidence |
+| **Posts explorer** | Filtered list of posts with Jev answers and confidence, source link, date |
+| **Review queue & spot-check** | One post at a time, keyboard shortcuts, right/wrong or correct answer |
 
-## Interaction rules
-- Filters live in one row at the top and persist in the URL (so links are shareable).
-- Charts have hover tooltips (value, n, verified %). Clicking a point
-  filters the Explorer to that slice.
-- Every chart has a table view (accessibility + export).
-- Light and dark themes. Colour-blind-safe palette. Status colours
-  (critical/warning) always come with an icon and label.
-- Mobile: the leadership view must work on a phone (execs read it there).
+## Journey map (the headline feature)
 
-## Leadership report (MVE)
-`pulse report` generates a single static HTML page that previews the
-leadership view: KPI tiles, NSS trend, aspect table, journey-stage table,
-alerts and evidence quotes. It is the prototype we put in front of execs in
-Sprint 2 before building the web app.
+```
+          Discover   Compare    Buy     Set up    Everyday   Problems   Stay / leave
+             │          │        │        │        use        support       │
+emotion  ────●──────────●────────●────────╲         ●──────────●╲           ●
+curve                                      ●                      ●
+posts      n=64       n=41     n=22     n=88      n=120       n=57        n=19
+top pain   —        price vs   —       app      paper       support    switching
+                    features           pairing  cost        wait       to phone
+delight   cute      reviews   gift     easy     photo       —          memories
+          designs   videos    bundle   print    quality
+touch-    TikTok    YouTube   Amazon   HP app   store       chat       —
+points
+quote     "…"       "…"       "…"      "…"      "…"         "…"        "…"
+```
+*(Illustrative layout, not real data.)*
+
+- **Stages** come from the codebook, so they fit the product type (hardware,
+  app, subscription).
+- **Emotion curve** = net sentiment (% positive − % negative) per stage.
+  Confidence band from the uncertain posts.
+- **Moments of truth:** the biggest drops are highlighted as research opportunities.
+- **Segment switcher:** see the journey for "Gen Z", "small business",
+  "parents", etc. Phase 3 overlays two.
+- **Live:** saved searches show "since last week" changes per stage.
+- **Thin data:** stages with < 20 posts are drawn faded, with the count shown.
+- Click any cell → the posts behind it.
+
+Charts follow the dataviz rules: colour-blind-safe palette, light and dark
+mode, a table view for every chart, and status colours always paired with an
+icon and label.

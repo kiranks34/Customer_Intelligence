@@ -1,77 +1,54 @@
-# Evaluation, test and validation plan
+# How we know Pulse is right
 
-## 1. The golden set
+## 1. Spot-check (the only manual step)
 
-The golden set is the source of truth for "is the sentiment represented
-accurately?".
+After each new search, Pulse shows you **20 randomly chosen posts that were
+counted automatically**, with Jev's answers. You tick right or wrong. It
+takes about 10 minutes. This is the same idea as the hand-verdict files,
+just smaller and built into the app.
 
-- **Composition:** 300–500 mentions per study, stratified by source,
-  product, star rating and length. **Over-sample hard cases**: mixed,
-  sarcasm, negation, comparisons, non-English, very short.
-- **Labelling:** two annotators label independently with the same guideline
-  (`eval/LABELING_GUIDE.md`, to be written in Sprint 1). Disagreements are
-  adjudicated. We report **Cohen's κ**. If κ < 0.7, the guideline is fixed
-  before any model is judged.
-- **Format:** `eval/golden_*.jsonl`. Each line holds a `mention_id`,
-  `overall_sentiment`, `aspects: {aspect: sentiment}`, `journey_stage` and,
-  optionally, `ownership_months`.
-- **Split:** `dev` (used for prompt iteration) / `test` (touched only for
-  release gates). The test split is never used for prompt tuning.
-- **Growth:** Jev review-queue corrections are appended to `dev` weekly.
+- ≥ 18 of 20 right → the report is trustworthy for this search.
+- Fewer → we look at what went wrong (question wording, codebook
+  definitions, threshold) before trusting the report.
 
-The repo ships a small **synthetic** golden file
-(`eval/golden_sample.jsonl`) that exercises the tooling. It is not a
-benchmark.
+The review queue (posts under 0.5 confidence) is separate. Reading those
+adds them to the counts.
 
-## 2. Metrics
+## 2. Feasibility gates (Phase 1)
 
-| Metric | Definition |
+Run on two real searches: one product search and one audience search.
+
+| Gate | Pass if |
 |---|---|
-| Overall sentiment accuracy / macro-F1 | Over {positive, negative, neutral, mixed} |
-| Aspect detection P/R/F1 | Aspect present vs. golden aspect set |
-| Aspect-sentiment F1 | (aspect, sentiment) pairs |
-| Journey-stage accuracy | Where golden has a stage |
-| Evidence grounding rate | % of evidence quotes found in source text |
-| Jev flag precision / miss rate / auto-accept | See JEV.md |
-| Cost per 1k mentions, p95 latency | From run logs |
+| Data | ≥ 300 relevant posts collected from free sources |
+| Accuracy | Spot-check ≥ 18/20 on sentiment and on journey stage |
+| Coverage | ≥ 70% of relevant posts counted automatically (Jev ≥ 0.8) |
+| Journey | ≥ 4 stages with ≥ 20 posts each (product search) |
+| Cost | ≤ $1.50 per search, all APIs |
+| Speed | ≤ 15 minutes from search to report |
+| Value | You find ≥ 3 insights worth acting on |
 
-## 3. Experiments and gates
+If a gate fails, we fix and re-run before building more. If accuracy or
+journey coverage can't pass, we rethink the approach before Phase 2.
 
-| Gate | When | Pass criteria |
-|---|---|---|
-| **MVE gate** | End of Sprint 2 | Claude+Jev macro-F1 ≥ 0.85 **and** ≥ +10 pts over the keyword baseline on the `test` split. Grounding ≥ 98%. Cost per 1k mentions within the agreed budget |
-| **Regression gate** | Every PR that changes a prompt, model, taxonomy or Jev threshold | No metric drops > 2 pts on `dev`. CI runs `pulse eval` |
-| **Release gate** | Before each MVP/V1 release | MVE gate criteria on `test`, plus UI acceptance tests |
-| **Drift check** | Weekly in production | Random 1% human audit. Alert if agreement drops > 5 pts |
+## 3. Report integrity checks (automatic, every report)
 
-Run it:
-```bash
-pulse eval --study studies/thermal_printers.yaml \
-           --input data/samples/thermal_printer_reviews.jsonl \
-           --golden eval/golden_sample.jsonl --enricher keyword
-# and with the LLM (needs ANTHROPIC_API_KEY):
-pulse eval ... --enricher claude
-```
+Same idea as the earlier `verify_*.py` scripts:
 
-## 4. Software test strategy
+- Every number in the report equals the SQL query it came from.
+- Every quote exists verbatim in the `post` table.
+- Every post ID Claude cites exists and belongs to this search.
+- Post counts per section add up to the base shown.
 
-| Level | Scope | Tooling |
-|---|---|---|
-| Unit | Schema validation, normalization, dedupe, each Jev check, metrics math | pytest |
-| Contract | `ClaudeEnricher` against a fake client (no network): request shape, refusal handling, parse errors | pytest |
-| Integration | Full pipeline on sample data with `KeywordEnricher` → store → metrics → report | pytest |
-| Evaluation | Golden-set scoring (above) | `pulse eval` |
-| UI (MVP) | Leadership view renders, drill-down links, a11y, mobile | Playwright |
-| Data quality | Row counts, null rates, duplicate rate, freshness per run | run checks + alerts |
+A failed check blocks the report from being marked "ready".
 
-## 5. Bug triage
+## 4. Software tests
 
-- **Sev 1:** wrong numbers on the leadership view, or data leaking across
-  studies. Fix before the next digest.
-- **Sev 2:** a mislabel pattern affecting a whole aspect or source. Add
-  failing cases to the golden `dev` set, fix the prompt/Jev rule, re-run the
-  gate.
-- **Sev 3:** cosmetic or single-record issues.
+| Level | What |
+|---|---|
+| Unit | Dedup, pseudonymization, confidence banding, aggregation math, cost meter |
+| Contract | Jev and Claude calls against recorded responses (no network) |
+| Integration | A full search on a fixture dataset → report |
+| UI | Search flow, journey map renders, drill-down to posts (Playwright) |
 
-Every model-quality bug becomes a golden-set test case, so it cannot regress
-silently.
+Every change gets `/code-review` before merge.
