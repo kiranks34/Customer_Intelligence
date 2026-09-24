@@ -24,6 +24,7 @@
 | D18 | Audience-type searches wait until the product search passes Phase 1 | Your choice |
 | D19 | Filters: family → series in Phase 1; model/SKU stored from day one, model filter in Phase 2 | Your choice. Storing early avoids re-scraping |
 | D20 | Price: store price observations per listing; price tier *within region*; promo detection via Jev; no exact price per post | Prices vary by region, promotion and date, and reviews rarely state price paid |
+| D21 | Per-channel journey and report views, plus a combined journey built stage by stage with channel mix, per-channel sentiment and evidence thresholds. Default is channel-balanced | Channels see different stages and people. Show only what the evidence supports |
 
 ## Open questions
 

@@ -57,6 +57,7 @@ working level to leadership can read them and ask for a deeper study.
 | U2 | See and edit how the search was interpreted: keywords, sources, and the discovered themes, segments and journey stages | 1 |
 | U3 | See a **customer journey map**: stages, emotion curve, pains, delights, touchpoints, quotes | 1 (basic) → 2 |
 | U4 | Filter the report and journey by segment, source, region, time | 2 |
+| U4b | See each channel's own report and journey (e.g. Amazon only), and a combined journey that shows which channels support each stage | 1 |
 | U5 | Click any number and read the exact posts behind it, with source link and date | 1 |
 | U6 | Review the posts Jev was unsure about, quickly | 1 |
 | U7 | Save a search so it refreshes daily and shows trends and "what changed" | 2 |

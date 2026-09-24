@@ -25,7 +25,8 @@ is a family.
 | Data | ≥ 300 relevant posts collected from free sources |
 | Accuracy | Spot-check ≥ 18/20 on sentiment and on journey stage |
 | Coverage | ≥ 70% of relevant posts counted automatically (Jev ≥ 0.8) |
-| Journey | ≥ 4 stages with ≥ 20 posts each (product search) |
+| Journey | Combined journey: ≥ 4 stages with ≥ 20 posts each (product search) |
+| Multi-channel value | The combined journey covers more evidenced stages than any single channel (tests whether combining channels is worth it) |
 | Model mapping | ≥ 90% of retail reviews mapped to a model. Spot-check 20 social posts mapped to a model: ≥ 18 right |
 | Cost | ≤ $1.50 per search, all APIs |
 | Speed | ≤ 15 minutes from search to report |

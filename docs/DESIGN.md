@@ -48,6 +48,39 @@ quote     "…"       "…"       "…"      "…"      "…"         "…"     
 - **Thin data:** stages with < 20 posts are drawn faded, with the count shown.
 - Click any cell → the posts behind it.
 
+### Channels: one journey per channel, plus a combined journey
+
+Each channel sees a different slice of the journey and a different kind of
+person:
+
+| Channel | Mostly shows | Bias to keep in mind |
+|---|---|---|
+| Amazon / retail reviews | Buy, set up, early use, problems | Verified buyers. Extremes (1★/5★). Little pre-purchase |
+| Reddit | Compare ("which should I buy?"), troubleshooting, long-term use | Enthusiasts and people with problems. Skews negative |
+| YouTube | Discover, compare, unboxing/setup. Comments hold questions and problems | Reviewer-led. Comments react to the video |
+| TikTok / Instagram (Phase 2) | Discover, aesthetics, hype | Skews positive and promotional |
+
+So Pulse offers two views:
+
+1. **Channel view** (filter = one channel). That channel's own journey and
+   report, including channel-native metrics (Amazon: star distribution,
+   verified purchase. YouTube: views/likes. Reddit: upvotes/thread depth).
+   Stages with too little evidence are faded with their count, or hidden.
+   If Reddit can't show a full journey, it doesn't.
+2. **Combined journey** (default for a family or series). Built stage by
+   stage, never by pooling everything into one average:
+   - A stage appears only if it has enough evidence (≥ 20 posts) across channels.
+   - Each stage shows its **channel mix** ("Compare: Reddit 60%, YouTube 35%, Amazon 5%").
+   - Stage sentiment is shown **per channel** (one dot each) with the
+     combined value. When channels disagree strongly, the stage is marked.
+     That disagreement is often an insight in itself: happy Amazon buyers
+     and frustrated Reddit posters may be different kinds of people.
+   - A toggle chooses between volume-weighted (big channels count more) and
+     channel-balanced (each channel with enough evidence counts equally).
+     The default is channel-balanced, so Amazon's volume doesn't drown out the rest.
+   - Absolute sentiment is not compared across channels as if the audiences
+     were equal. Comparisons are within a channel, or of changes over time.
+
 Charts follow the dataviz rules: colour-blind-safe palette, light and dark
 mode, a table view for every chart, and status colours always paired with an
 icon and label.
