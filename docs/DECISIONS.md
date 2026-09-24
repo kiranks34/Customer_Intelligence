@@ -20,12 +20,14 @@
 | D14 | Regions: North America, China, LATAM, India | Your choice |
 | D15 | Claude Opus 5 for planning, codebook, catalog and narrative | Your choice. ~$0.5–1 per search at this volume |
 | D16 | Vercel Hobby. Pipeline built as small resumable steps. Upgrade to Pro only if needed | Your choice |
+| D17 | Phase 1 scope: Smart Tank, North America only (Amazon.com, YouTube, Reddit) | Your choice. Other regions in Phase 2 |
+| D18 | Audience-type searches wait until the product search passes Phase 1 | Your choice |
+| D19 | Filters: family → series in Phase 1; model/SKU stored from day one, model filter in Phase 2 | Your choice. Storing early avoids re-scraping |
+| D20 | Price: store price observations per listing; price tier *within region*; promo detection via Jev; no exact price per post | Prices vary by region, promotion and date, and reviews rarely state price paid |
 
 ## Open questions
 
 | # | Question | Needed by |
 |---|---|---|
-| Q1 | Phase 1 scope: NA only (Amazon.com + YouTube + Reddit), or all four regions from the start? | Phase 1 start |
-| Q2 | Audience-type test search (e.g. "Gen Z and printers"). Phase 1 or later? | Phase 1 |
 | Q3 | Jev: several questions per call? multi-select? input length? Spanish, Portuguese and Hindi quality? (We'll test; Chinese was validated earlier) | Phase 1 |
 | Q4 | Which retailers are reachable via Apify at acceptable cost (Best Buy, Costco, Target, Walmart, Flipkart, Mercado Libre, JD)? | Phase 2 |

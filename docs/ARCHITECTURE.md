@@ -98,6 +98,9 @@ stops at the per-search cap. One source failing never fails the search.
 catalog_node(id, search_id, level[category|family|series|model|sku|service],
              parent_id, name, aliases[], region, retailer_ids[])
 post_product(post_id, node_id, method[listing|jev|review], confidence)
+price_observation(node_id, retailer, country, currency, list_price,
+                  current_price, observed_at)
+price_tier(node_id, country, tier[entry|mid|premium], computed_at)
 ```
 
 - Built by Claude from retailer listings + a sample of posts. You edit it.

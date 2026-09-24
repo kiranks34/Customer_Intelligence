@@ -91,6 +91,29 @@ Services        e.g. Instant Ink, All-In Plan (print as a service), HP+, warrant
   service · region/country · retailer/source · segment · journey stage ·
   sentiment · rating · time.
 
+**Filter levels by phase.** Phase 1 shows **family → series**. Model and SKU
+are *stored* from day one, because retail listings give them for free and
+backfilling later would mean re-scraping. The **model** filter is switched on
+in Phase 2. Posts that name only the family ("my Smart Tank…") appear as
+"series not stated", so we can see how big that bucket is.
+
+### Price
+
+Prices vary by region, retailer, promotion and date, and reviews rarely
+say what the person paid. So Pulse does **not** attach an exact price to
+each post. Instead:
+
+| What | How | Phase |
+|---|---|---|
+| **Price observations** | Each time a listing is collected, store list price, current price, currency, retailer, country and date | 1 |
+| **Bought on promotion?** | Jev question: full price / on sale or deal / not stated | 1 |
+| **Value for money** | A standard theme in every codebook (positive/negative) | 1 |
+| **Price tier** | entry / mid / premium, **within each region** (from that region's price observations). A US "entry" price is not an India "entry" price, so we avoid converting to one currency | 2 |
+| **Promotion calendar** | Mark Prime Day, Black Friday, Diwali, 618 / Double 11, Hot Sale etc. on trend charts, and compare promo buyers with full-price buyers | 2 |
+| **Stated price paid** | When a post says it ("got it for $149"), store it. This will be sparse | 2 |
+
+The **price tier** becomes a filter alongside the product levels.
+
 **Regions in scope:** North America, China, LATAM, India. Languages follow:
 English, Spanish, Portuguese, Chinese, Hindi/Hinglish.
 
