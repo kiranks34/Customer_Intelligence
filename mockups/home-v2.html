@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pulse home mock</title>
+<style>
+  :root {
+    --bg: #fcfcfb; --fg: #0b0b0b; --muted: #52514e; --surface: #fff; --border: #e4e3df;
+    --accent: #2a78d6; --accent-soft: #eaf2fc; --warning: #fab219; --warn-soft: #fff6e0; --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 28px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  a { color: inherit; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+  .spend { text-align: right; font-size: 13px; }
+  .meter { width: 160px; height: 6px; background: var(--border); border-radius: 99px; margin-top: 6px; margin-left: auto; }
+  .meter i { display: block; height: 6px; width: 16%; background: var(--accent); border-radius: 99px; }
+
+  .step { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .step b { width: 22px; height: 22px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; font-size: 12px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+
+  /* Products */
+  .prod-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .tabs { display: flex; gap: 6px; }
+  .tab { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); font-size: 14px; }
+  .tab.on { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+  .tab.add { color: var(--muted); border-style: dashed; }
+  .prod-meta { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; }
+  .pill { background: var(--warn-soft); border: 1px solid #f3d27c; padding: 3px 10px; border-radius: 99px; font-weight: 600; text-decoration: none; }
+  .manage { font-weight: 600; color: var(--accent); text-decoration: none; }
+
+  .prod-body { display: grid; grid-template-columns: 1.1fr 1fr; }
+  .col { padding: 14px 18px 18px; }
+  .col + .col { border-left: 1px solid var(--border); }
+  .col-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .col-title h3 { margin: 0; font-size: 15px; }
+  .filter { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 14px; margin-bottom: 8px; background: var(--bg); }
+  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .row { display: grid; grid-template-columns: 18px minmax(0,1fr) 88px 40px; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .row:hover { background: #f3f3f1; }
+  .row.on { background: var(--accent-soft); outline: 1.5px solid var(--accent); }
+  .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row.on .name { font-weight: 600; }
+  .radio { width: 16px; height: 16px; border: 1.5px solid #b9b8b3; border-radius: 50%; }
+  .row.on .radio { border: 5px solid var(--accent); }
+  .bar { height: 6px; background: var(--border); border-radius: 99px; }
+  .bar i { display: block; height: 6px; background: var(--accent); border-radius: 99px; opacity: .8; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .none { font-size: 12px; color: var(--muted); font-style: italic; text-align: right; grid-column: 3 / 5; }
+  .more { margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .legend { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
+
+  /* Ask */
+  .ask { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .picked { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+  .chip { background: var(--accent-soft); color: #174f93; padding: 4px 10px; border-radius: 99px; font-weight: 600; }
+  .askrow { display: flex; gap: 10px; }
+  .askrow input { flex: 1; padding: 13px 14px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 16px; background: var(--bg); }
+  .go { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 0 22px; font: inherit; font-weight: 600; font-size: 16px; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 6px; }
+  .suggest span { border: 1px solid var(--border); border-radius: 99px; padding: 3px 10px; font-size: 13px; color: var(--muted); }
+
+  /* Recent */
+  .recent { list-style: none; margin: 0; padding: 0; }
+  .recent li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .recent li:first-child { border-top: 0; }
+  .recent .q { font-weight: 600; }
+  .status { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #eef7ee; color: #2d6a2d; align-self: start; }
+  .status.wait { background: #f1f1ef; color: var(--muted); }
+
+  .note { border: 1px dashed #c9c8c3; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--muted); background: #fff; }
+
+  @media (max-width: 720px) {
+    .prod-body { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--border); }
+    .prod-meta { margin-left: 0; }
+    .askrow { flex-direction: column; }
+    .go { padding: 13px; }
+    .row { grid-template-columns: 18px minmax(0,1fr) 60px 34px; }
+    .hide-m { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="note">Mock, not the real app. The numbers are sample data, just to show the layout.</p>
+
+  <header>
+    <div>
+      <h1>Pulse</h1>
+      <div class="muted">What customers say in public, verified post by post.</div>
+    </div>
+    <div class="spend"><span class="muted">This month</span> <b>$3.20</b> <span class="muted">of $20</span><div class="meter"><i></i></div></div>
+  </header>
+
+  <!-- 1. PRODUCTS: the dedicated space -->
+  <section>
+    <p class="step"><b>1</b> Product catalog <span style="text-transform:none;font-weight:400">· pick what to search</span></p>
+    <div class="card">
+      <div class="prod-head">
+        <div class="tabs">
+          <span class="tab on">HP Smart Tank</span>
+          <span class="tab add">+ Family</span>
+        </div>
+        <div class="prod-meta">
+          <span class="muted">27 series · 130 models · checked against HP on 25 Sep</span>
+          <a class="pill" href="#">2 new models to review</a>
+          <a class="manage" href="#">Manage catalog →</a>
+        </div>
+      </div>
+
+      <div class="prod-body">
+        <div class="col">
+          <div class="col-title"><h3>Series</h3><span class="small muted">most discussed first</span></div>
+          <input class="filter" placeholder="Filter series, e.g. 7300 or 580" />
+          <ul class="rows">
+            <li class="row"><span class="radio"></span><span class="name">5100 series</span><span class="bar"><i style="width:100%"></i></span><span class="num">165</span></li>
+            <li class="row on"><span class="radio"></span><span class="name">7300 series</span><span class="bar"><i style="width:74%"></i></span><span class="num">122</span></li>
+            <li class="row"><span class="radio"></span><span class="name">7600 series</span><span class="bar"><i style="width:52%"></i></span><span class="num">86</span></li>
+            <li class="row"><span class="radio"></span><span class="name">750 series</span><span class="bar"><i style="width:31%"></i></span><span class="num">51</span></li>
+            <li class="row"><span class="radio"></span><span class="name">580 series</span><span class="bar"><i style="width:12%"></i></span><span class="num">19</span></li>
+            <li class="row"><span class="radio"></span><span class="name">6000 series</span><span class="none">not collected yet</span></li>
+          </ul>
+          <div class="more">+ 21 more series (filter to find one)</div>
+        </div>
+
+        <div class="col">
+          <div class="col-title"><h3>Model <span class="small muted">in 7300 series</span></h3><span class="small muted">optional</span></div>
+          <ul class="rows">
+            <li class="row on"><span class="radio"></span><span class="name">All 4 models</span><span class="bar"><i style="width:100%"></i></span><span class="num">122</span></li>
+            <li class="row"><span class="radio"></span><span class="name">7301</span><span class="bar"><i style="width:60%"></i></span><span class="num">73</span></li>
+            <li class="row"><span class="radio"></span><span class="name">7305</span><span class="bar"><i style="width:26%"></i></span><span class="num">32</span></li>
+            <li class="row"><span class="radio"></span><span class="name">7306</span><span class="bar"><i style="width:14%"></i></span><span class="num">17</span></li>
+            <li class="row"><span class="radio"></span><span class="name">7302</span><span class="none">not collected yet</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span>Bars = posts already collected across all your searches. They show where you have evidence, not how popular a model is.</span>
+        <span>“Not collected yet” = no search has covered it yet.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. ASK -->
+  <section>
+    <p class="step"><b>2</b> Ask a question <span style="text-transform:none;font-weight:400">(optional)</span></p>
+    <div class="card ask">
+      <div class="picked"><span class="muted">Searching:</span><span class="chip">HP Smart Tank 7300 series · all 4 models</span><span class="small muted hide-m">122 posts already collected</span></div>
+      <div class="askrow">
+        <input placeholder="e.g. What do people say about Wi-Fi setup?" />
+        <button class="go">Plan search</button>
+      </div>
+      <div class="suggest"><span>Top complaints</span><span>Ink and running cost</span><span>Setup and Wi-Fi</span><span>Compared with Epson EcoTank</span></div>
+      <div class="small muted">Leave it empty for a general overview. Claude drafts a plan (a few cents). Nothing is collected until you press Run.</div>
+    </div>
+  </section>
+
+  <!-- 3. RECENT -->
+  <section>
+    <p class="step"><b>3</b> Or continue a recent search</p>
+    <div class="card">
+      <ul class="recent">
+        <li><span class="q">HP Smart Tank 7301 · connectivity issues</span><span class="status">200 posts</span><span class="small muted">Today 10:42 · YouTube 100 · Reddit 100</span></li>
+        <li><span class="q">HP Smart Tank printers</span><span class="status">300 posts</span><span class="small muted">Yesterday 18:05 · YouTube 150 · Reddit 150</span></li>
+        <li><span class="q">Smart Tank 5100 series · ink cost</span><span class="status wait">Plan ready</span><span class="small muted">23 Sep 09:12 · not run yet</span></li>
+      </ul>
+    </div>
+  </section>
+</main>
+</body>
+</html>
