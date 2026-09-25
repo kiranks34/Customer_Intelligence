@@ -86,11 +86,13 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
 
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div>
-          <dt className="text-muted">Posts collected</dt>
-          <dd className="text-xl font-semibold tabular-nums">
-            {p.totalPosts}
-            <span className="text-sm font-normal text-muted"> / {p.postCap}</span>
-          </dd>
+          <dt className="text-muted">Posts collected (total)</dt>
+          <dd className="text-xl font-semibold tabular-nums">{p.totalPosts}</dd>
+          {hasRun && (
+            <dd className="text-xs text-muted">
+              Last run added {p.runPosts} of up to {p.postCap}
+            </dd>
+          )}
         </div>
         {Object.entries(p.postsBySource).map(([s, n]) => (
           <div key={s}>
@@ -146,7 +148,7 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
         )}
       </div>
       <p className="text-xs text-muted">
-        Collection runs while this page is open. Closing it pauses safely; press Continue to pick up where it stopped.
+        Collection runs while this page is open; closing it pauses safely. Each run adds up to {p.postCap} new posts and skips ones already collected.
       </p>
     </section>
   );

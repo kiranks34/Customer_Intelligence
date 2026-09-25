@@ -178,7 +178,10 @@ export interface Progress {
   /** Job counts for the latest run only. */
   jobs: { queued: number; running: number; waiting: number; done: number; failed: number };
   postsBySource: Record<string, number>;
+  /** All posts stored for this search, across every run. */
   totalPosts: number;
+  /** Posts stored by the latest run (each run adds at most postCap new posts). */
+  runPosts: number;
   postCap: number;
   costUsd: number;
   finished: boolean;
@@ -189,7 +192,7 @@ export async function progress(searchId: number): Promise<Progress> {
   const d = requireDb();
   const latestRun = sql`(select max((cursor->>'run')::bigint) from ${jobs} where search_id = ${searchId})`;
   const inLatestRun = and(eq(jobs.searchId, searchId), sql`(${jobs.cursor}->>'run')::bigint = ${latestRun}`);
-  const [jobRows, openRows, postRows, [costRow], latest, errs] = await Promise.all([
+  const [jobRows, openRows, postRows, [costRow], latest, errs, [runRow]] = await Promise.all([
     d.select({ status: jobs.status, n: count() }).from(jobs).where(inLatestRun).groupBy(jobs.status),
     d
       .select({ n: count() })
@@ -203,14 +206,17 @@ export async function progress(searchId: number): Promise<Progress> {
       .from(jobs)
       .where(and(inLatestRun, sql`${jobs.lastError} is not null and ${jobs.status} in ('failed','waiting')`))
       .limit(3),
+    d.select({ baseline: sql<string | null>`${jobs.cursor}->>'baseline'` }).from(jobs).where(inLatestRun).limit(1),
   ]);
   const j = { queued: 0, running: 0, waiting: 0, done: 0, failed: 0 };
   for (const r of jobRows) j[r.status] = r.n;
   const postsBySource = Object.fromEntries(postRows.map((r) => [r.source, r.n]));
+  const totalPosts = postRows.reduce((s, r) => s + r.n, 0);
   return {
     jobs: j,
     postsBySource,
-    totalPosts: postRows.reduce((s, r) => s + r.n, 0),
+    totalPosts,
+    runPosts: runRow ? Math.max(0, totalPosts - Number(runRow.baseline ?? 0)) : 0,
     postCap: latest?.plan.postCap ?? 0,
     costUsd: Number(costRow?.usd ?? 0),
     finished: (openRows[0]?.n ?? 0) === 0,
