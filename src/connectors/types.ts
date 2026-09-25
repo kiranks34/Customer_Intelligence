@@ -25,7 +25,7 @@ export interface RawPost {
 
 /** What one paid/metered call cost, recorded via `recordCost`. */
 export interface CallCost {
-  provider: "youtube" | "scrapecreators" | "apify";
+  provider: "youtube" | "scrapecreators" | "apify" | "anthropic";
   operation: string;
   usd: number;
   units: Record<string, number>;

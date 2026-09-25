@@ -110,6 +110,11 @@ price_tier(node_id, country, tier[entry|mid|premium], computed_at)
 
 ## 7. Running on Vercel Hobby
 
+Phase 1: the search page drives collection by calling a server action that works through queued jobs for
+about 20 seconds at a time (`src/lib/collect.ts`). Jobs are claimed atomically, retried with delays, capped
+by the plan's post limit, and paused by the budget guard. Closing the page pauses the run.
+
+
 Hobby limits function run time and allows daily cron jobs only. Pulse is
 designed to fit:
 - The pipeline runs as **small resumable steps**. Each step handles one batch

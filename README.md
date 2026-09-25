@@ -4,7 +4,7 @@ Search-driven customer intelligence from public data. Type a product,
 category or audience question. Get an evidence-backed report and a live
 customer journey map, verified post by post with Jev.
 
-**Status:** Phase 1, step 2: data sources (YouTube, Reddit via ScrapeCreators; Amazon via Apify later). Test them at `/sources`. No searches yet.
+**Status:** Phase 1, step 3: type a topic or a question, review Claude's plan, and collect posts from YouTube and Reddit. Classification and reports come next.
 
 | Doc | What it covers |
 |---|---|

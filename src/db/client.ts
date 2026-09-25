@@ -15,3 +15,10 @@ export function getDb(): NeonHttpDatabase<typeof schema> | null {
   db = drizzle(neon(url), { schema });
   return db;
 }
+
+/** For code paths that cannot work without a database. */
+export function requireDb(): NeonHttpDatabase<typeof schema> {
+  const d = getDb();
+  if (!d) throw new Error("DATABASE_URL is not set");
+  return d;
+}

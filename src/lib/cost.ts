@@ -2,7 +2,7 @@ import "server-only";
 
 import { gte, sql } from "drizzle-orm";
 
-import { getDb } from "@/db/client";
+import { getDb, requireDb } from "@/db/client";
 import { costEvents } from "@/db/schema";
 
 import { budgetStatus, monthlyBudgetUsd, monthStartUtc, type BudgetStatus } from "./budget";
@@ -16,9 +16,7 @@ export interface CostEventInput {
 }
 
 export async function recordCost(e: CostEventInput): Promise<void> {
-  const db = getDb();
-  if (!db) throw new Error("DATABASE_URL is not set");
-  await db.insert(costEvents).values({
+  await requireDb().insert(costEvents).values({
     searchId: e.searchId,
     provider: e.provider,
     operation: e.operation,
@@ -46,4 +44,15 @@ export async function monthToDate(now: Date = new Date()): Promise<SpendResult> 
     console.error("monthToDate failed", err);
     return { state: "error", message: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * The one rule for starting paid work. It fails closed: if spend can't be read, it can't be checked against
+ * the budget or recorded, so the answer is no.
+ */
+export async function paidWorkBlockedReason(): Promise<string | null> {
+  const spend = await monthToDate();
+  if (spend.state !== "ok") return "the spend meter can't read the database";
+  if (spend.status.level === "over") return "the monthly budget has been reached";
+  return null;
 }

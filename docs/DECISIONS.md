@@ -28,6 +28,8 @@
 | D22 | Reddit is collected through ScrapeCreators, not Reddit's API | Reddit refused API access in the earlier project; ScrapeCreators worked there |
 | D23 | Phase 1 feasibility runs on YouTube + Reddit only; Amazon (Apify) follows when credits are topped up | Apify free credits are used up. Trade-off: fewer buy/setup-stage posts, so the journey gate is judged on social data first |
 | D24 | Database changes ship as paste-ready SQL for Neon's SQL Editor (`drizzle/editor/`) | The command-line migration needs a local setup; the editor path is what worked |
+| D25 | The search box accepts a topic or a question. Questions become a focused, time-bounded collection; the answer card (step 8) gives numbers from SQL and cites posts, and says when evidence is thin | Your request. "How many users" means "how many people posted publicly on the sources read" |
+| D26 | Collection is driven by the open search page calling small steps (no background worker yet); closing the page pauses safely | Fits Vercel Hobby without Pro or extra services. Daily refresh of saved searches (cron) comes in Phase 2 |
 
 ## Open questions
 
