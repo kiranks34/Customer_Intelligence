@@ -423,8 +423,11 @@ export function guessSeries(root: TreeNode, number: string): number | null {
 export function snippet(text: string, mention: string, radius = 70): string | null {
   const t = text.replace(/\s+/g, " ").trim();
   const words = normalize(mention).split(" ");
-  const re = new RegExp(words.map((w, i) => (i === 0 ? escape(w) : `\\s*${escape(w)}`)).join(""), "i");
-  const m = re.exec(t.normalize("NFKC").replace(/[-_/]/g, " "));
+  // Matched on the original text (spaces, dashes or nothing between words), whole words only: "580" never
+  // shows a post about the 5801.
+  const body = words.map((w, i) => (i === 0 ? escape(w) : `[\\s\\-_/]*${escape(w)}`)).join("");
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, "iu");
+  const m = re.exec(t);
   if (!m) return null;
   const start = Math.max(0, m.index - radius);
   const end = Math.min(t.length, m.index + m[0].length + radius);

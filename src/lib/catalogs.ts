@@ -264,7 +264,11 @@ export async function setRetired(catalogId: number, nodeId: number, retired: boo
     const at = new Date();
     await db.batch([
       db.update(catalogNodes).set({ retiredAt: at }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
-      db.update(catalogNodes).set({ retiredAt: at }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), isNull(catalogNodes.retiredAt))),
+      // Proposals under it stay waiting for your decision (retiring them would reject them silently).
+      db
+        .update(catalogNodes)
+        .set({ retiredAt: at })
+        .where(and(inCatalog, eq(catalogNodes.parentId, nodeId), isNull(catalogNodes.retiredAt), isNull(catalogNodes.proposedAt))),
     ]);
     return;
   }
@@ -350,47 +354,59 @@ export async function findProposals(catalogId: number): Promise<{ reference: num
 
   const ref = referenceFor(catalog.key);
   if (ref) {
-    const seriesByName = new Map(tree.children.map((s) => [squashName(s.name), s.id]));
-    for (const s of ref.series) {
-      let parentId = seriesByName.get(squashName(s.name)) ?? null;
-      if (parentId === null && !isKnown(s.name)) {
-        [{ id: parentId }] = await db
-          .insert(catalogNodes)
-          .values({ catalogId, parentId: family, level: "series", name: s.name, aliases: [], verified: true, proposedAt: now, evidence: { source: "reference", url: s.sources[0]?.url } })
-          .returning({ id: catalogNodes.id });
-        remember(s.name);
-        fromReference++;
-      }
-      for (const m of s.models) {
-        if (isKnown(m.name, m.number)) continue;
-        await db.insert(catalogNodes).values({
+    // Series by name: approved ones and ones still waiting for approval, so new models attach to either.
+    const waitingSeries = await db
+      .select({ id: catalogNodes.id, name: catalogNodes.name })
+      .from(catalogNodes)
+      .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.level, "series"), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt)));
+    const seriesByName = new Map<string, number>([
+      ...tree.children.filter((s) => s.id !== null).map((s) => [squashName(s.name), s.id!] as [string, number]),
+      ...waitingSeries.map((s) => [squashName(s.name), s.id] as [string, number]),
+    ]);
+    const newSeries = ref.series.filter((s) => !seriesByName.has(squashName(s.name)) && !isKnown(s.name));
+    if (newSeries.length) {
+      const rows = await db
+        .insert(catalogNodes)
+        .values(newSeries.map((s) => ({ catalogId, parentId: family, level: "series" as const, name: s.name, aliases: [], verified: true, proposedAt: now, evidence: { source: "reference", url: s.sources[0]?.url } })))
+        .returning({ id: catalogNodes.id, name: catalogNodes.name });
+      for (const r of rows) seriesByName.set(squashName(r.name), r.id);
+      remember(...newSeries.map((s) => s.name));
+      fromReference += rows.length;
+    }
+    const newModels = ref.series.flatMap((s) =>
+      s.models
+        .filter((m) => !isKnown(m.name, m.number))
+        .map((m) => ({
           catalogId,
-          parentId,
-          level: "model",
+          parentId: seriesByName.get(squashName(s.name)) ?? null,
+          level: "model" as const,
           name: m.name,
           aliases: [m.number, ...m.aliases],
           verified: true,
           proposedAt: now,
           evidence: { source: "reference", url: m.sources[0]?.url },
-        });
-        remember(m.name, m.number);
-        fromReference++;
-      }
+        })),
+    );
+    if (newModels.length) {
+      await db.insert(catalogNodes).values(newModels);
+      remember(...newModels.flatMap((m) => [m.name, ...m.aliases]));
+      fromReference += newModels.length;
     }
   }
 
   const nodes = flatten(tree);
   const match = compileMatcher(nodes, { sharedNumbers: ref?.sharedNumbers ?? [] });
   const texts = await postTexts({ catalogId });
+  const fromMentions = [];
   for (const m of findMentions(texts, familyTerms([tree.name, ...tree.aliases]), 60)) {
     const number = m.text.match(/(\d{3,4}[a-z]{0,2})$/)?.[1];
     if (m.posts < MIN_POSTS || !number || isCovered(m.text, match, nodes) || isKnown(m.text, number)) continue;
     const proposal = modelFromMention(m.text);
     const examples = texts.map((t) => snippet(t, m.text)).filter((x): x is string => x !== null).slice(0, 2);
-    await db.insert(catalogNodes).values({
+    fromMentions.push({
       catalogId,
       parentId: guessSeries(tree, number.replace(/[a-z]+$/, "")),
-      level: "model",
+      level: "model" as const,
       name: proposal.name,
       aliases: proposal.aliases,
       verified: false,
@@ -398,23 +414,24 @@ export async function findProposals(catalogId: number): Promise<{ reference: num
       evidence: { source: "posts", posts: m.posts, examples },
     });
     remember(m.text, number);
-    fromPosts++;
   }
+  if (fromMentions.length) await db.insert(catalogNodes).values(fromMentions);
+  fromPosts = fromMentions.length;
   return { reference: fromReference, posts: fromPosts };
 }
 
 /**
- * Approves a proposal with the name and series you chose. Approving a proposed series approves the models
- * proposed under it too. Returns the approved node ids.
+ * Approves a proposal with the name and series you chose. For a proposed series, `childIds` are the models waiting
+ * under it that can be approved with it (the action leaves out any whose name another product already has).
  */
-export async function approveProposal(catalogId: number, nodeId: number, name: string, parentId: number): Promise<void> {
+export async function approveProposal(catalogId: number, nodeId: number, name: string, parentId: number, childIds: number[] = []): Promise<void> {
   const db = requireDb();
+  const inCatalog = eq(catalogNodes.catalogId, catalogId);
   await db.batch([
-    db.update(catalogNodes).set({ name, parentId, proposedAt: null }).where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.id, nodeId))),
-    db
-      .update(catalogNodes)
-      .set({ proposedAt: null })
-      .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.parentId, nodeId), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt))),
+    db.update(catalogNodes).set({ name, parentId, proposedAt: null }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
+    ...(childIds.length
+      ? [db.update(catalogNodes).set({ proposedAt: null }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), inArray(catalogNodes.id, childIds), isNull(catalogNodes.retiredAt)))]
+      : []),
   ]);
 }
 

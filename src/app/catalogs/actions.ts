@@ -16,6 +16,7 @@ import {
   createCatalog,
   findProposals,
   getCatalog,
+  listProposals,
   linkSearch,
   matchCatalog,
   matchSearch,
@@ -25,6 +26,7 @@ import {
   saveTree,
   setAliases,
   setRetired,
+  type Proposal,
 } from "@/lib/catalogs";
 import { loadPlan } from "@/lib/collect";
 import { recordCost } from "@/lib/cost";
@@ -241,10 +243,21 @@ export async function approveProposalAction(catalogId: number, nodeId: number, n
     }
     const clash = nameConflict(found.tree, nodeId, clean);
     if (clash) return { ok: false, message: `“${clean}” already means ${clash}.` };
-    await approveProposal(catalogId, nodeId, clean, parentId);
+    // A series brings its waiting models along, except any whose name or number another product already has.
+    let childIds: number[] = [];
+    let held: string[] = [];
+    if (node.level === "series") {
+      const children = (await listProposals(catalogId)).filter((p) => p.parentId === nodeId);
+      const clashes = (p: Proposal) => [p.name, ...p.aliases].some((n) => nameConflict(found.tree, p.id, n));
+      childIds = children.filter((p) => !clashes(p)).map((p) => p.id);
+      held = children.filter(clashes).map((p) => p.name);
+    }
+    await approveProposal(catalogId, nodeId, clean, parentId, childIds);
     await matchCatalog(catalogId);
     revalidatePath(`/catalogs/${catalogId}`);
-    return { ok: true, message: `Added ${clean}. Posts were re-linked.` };
+    const models = childIds.length ? ` with ${childIds.length} models` : "";
+    const kept = held.length ? ` ${held.join(", ")} stayed in To review because another product already has that name.` : "";
+    return { ok: true, message: `Added ${clean}${models}. Posts were re-linked.${kept}` };
   } catch (err) {
     return { ok: false, message: `Couldn't approve: ${errorText(err)}` };
   }

@@ -217,5 +217,7 @@ describe("proposals", () => {
     const text = "I bought it last year. My Smart-Tank 7315 keeps dropping wifi every morning and support was no help at all.";
     expect(snippet(text, "smart tank 7315", 20)).toBe("…ht it last year. My Smart-Tank 7315 keeps dropping wifi…");
     expect(snippet("nothing here", "smart tank 7315")).toBeNull();
+    expect(snippet("my Smart Tank 5801 is fine", "smart tank 580")).toBeNull();
+    expect(snippet("Great… really. SmartTank 580 “works”", "smart tank 580", 8)).toBe("…really. SmartTank 580 “works”");
   });
 });
