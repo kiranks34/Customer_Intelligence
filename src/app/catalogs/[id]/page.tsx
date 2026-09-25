@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { normalize } from "@/lib/catalog";
+import { modelNote, sourcesByName } from "@/lib/catalog-reference";
+import { referenceFor } from "@/lib/catalog-references";
 import { catalogStats, getCatalog, uncoveredMentions } from "@/lib/catalogs";
 
 import { CatalogEditor } from "./catalog-editor";
@@ -14,7 +17,16 @@ export default async function CatalogPage({ params }: PageProps<"/catalogs/[id]"
   const found = await getCatalog(id);
   if (!found) notFound();
   const { catalog, tree } = found;
-  const [stats, uncovered] = await Promise.all([catalogStats(id), uncoveredMentions(id, tree)]);
+  const [stats, uncovered] = await Promise.all([catalogStats(id), uncoveredMentions(id, tree, catalog.key)]);
+  const ref = referenceFor(catalog.key);
+  const reference = ref
+    ? {
+        checkedAt: ref.checkedAt,
+        sources: sourcesByName(ref),
+        notes: Object.fromEntries(ref.series.flatMap((s) => s.models.map((m) => [normalize(m.name), modelNote(m)]))),
+        unverified: ref.unverified,
+      }
+    : null;
   const pct = stats.posts ? Math.round((stats.postsNamingProduct / stats.posts) * 100) : 0;
 
   return (
@@ -34,7 +46,7 @@ export default async function CatalogPage({ params }: PageProps<"/catalogs/[id]"
           {stats.searches === 1 ? "search" : "searches"}. The rest talk about the family in general. Shared by every search of this family.
         </p>
       </header>
-      <CatalogEditor key={catalog.updatedAt.toISOString()} catalogId={id} tree={tree} status={catalog.status} counts={stats.byNode} posts={stats.posts} uncovered={uncovered} />
+      <CatalogEditor key={catalog.updatedAt.toISOString()} catalogId={id} tree={tree} status={catalog.status} counts={stats.byNode} posts={stats.posts} uncovered={uncovered} reference={reference} />
     </main>
   );
 }

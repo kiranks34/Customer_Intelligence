@@ -181,3 +181,12 @@ describe("how people type model names", () => {
     ]);
   });
 });
+
+it("numbers shared with another product line only count after this family's own name", () => {
+  const nodes = flatten(tree);
+  const match = compileMatcher(nodes, { sharedNumbers: ["580"] });
+  expect(match("ink tank 580")).toEqual([]);
+  expect(match("tank 580")).toEqual([]);
+  expect(match("SmartTank 580")).toEqual([6]);
+  expect(compileMatcher(nodes)("ink tank 580")).toEqual([6]);
+});

@@ -5,6 +5,7 @@ import { and, asc, count, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { requireDb } from "@/db/client";
 import { catalogNodes, catalogs, postProducts, posts, searches } from "@/db/schema";
 
+import { referenceFor } from "./catalog-references";
 import { cleanTree, compileMatcher, findMentions, familyTerms, flatten, isCovered, type FlatNode, type Level, type Mention, type TreeNode } from "./catalog";
 
 /** Database side of the product catalog (docs/DECISIONS.md D29). Counts come from SQL over post_products. */
@@ -118,7 +119,8 @@ const CHUNK = 500;
 async function relink(catalogId: number, searchId?: number): Promise<number> {
   const db = requireDb();
   const nodes: FlatNode[] = (await loadNodes(catalogId)).map((n) => ({ ...n, level: n.level as Level }));
-  const match = compileMatcher(nodes);
+  const [c] = await db.select({ key: catalogs.key }).from(catalogs).where(eq(catalogs.id, catalogId));
+  const match = compileMatcher(nodes, { sharedNumbers: (c && referenceFor(c.key)?.sharedNumbers) || [] });
   const scope = searchId === undefined ? eq(searches.catalogId, catalogId) : and(eq(searches.catalogId, catalogId), eq(searches.id, searchId));
   const rows = await db.select({ id: posts.id, title: posts.title, text: posts.text }).from(posts).innerJoin(searches, eq(posts.searchId, searches.id)).where(scope);
   const links = rows.flatMap((p) => match(`${p.title}\n${p.text}`).map((nodeId) => ({ postId: p.id, nodeId, method: "alias" as const, confidence: 1 })));
@@ -187,9 +189,9 @@ export async function postTexts(opts: { searchId: number } | { catalogId: number
 }
 
 /** Model-like mentions in the catalog's posts that no model covers yet, e.g. a model Claude missed. */
-export async function uncoveredMentions(catalogId: number, tree: TreeNode, limit = 15): Promise<Mention[]> {
+export async function uncoveredMentions(catalogId: number, tree: TreeNode, key: string, limit = 15): Promise<Mention[]> {
   const nodes = flatten(tree);
-  const match = compileMatcher(nodes);
+  const match = compileMatcher(nodes, { sharedNumbers: referenceFor(key)?.sharedNumbers ?? [] });
   const terms = familyTerms([tree.name, ...tree.aliases]);
   return findMentions(await postTexts({ catalogId }), terms, 60)
     .filter((m) => !isCovered(m.text, match, nodes))

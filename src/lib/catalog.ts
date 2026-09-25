@@ -67,10 +67,10 @@ function termPattern(t: string): string {
  * to match, so this is how "580" becomes Smart Tank 580 but "580 pages" stays nothing. It only ever matches
  * numbers that are models in the catalog, so another family's "Ink Tank 415" is not claimed.
  */
-function numberPrefix(terms: string[]): string {
+function numberPrefix(terms: string[], loose = true): string {
   const last = [...new Set(terms.map((t) => t.split(" ").at(-1)!).filter(Boolean))];
-  const loose = last.length ? `(?:\\p{L}+\\s+)?\\p{L}*(?:${last.map(escape).join("|")})` : null;
-  return [...terms.map(termPattern), ...(loose ? [loose] : [])].join("|");
+  const looseRe = last.length ? `(?:\\p{L}+\\s+)?\\p{L}*(?:${last.map(escape).join("|")})` : null;
+  return [...terms.map(termPattern), ...(loose && looseRe ? [looseRe] : [])].join("|");
 }
 
 export interface Mention {
@@ -245,10 +245,13 @@ const needsFamilyWord = (alias: string) => /^\d{1,3}[a-z]{0,2}$/.test(alias) || 
  * Matching is whole-word and ignores case and dashes. Short numbers ("580") only count right after a family word
  * ("Smart Tank 580"); longer ones ("7301") count on their own.
  */
-export function compileMatcher(nodes: FlatNode[]): (text: string) => number[] {
+export function compileMatcher(nodes: FlatNode[], opts: { sharedNumbers?: string[] } = {}): (text: string) => number[] {
   const family = nodes.find((n) => n.level === "family");
   const terms = family ? familyTerms([family.name, ...family.aliases]) : [];
   const termsRe = terms.length ? numberPrefix(terms) : "";
+  // Numbers another product line also uses (e.g. an "Ink Tank" model) only count after this family's own name.
+  const strictRe = terms.length ? numberPrefix(terms, false) : "";
+  const shared = new Set((opts.sharedNumbers ?? []).map(normalize));
   const parent = new Map(nodes.map((n) => [n.id, n.parentId]));
 
   const rules = nodes.map((n) => {
@@ -257,7 +260,9 @@ export function compileMatcher(nodes: FlatNode[]): (text: string) => number[] {
       .filter(Boolean)
       .map((a) => {
         const body = a.split(" ").map(escape).join(" ");
-        const prefixed = termsRe ? `(?:${termsRe})\\s*(?:plus\\s*)?${body}` : null;
+        const prefixRe = shared.has(a) ? strictRe : termsRe;
+        const prefixed = prefixRe ? `(?:${prefixRe})\\s*(?:plus\\s*)?${body}` : null;
+        if (shared.has(a)) return prefixed;
         if (needsFamilyWord(a)) return prefixed;
         // Multi-word names ("Smart Tank 7301") also match typed without spaces or with the shared letter once.
         return a.includes(" ") ? termPattern(a) : body;

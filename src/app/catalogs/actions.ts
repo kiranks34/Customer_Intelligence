@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
-import { familyKey, familyTerms, findMentions, treeFromDraft, treeLimitError, TreeNodeSchema } from "@/lib/catalog";
+import { familyKey, familyTerms, findMentions, treeFromDraft, treeLimitError, TreeNodeSchema, type TreeNode } from "@/lib/catalog";
+import { applyReference, treeFromReference } from "@/lib/catalog-reference";
+import { referenceFor } from "@/lib/catalog-references";
 import { CatalogDraftError, draftCatalog } from "@/lib/catalog-drafter";
 import { approveCatalog, catalogByKey, createCatalog, getCatalog, linkSearch, matchCatalog, matchSearch, postTexts, saveTree } from "@/lib/catalogs";
 import { loadPlan } from "@/lib/collect";
@@ -33,6 +35,16 @@ export async function buildCatalogAction(searchId: number): Promise<BuildResult>
       return { ok: true, catalogId: existing.id, message: `Using the existing ${existing.name} catalog.` };
     }
 
+    // A verified reference (researched from the maker's own pages) replaces the AI draft: no AI call, no guesses.
+    const reference = referenceFor(key);
+    if (reference) {
+      const catalogId = await createOrReuse(key, treeFromReference(reference));
+      await linkSearch(searchId, catalogId);
+      await matchSearch(searchId, catalogId);
+      revalidatePath(`/searches/${searchId}`);
+      return { ok: true, catalogId, message: `Built from HP's verified list (checked ${reference.checkedAt}).` };
+    }
+
     const blocked = await budgetBlock();
     if (blocked) return { ok: false, message: blocked.message };
     const texts = await postTexts({ searchId });
@@ -48,21 +60,48 @@ export async function buildCatalogAction(searchId: number): Promise<BuildResult>
     }
     await recordCost({ searchId, ...drafted.cost }).catch(() => undefined);
 
-    let catalogId: number;
-    try {
-      catalogId = await createCatalog(key, treeFromDraft(drafted.draft));
-    } catch (err) {
-      // Another tab may have created the same family's catalog a moment ago (unique key): use that one.
-      const raced = await catalogByKey(key);
-      if (!raced) throw err;
-      catalogId = raced.id;
-    }
+    const catalogId = await createOrReuse(key, treeFromDraft(drafted.draft));
     await linkSearch(searchId, catalogId);
     await matchSearch(searchId, catalogId);
     revalidatePath(`/searches/${searchId}`);
     return { ok: true, catalogId, message: "Catalog drafted. Review it, then approve." };
   } catch (err) {
     return { ok: false, message: `Couldn't build the catalog: ${errorText(err)}` };
+  }
+}
+
+/** Creates the family's catalog, or uses the one another tab created a moment ago (the key is unique). */
+async function createOrReuse(key: string, tree: TreeNode): Promise<number> {
+  try {
+    return await createCatalog(key, tree);
+  } catch (err) {
+    const raced = await catalogByKey(key);
+    if (!raced) throw err;
+    return raced.id;
+  }
+}
+
+/**
+ * Replaces the catalog with its family's verified reference, keeping ids of the same products so post links
+ * survive. Nodes the reference doesn't contain are removed (they couldn't be verified) and named in the message.
+ */
+export async function applyReferenceAction(catalogId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const found = await getCatalog(catalogId);
+    if (!found) return { ok: false, message: "Catalog not found." };
+    const reference = referenceFor(found.catalog.key);
+    if (!reference) return { ok: false, message: "There is no verified list for this family yet." };
+    const { tree, removed } = applyReference(found.tree, reference);
+    await saveTree(catalogId, tree);
+    await matchCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    const models = tree.children.reduce((n, s) => n + s.children.length, 0);
+    const gone = removed.length ? ` Removed ${removed.length} that couldn't be verified: ${removed.slice(0, 8).join(", ")}${removed.length > 8 ? "…" : ""}.` : "";
+    return { ok: true, message: `Updated from HP's verified list: ${tree.children.length} series, ${models} models.${gone}` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't update the catalog: ${errorText(err)}` };
   }
 }
 
