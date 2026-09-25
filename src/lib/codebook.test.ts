@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateTokens, QUESTION_SET, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
+import { criterion, estimateTokens, QUESTION_SET, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
 
 const codebook: Codebook = {
   stages: [
@@ -30,6 +30,20 @@ describe("validateCodebook", () => {
   it("rejects too few themes or bad keys", () => {
     expect(validateCodebook({ ...codebook, themes: codebook.themes.slice(0, 2) })).toMatchObject({ ok: false });
     expect(validateCodebook({ ...codebook, themes: [{ ...codebook.themes[0], key: "Wi Fi" }, ...codebook.themes.slice(1)] })).toMatchObject({ ok: false });
+  });
+});
+
+describe("criterion", () => {
+  it("gives Jev the definition, then the rules and a real example when there are any", () => {
+    expect(criterion({ key: "setup", label: "Set up", definition: "Getting it working." })).toBe("Getting it working.");
+    expect(criterion({ key: "setup", label: "Set up", definition: "Getting it working.", counts: "first days", excludes: "fails after working", example: "heads won't align" })).toBe(
+      "Getting it working. Counts when: first days Not when: fails after working Example: “heads won't align”",
+    );
+  });
+  it("puts a theme's exclusions on the 'no' side", () => {
+    const q = questionsFor({ ...codebook, themes: [{ ...codebook.themes[0], counts: "offline", excludes: "Ethernet only", example: "keeps dropping" }, ...codebook.themes.slice(1)] }, "x");
+    expect(q["theme:wifi"]).toMatchObject({ type: "boolean", criteria: { false: "Not when: Ethernet only" } });
+    expect(JSON.stringify(q["theme:wifi"])).toContain("keeps dropping");
   });
 });
 

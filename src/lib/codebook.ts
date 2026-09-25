@@ -13,6 +13,11 @@ export const CodeSchema = z.object({
   key: z.string().regex(KEY).describe("snake_case id, e.g. wifi_setup"),
   label: z.string().min(2).max(60).describe("Short plain name, e.g. 'Wi-Fi setup'"),
   definition: z.string().min(5).max(240).describe("One sentence: what a post must say to count"),
+  /** Clear rules Jev reads with the definition (D40). Optional: codebooks drafted earlier have none. */
+  counts: z.string().max(240).optional().describe("Counts when… (concrete signals in the post)"),
+  excludes: z.string().max(240).optional().describe("Doesn't count when… (the look-alikes)"),
+  /** A short verbatim excerpt of a real post from this search that fits. */
+  example: z.string().max(200).optional(),
 });
 
 export const ThemeSchema = CodeSchema.extend({
@@ -50,6 +55,13 @@ export const OTHER_BRAND = "other_brand";
 export const NO_BRAND = "no_brand";
 /** The "Not sure" row in results, so one-answer questions add up to the posts counted. Never a stored answer. */
 export const NOT_SURE = "_not_sure";
+
+/** The definition Jev reads: the sentence, then "Counts when", "Not when" and a real example, when present. */
+export function criterion(c: Code): string {
+  return [c.definition, c.counts && `Counts when: ${c.counts}`, c.excludes && `Not when: ${c.excludes}`, c.example && `Example: “${c.example}”`]
+    .filter(Boolean)
+    .join(" ");
+}
 
 /** Checks a codebook (from Claude or from your edits): valid shape, unique keys, no reserved key. */
 export function validateCodebook(candidate: unknown): { ok: true; codebook: Codebook } | { ok: false; error: string } {
@@ -139,7 +151,7 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
     [Q.stage]: {
       type: "choice",
       instructions: `Where is the writer in their journey with ${subject}?`,
-      criteria: { ...Object.fromEntries(codebook.stages.map((s) => [s.key, s.definition])), [NOT_STATED]: "The post doesn't show where they are." },
+      criteria: { ...Object.fromEntries(codebook.stages.map((s) => [s.key, criterion(s)])), [NOT_STATED]: "The post doesn't show where they are." },
     },
   };
   const competitors = codebook.competitors ?? [];
@@ -148,7 +160,7 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
       type: "choice",
       instructions: `Which other brand or product line (not ${subject}) does the post mainly talk about?`,
       criteria: {
-        ...Object.fromEntries(competitors.map((c) => [c.key, c.definition])),
+        ...Object.fromEntries(competitors.map((c) => [c.key, criterion(c)])),
         [OTHER_BRAND]: "Another brand not listed here.",
         [NO_BRAND]: `No other brand; only ${subject} or nothing specific.`,
       },
@@ -168,11 +180,18 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
     questions[Q.segment] = {
       type: "choice",
       instructions: "Which description fits the writer, from what they say about themselves or how they use it?",
-      criteria: { ...Object.fromEntries(codebook.segments.map((s) => [s.key, s.definition])), [NOT_STATED]: "The post doesn't say." },
+      criteria: { ...Object.fromEntries(codebook.segments.map((s) => [s.key, criterion(s)])), [NOT_STATED]: "The post doesn't say." },
     };
   }
   for (const t of codebook.themes) {
-    questions[themeQuestion(t.key)] = { type: "boolean", instructions: `Does the post talk about “${t.label}”? ${t.definition}` };
+    questions[themeQuestion(t.key)] = {
+      type: "boolean",
+      instructions: `Does the post talk about “${t.label}”?`,
+      criteria: {
+        true: [t.definition, t.counts && `Counts when: ${t.counts}`, t.example && `Example: “${t.example}”`].filter(Boolean).join(" "),
+        false: t.excludes ? `Not when: ${t.excludes}` : "The post doesn't mention it.",
+      },
+    };
   }
   return questions;
 }
