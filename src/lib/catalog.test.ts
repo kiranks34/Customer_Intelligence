@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, isCovered, mergeModel, treeLimitError, modelFromMention, normalize, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
+import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, isCovered, looseFamilyKey, mergeModel, treeLimitError, modelFromMention, normalize, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
 
 describe("familyKey and familyTerms", () => {
   it("gives searches of one family the same key", () => {
@@ -172,12 +172,9 @@ describe("how people type model names", () => {
     expect(match("Ink Tank 415 is a different line")).toEqual([]);
     expect(match("printed 720 pages")).toEqual([]);
   });
-  it("findMentions keeps other product lines apart from the family", () => {
-    expect(findMentions(["Smartank 720", "ink tank 415", "InkTank 415", "SmartTank 7301"], ["smart tank"])).toEqual([
-      { text: "ink tank 415", posts: 1 },
-      { text: "inktank 415", posts: 1 },
-      { text: "smart tank 720", posts: 1 },
-      { text: "smart tank 7301", posts: 1 },
+  it("findMentions counts only the family's own name, however it is typed", () => {
+    expect(findMentions(["HP SmartTank 999", "my Smartank 999 jams", "smart tank 999", "ink tank 415", "the tank 210 leaked"], ["smart tank"])).toEqual([
+      { text: "smart tank 999", posts: 3 },
     ]);
   });
 });
@@ -189,4 +186,9 @@ it("numbers shared with another product line only count after this family's own 
   expect(match("tank 580")).toEqual([]);
   expect(match("SmartTank 580")).toEqual([6]);
   expect(compileMatcher(nodes)("ink tank 580")).toEqual([6]);
+});
+
+it("looseFamilyKey treats brand, spacing and doubled letters as the same family", () => {
+  for (const k of ["hp smart tank", "smart tank", "HP SmartTank printers", "smartank"]) expect(looseFamilyKey(k)).toBe("smartank");
+  expect(looseFamilyKey("hp ink tank")).not.toBe(looseFamilyKey("hp smart tank"));
 });

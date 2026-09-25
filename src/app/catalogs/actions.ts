@@ -24,8 +24,12 @@ export async function buildCatalogAction(searchId: number): Promise<BuildResult>
     const latest = await loadPlan(searchId);
     if (!latest) return { ok: false, message: "Search not found." };
     const { plan } = latest;
-    const key = familyKey(plan.subject);
-    if (!key) return { ok: false, message: "The plan's subject is empty." };
+    const subjectKey = familyKey(plan.subject);
+    if (!subjectKey) return { ok: false, message: "The plan's subject is empty." };
+    // A family with a verified reference always uses the reference's key, so "Smart Tank" and "HP SmartTank"
+    // searches share one catalog.
+    const reference = referenceFor(subjectKey);
+    const key = reference?.key ?? subjectKey;
 
     const existing = await catalogByKey(key);
     if (existing) {
@@ -36,7 +40,6 @@ export async function buildCatalogAction(searchId: number): Promise<BuildResult>
     }
 
     // A verified reference (researched from the maker's own pages) replaces the AI draft: no AI call, no guesses.
-    const reference = referenceFor(key);
     if (reference) {
       const catalogId = await createOrReuse(key, treeFromReference(reference));
       await linkSearch(searchId, catalogId);

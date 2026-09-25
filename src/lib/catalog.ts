@@ -34,6 +34,15 @@ export function familyKey(subject: string): string {
     .join(" ");
 }
 
+/**
+ * A key compared loosely: without brand words, spaces or doubled letters, so "HP Smart Tank", "smart tank",
+ * "SmartTank" and "smartank" are the same family.
+ */
+export function looseFamilyKey(key: string): string {
+  const words = familyKey(key).split(" ").filter(Boolean);
+  return (BRANDS.includes(words[0]) ? words.slice(1) : words).join("").replace(/(\p{L})\1+/gu, "$1");
+}
+
 /** The words people use for a family without its brand: "hp smart tank" → "smart tank". */
 export function familyTerms(names: string[]): string[] {
   const out = new Set<string>();
@@ -66,7 +75,7 @@ function termPattern(t: string): string {
  * What may come right before a model number: a family term ("smart tank") or any form ending in the family's last
  * word, with one optional word in front ("tank", "ink tank", "inktank", "hp tank"). Numbers alone are too common
  * to match, so this is how "580" becomes Smart Tank 580 but "580 pages" stays nothing. It only ever matches
- * numbers that are models in the catalog, so another family's "Ink Tank 415" is not claimed.
+ * numbers that are models in the catalog (compileMatcher), so another family's "Ink Tank 415" is not claimed.
  */
 function numberPrefix(terms: string[], loose = true): string {
   const last = [...new Set(terms.map((t) => t.split(" ").at(-1)!).filter(Boolean))];
@@ -88,15 +97,16 @@ export interface Mention {
  */
 export function findMentions(texts: string[], terms: string[], limit = 40): Mention[] {
   if (terms.length === 0) return [];
-  const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])(${numberPrefix(terms)})\\s*(plus\\s*)?(\\d{3,4}[a-z]{0,2})(?![\\p{L}\\p{N}])`, "gu");
+  // Only the family's own name counts here ("Smart Tank", "SmartTank", "smartank"). The looser forms ("tank",
+  // "ink tank") are only trusted for numbers already in the catalog (compileMatcher); here they would suggest
+  // other product lines or phrases like "the tank 210".
   const strict = terms.map((t) => ({ t, re: new RegExp(`^(?:${termPattern(t)})$`, "u") }));
+  const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])(${numberPrefix(terms, false)})\\s*(plus\\s*)?(\\d{3,4}[a-z]{0,2})(?![\\p{L}\\p{N}])`, "gu");
   const counts = new Map<string, number>();
   for (const t of texts) {
     const seen = new Set<string>();
     for (const m of normalize(t).matchAll(re)) {
-      // "SmartTank"/"smartank" count as the family term; other forms ("ink tank") are kept as written, so a
-      // different product line never gets counted as this family.
-      const canonical = strict.find((x) => x.re.test(m[1]))?.t ?? m[1].replace(/\s+/g, " ");
+      const canonical = strict.find((x) => x.re.test(m[1]))?.t ?? m[1];
       seen.add(`${canonical}${m[2] ? " plus" : ""} ${m[3]}`);
     }
     for (const k of seen) counts.set(k, (counts.get(k) ?? 0) + 1);

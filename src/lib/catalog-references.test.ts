@@ -29,3 +29,7 @@ describe.each(registeredReferences())("verified reference %s", (key, raw) => {
 it("returns null for families without a verified list", () => {
   expect(referenceFor("no such family")).toBeNull();
 });
+
+it("finds a reference however the family is written", () => {
+  for (const k of ["hp smart tank", "smart tank", "hp smarttank", "smartank"]) expect(referenceFor(k)?.key).toBe("hp smart tank");
+});
