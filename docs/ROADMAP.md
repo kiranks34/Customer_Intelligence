@@ -14,12 +14,12 @@ We move on only if the gates pass.
 Rough web app, not polished. Proposed scope: **HP Smart Tank, North America**.
 1. ✅ Project setup: Next.js on Vercel Hobby, Postgres schema, passcode, env vars, cost meter, CI
 2. ✅ Connectors: YouTube (free) + Reddit via ScrapeCreators, with a test page. Amazon via Apify once credits are topped up (D23)
-3. Search planner (Claude) with an editable plan
+3. ✅ Search planner (Claude via AI Gateway): topic **or question** → editable plan (time window, focus, queries, caps) with cost estimate; collection from YouTube + Reddit with live progress
 4. Product catalog: Claude proposes it from post titles and known model names (you edit); Amazon listings and price observations join when Apify is on
 5. Relevance gate + codebook discovery + classification (Jev), incl. model mapping
 6. Test Jev on a few Spanish/Portuguese/Hindi posts (cheap check for Phase 2)
 7. Review queue + 20-post spot-check screen
-8. Basic report: summary, themes, segments, first journey map, filters by model/service, drill-down to posts
+8. Basic report: summary, themes, segments, first journey map, filters by model/service, drill-down to posts, **answer card for question searches** (numbers from SQL + cited posts)
 9. Integrity checks
 10. Run the Smart Tank search → **gate review** (EVALUATION.md §2)
 
@@ -36,7 +36,7 @@ Rough web app, not polished. Proposed scope: **HP Smart Tank, North America**.
 ## Phase 3: V1, "share and compare"
 - Compare two products or segments (journey overlay)
 - Read-only share link + one-page leadership export
-- Ask-a-question with cited posts
+- Conversational follow-up questions on a report
 - Alerts on sudden changes
 
 ## Working rhythm

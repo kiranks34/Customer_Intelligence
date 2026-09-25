@@ -1,15 +1,16 @@
 import Link from "next/link";
 
 import { monthToDate } from "@/lib/cost";
+import { recentSearches } from "@/lib/searches";
 
+import { SearchForm } from "./search-form";
 import { SpendMeter } from "./spend-meter";
 
 export const dynamic = "force-dynamic";
 
-const EXAMPLES = ["HP Smart Tank printers", "HP Sprocket", "What Gen Z says about printers"];
-
 export default async function Home() {
   const spend = await monthToDate();
+  const recent = spend.state === "ok" ? await recentSearches().catch(() => []) : [];
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-12">
@@ -25,20 +26,7 @@ export default async function Home() {
         <h2 id="search-heading" className="sr-only">
           New search
         </h2>
-        <form className="flex flex-col gap-3 sm:flex-row">
-          <input
-            name="q"
-            placeholder="Search a product, family or audience…"
-            disabled
-            className="flex-1 rounded-lg border border-border bg-surface px-4 py-3 disabled:opacity-60"
-          />
-          <button type="submit" disabled className="rounded-lg bg-accent px-5 py-3 font-medium text-white opacity-60">
-            Search
-          </button>
-        </form>
-        <p className="text-sm text-muted">
-          Search is switched on in Phase 1, step 3. Examples: {EXAMPLES.join(" · ")}
-        </p>
+        <SearchForm />
       </section>
 
       <nav aria-label="Tools" className="text-sm">
@@ -51,7 +39,20 @@ export default async function Home() {
         <h2 id="recent-heading" className="mb-2 text-lg font-medium">
           Recent searches
         </h2>
-        <p className="text-sm text-muted">None yet.</p>
+        {recent.length === 0 ? (
+          <p className="text-sm text-muted">None yet.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
+            {recent.map((s) => (
+              <li key={s.id}>
+                <Link href={`/searches/${s.id}`} className="flex justify-between gap-4 px-4 py-3 hover:bg-surface">
+                  <span>{s.query}</span>
+                  <span className="shrink-0 text-sm text-muted">{s.createdAt.toISOString().slice(0, 10)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );

@@ -1,6 +1,7 @@
 import type { SpendResult } from "@/lib/cost";
 
-const usd = (n: number) => `$${n.toFixed(2)}`;
+/** Whole cents normally; sub-dollar spend keeps 3 decimals so a $0.002 call is visible. */
+const usd = (n: number) => `$${n > 0 && n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
 
 /** Month-to-date API spend against the monthly budget. Status is shown with text, never colour alone. */
 export function SpendMeter({ spend }: { spend: SpendResult }) {

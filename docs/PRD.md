@@ -54,6 +54,7 @@ working level to leadership can read them and ask for a deeper study.
 | # | As a user I want to… | Phase |
 |---|---|---|
 | U1 | Type a search (product, category or audience) and get a report | 1 |
+| U1b | Ask a question ("How many people talked about connectivity issues last week?") and get an answer with numbers and the posts behind it | 1 (planner in step 3, answer in step 8) |
 | U2 | See and edit how the search was interpreted: keywords, sources, and the discovered themes, segments and journey stages | 1 |
 | U3 | See a **customer journey map**: stages, emotion curve, pains, delights, touchpoints, quotes | 1 (basic) → 2 |
 | U4 | Filter the report and journey by segment, source, region, time | 2 |
@@ -63,7 +64,7 @@ working level to leadership can read them and ask for a deeper study.
 | U7 | Save a search so it refreshes daily and shows trends and "what changed" | 2 |
 | U8 | Compare two products, or two segments, side by side (journey overlay) | 3 |
 | U9 | Share a read-only link or export a summary for leadership | 3 |
-| U10 | Ask a question about a report and get an answer that cites posts | 3 |
+| U10 | Ask follow-up questions about an existing report, conversationally | 3 |
 
 ## 4a. Products, services and regions as filters
 

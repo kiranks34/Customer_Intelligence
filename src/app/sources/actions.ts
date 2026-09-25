@@ -5,7 +5,7 @@ import * as reddit from "@/connectors/reddit";
 import { ConnectorError, type CallCost } from "@/connectors/types";
 import * as youtube from "@/connectors/youtube";
 import { requireSession } from "@/lib/auth";
-import { monthToDate, recordCost } from "@/lib/cost";
+import { paidWorkBlockedReason, recordCost } from "@/lib/cost";
 
 import { DEFAULT_QUERY } from "./constants";
 
@@ -66,14 +66,8 @@ async function testYoutube(query: string): Promise<TestResult> {
 }
 
 async function testReddit(query: string): Promise<TestResult> {
-  // Paid call: fail closed. If spend can't be read, it can't be checked against the budget or recorded either.
-  const spend = await monthToDate();
-  if (spend.state !== "ok") {
-    return { ok: false, message: "Paid test blocked: the spend meter can't read the database, so this cost couldn't be checked or recorded." };
-  }
-  if (spend.status.level === "over") {
-    return { ok: false, message: "Monthly budget reached; paid tests are paused." };
-  }
+  const blocked = await paidWorkBlockedReason();
+  if (blocked) return { ok: false, message: `Paid test blocked: ${blocked}.` };
   const page = await reddit.searchPosts(process.env.SCRAPECREATORS_API_KEY, query, { sort: "relevance", timeframe: "year" });
   const { usd, note } = await record([page.cost]);
   return {
