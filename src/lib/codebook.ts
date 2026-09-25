@@ -33,6 +33,8 @@ export type Codebook = z.infer<typeof CodebookSchema>;
 
 /** Reserved answer for stage and segment when the post doesn't say. */
 export const NOT_STATED = "not_stated";
+/** The "Not sure" row in results, so one-answer questions add up to the posts counted. Never a stored answer. */
+export const NOT_SURE = "_not_sure";
 
 /** Checks a codebook (from Claude or from your edits): valid shape, unique keys, no reserved key. */
 export function validateCodebook(candidate: unknown): { ok: true; codebook: Codebook } | { ok: false; error: string } {
