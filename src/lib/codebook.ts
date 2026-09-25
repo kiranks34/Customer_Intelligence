@@ -68,7 +68,20 @@ export function keyFor(label: string, taken: string[]): string {
 
 // ---- Jev questions ------------------------------------------------------------------------------------------
 
-export const Q = { relevant: "relevant", sentiment: "sentiment", stage: "stage", segment: "segment" } as const;
+export const Q = {
+  /** What kind of post it is (see ABOUT). Replaced the yes/no "relevant" question (D38); old answers still read. */
+  about: "about",
+  /** Stored next to "about": Jev's probability that the post is feedback about the product. */
+  aboutProduct: "about:product",
+  /** The first, yes/no relevance question. Only read for answers stored before D38. */
+  relevant: "relevant",
+  sentiment: "sentiment",
+  stage: "stage",
+  segment: "segment",
+} as const;
+
+/** The kinds of post (D38). Only "product" posts are analysed further; the others are counted as groups. */
+export const ABOUT = { product: "product", otherBrands: "other_brands", chat: "chat", unclear: "unclear" } as const;
 export const themeQuestion = (key: string) => `theme:${key}`;
 
 type Question =
@@ -81,12 +94,14 @@ type Question =
  */
 export function questionsFor(codebook: Codebook, subject: string): Record<string, Question> {
   const questions: Record<string, Question> = {
-    [Q.relevant]: {
-      type: "boolean",
-      instructions: `Is this post really about ${subject}: owning, buying, setting up, using, comparing or asking about it?`,
+    [Q.about]: {
+      type: "choice",
+      instructions: `What kind of post is this, for research on ${subject}? Use its context: the video or thread it was posted under, and any products it names.`,
       criteria: {
-        true: `The post talks about ${subject} itself or the person's experience with it.`,
-        false: "Spam, off-topic, a different product that only shares a word, or no real content about it.",
+        [ABOUT.product]: `About ${subject}: owning, buying, setting up, using, a problem, a question or an opinion. It counts when the post names it, or when it is a comment under a video or thread about ${subject} and talks about that. Comparisons that include it count.`,
+        [ABOUT.otherBrands]: `Mainly about other brands or products rather than ${subject}.`,
+        [ABOUT.chat]: "Thanks or praise for the video or poster, greetings, jokes, or off-topic talk with no experience, opinion or question.",
+        [ABOUT.unclear]: "Too short or vague to tell what it is about.",
       },
     },
     [Q.sentiment]: {
@@ -118,12 +133,30 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
   return questions;
 }
 
-/** What Jev reads for one post: its channel and text (long posts are cut, so no call runs away in size). */
+/** What Jev reads for one post (long posts are cut, so no call runs away in size). */
 export const MAX_POST_CHARS = 3000;
-export function stateFor(post: { source: string; title: string; text: string }): { channel: string; title?: string; post: string } {
-  const channel = post.source === "youtube" ? "YouTube comment" : post.source === "reddit" ? "Reddit post or comment" : post.source;
-  const text = post.text.length > MAX_POST_CHARS ? `${post.text.slice(0, MAX_POST_CHARS)}…` : post.text;
-  return post.title ? { channel, title: post.title, post: text } : { channel, post: text };
+
+export interface PostForJev {
+  source: string;
+  title: string;
+  text: string;
+  /** Title of the video or Reddit thread a comment was posted under. */
+  thread?: string | null;
+  /** True for a comment or reply (it has a parent video or thread). */
+  isComment?: boolean;
+  /** Catalog products the post names (from the catalog matcher), e.g. "HP Smart Tank 7301". */
+  names?: string | null;
+}
+
+export function stateFor(post: PostForJev): Record<string, string> {
+  const channel =
+    post.source === "youtube" ? "YouTube comment" : post.source === "reddit" ? (post.isComment ? "Reddit comment" : "Reddit post") : post.source;
+  const state: Record<string, string> = { channel };
+  if (post.thread) state.context = post.source === "youtube" ? `Comment on the YouTube video “${post.thread}”` : `Reply in the Reddit thread “${post.thread}”`;
+  if (post.names) state.products_named = post.names;
+  if (post.title) state.title = post.title;
+  state.post = post.text.length > MAX_POST_CHARS ? `${post.text.slice(0, MAX_POST_CHARS)}…` : post.text;
+  return state;
 }
 
 type Answer = { type: "boolean"; probability: number } | { type: "choice"; choice: string; probabilities?: Record<string, number> } | { type: "score"; score: number };
@@ -148,6 +181,11 @@ export function readAnswers(answers: Record<string, Answer>): DecisionRow[] {
     } else if (a.type === "choice") {
       const p = a.probabilities?.[a.choice];
       rows.push({ question, answer: a.choice, confidence: p === undefined ? 0.5 : clamp(p) });
+      if (question === Q.about) {
+        // How likely it is product feedback decides what counts; without a distribution it's unknown (0.5).
+        const product = a.probabilities?.[ABOUT.product];
+        rows.push({ question: Q.aboutProduct, answer: ABOUT.product, confidence: product === undefined ? (a.choice === ABOUT.product && p !== undefined ? clamp(p) : 0.5) : clamp(product) });
+      }
     }
   }
   return rows;
@@ -172,6 +210,8 @@ export const jevUsd = (inputTokens: number) => (inputTokens * JEV_USD_PER_MILLIO
 
 export const COUNTED = DEFAULT_THRESHOLDS.counted;
 export const UNCERTAIN = DEFAULT_THRESHOLDS.review;
+/** At or below this probability of being product feedback, a post goes to its group without a look (D38). */
+export const NOT_PRODUCT = Math.round((1 - COUNTED) * 100) / 100;
 
 /** Stage order for display, with "not stated" last. */
 export const orderOf = (codes: Code[]) => new Map([...codes.map((c, i) => [c.key, i] as const), [NOT_STATED, codes.length]]);

@@ -143,15 +143,19 @@ export function AnalysisPanel({ searchId, subject, initial, summary, look, codeb
             onClick={start}
             className="self-start rounded-lg bg-accent px-5 py-2.5 font-medium text-white disabled:opacity-50"
           >
-            {summary && summary.version !== s.version ? "Re-analyze" : "Analyze"} {s.version === null || (summary && summary.version !== s.version) ? "" : "new "}
-            {s.pending.toLocaleString()} {s.pending === 1 ? "post" : "posts"} · about {usd(s.estimateUsd)}
+            {s.improved || (summary && summary.version !== s.version) ? "Re-analyze" : "Analyze"}{" "}
+            {s.version === null || s.improved || (summary && summary.version !== s.version) ? "" : "new "}
+            {s.pending.toLocaleString()} {s.pending === 1 ? "post" : "posts"}
+            {s.improved ? " with the improved check" : ""} · about {usd(s.estimateUsd)}
           </button>
           <p className="text-sm text-muted">
             {!ready
               ? "Available when the collection has finished."
               : s.version === null
                 ? "Claude drafts the themes, journey stages and user types from a sample (a few cents), then Jev checks every post: is it about the product, how the writer feels, where they are in their journey, which themes it mentions."
-                : summary && summary.version !== s.version
+                : s.improved
+                  ? `Removes duplicate posts, then reads every post with its video or thread title and sorts it into: about ${subject}, other brands, chat, or unclear.`
+                  : summary && summary.version !== s.version
                   ? `Applies your edited themes (version ${s.version}). Results below stay on version ${summary.version} until it's done.`
                   : "Jev reads only the posts it hasn't read with the current themes."}
           </p>
@@ -179,17 +183,19 @@ const SENTIMENT_COLORS: Record<string, string> = {
   neutral: "bg-[#6f86b8]",
   [NOT_SURE]: "bg-border",
 };
-const TALLY_COLORS = { about: "bg-accent", not: "bg-muted/40", look: "bg-warning", skipped: "bg-border" };
+const TALLY_COLORS = { about: "bg-accent", other: "bg-[#8f7cc9]", chat: "bg-muted/25", not: "bg-muted/50", look: "bg-warning", skipped: "bg-border" };
 
 function Results({ summary, subject, totalPosts }: { summary: AnalysisSummary; subject: string; totalPosts: number }) {
   const r = summary.relevance;
   const parts = [
     { key: "about", label: `About ${subject}`, n: r.counted, color: TALLY_COLORS.about },
+    { key: "other", label: "Other brands", n: r.otherBrands, color: TALLY_COLORS.other },
+    { key: "chat", label: "Chat (thanks, jokes)", n: r.chat, color: TALLY_COLORS.chat },
     { key: "not", label: "Not about it", n: r.notRelevant, color: TALLY_COLORS.not },
     { key: "look", label: "Unsure (Needs a look)", n: r.needsLook, color: TALLY_COLORS.look },
     { key: "skipped", label: "Skipped", n: r.skipped, color: TALLY_COLORS.skipped },
   ].filter((p) => p.n > 0);
-  const analyzed = r.counted + r.notRelevant + r.needsLook + r.skipped;
+  const analyzed = r.counted + r.otherBrands + r.chat + r.notRelevant + r.needsLook + r.skipped;
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-2">
@@ -343,8 +349,8 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
       <summary className="cursor-pointer text-sm font-medium">
         Needs a look ({total}){" "}
         <span className="font-normal text-muted">
-          · optional{total > posts.length ? `, showing ${posts.length} at a time` : ""}. Jev wasn&apos;t sure these are about the product, so they aren&apos;t
-          counted unless you keep them.
+          · optional{total > posts.length ? `, showing ${posts.length} at a time` : ""}. Jev couldn&apos;t tell if these are feedback on the product, so
+          they aren&apos;t counted unless you keep them.
         </span>
       </summary>
       {error && (
@@ -356,6 +362,7 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
         {shown.map((p) => (
           <li key={p.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 text-sm">
+              {p.thread && <p className="mb-1 text-xs text-muted">Under: “{p.thread}”</p>}
               {p.title && <p className="font-medium break-words">{p.title}</p>}
               <p className="line-clamp-3 break-words">{p.text}</p>
               <p className="mt-1 text-xs text-muted">

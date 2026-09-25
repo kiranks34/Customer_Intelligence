@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateTokens, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
+import { ABOUT, estimateTokens, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
 
 const codebook: Codebook = {
   stages: [
@@ -45,10 +45,11 @@ describe("keyFor", () => {
 
 describe("questionsFor", () => {
   const q = questionsFor(codebook, "HP Smart Tank 7301");
-  it("asks relevance, sentiment, stage, segment and one yes/no per theme in one call", () => {
-    expect(Object.keys(q)).toEqual(["relevant", "sentiment", "stage", "segment", "theme:wifi", "theme:ink_cost", "theme:print_quality"]);
-    expect(q.relevant.type).toBe("boolean");
-    expect(q.relevant.instructions).toContain("HP Smart Tank 7301");
+  it("asks the kind of post, sentiment, stage, segment and one yes/no per theme in one call", () => {
+    expect(Object.keys(q)).toEqual(["about", "sentiment", "stage", "segment", "theme:wifi", "theme:ink_cost", "theme:print_quality"]);
+    expect(q.about.type).toBe("choice");
+    expect(Object.keys((q.about as { criteria: object }).criteria)).toEqual(["product", "other_brands", "chat", "unclear"]);
+    expect(JSON.stringify(q.about)).toContain("HP Smart Tank 7301");
     expect(q[themeQuestion("wifi")]).toMatchObject({ type: "boolean" });
   });
   it("offers 'not stated' for stage and segment", () => {
@@ -71,6 +72,14 @@ describe("readAnswers", () => {
     ]);
     expect(readAnswers({ sentiment: { type: "choice", choice: "positive" } })).toEqual([{ question: "sentiment", answer: "positive", confidence: 0.5 }]);
   });
+  it("stores how likely a post is product feedback next to its kind", () => {
+    expect(readAnswers({ about: { type: "choice", choice: "chat", probabilities: { product: 0.1, other_brands: 0.05, chat: 0.8, unclear: 0.05 } } })).toEqual([
+      { question: "about", answer: "chat", confidence: 0.8 },
+      { question: "about:product", answer: ABOUT.product, confidence: 0.1 },
+    ]);
+    // Without a distribution, "product" keeps its own probability and anything else is unknown (0.5).
+    expect(readAnswers({ about: { type: "choice", choice: "chat" } })[1].confidence).toBe(0.5);
+  });
   it("clamps bad numbers instead of storing them", () => {
     expect(readAnswers({ relevant: { type: "boolean", probability: Number.NaN } })[0].confidence).toBe(0.5);
     expect(readAnswers({ relevant: { type: "boolean", probability: 1.4 } })[0]).toEqual({ question: "relevant", answer: "yes", confidence: 1 });
@@ -78,6 +87,18 @@ describe("readAnswers", () => {
 });
 
 describe("stateFor", () => {
+  it("gives comments their video or thread and the products they name", () => {
+    expect(stateFor({ source: "youtube", title: "", text: "Can't get black cartridge in", thread: "HP Smart Tank 5000 setup", isComment: true, names: "HP Smart Tank 5000" })).toEqual({
+      channel: "YouTube comment",
+      context: "Comment on the YouTube video “HP Smart Tank 5000 setup”",
+      products_named: "HP Smart Tank 5000",
+      post: "Can't get black cartridge in",
+    });
+    expect(stateFor({ source: "reddit", title: "", text: "Same here", thread: "Printhead error", isComment: true })).toMatchObject({
+      channel: "Reddit comment",
+      context: "Reply in the Reddit thread “Printhead error”",
+    });
+  });
   it("names the channel and cuts very long posts", () => {
     expect(stateFor({ source: "youtube", title: "", text: "Great" })).toEqual({ channel: "YouTube comment", post: "Great" });
     const long = stateFor({ source: "reddit", title: "T", text: "a".repeat(5000) });

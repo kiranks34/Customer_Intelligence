@@ -33,6 +33,8 @@ interface JobCursor {
   query?: string;
   videoId?: string;
   url?: string;
+  /** Title of the video or Reddit thread the comments belong to, stored with each comment as its context. */
+  threadTitle?: string;
 }
 
 const MAX_ATTEMPTS = 3;
@@ -154,7 +156,7 @@ async function runJob(
       publishedAfter: publishedAfter(plan),
     });
     await charge(searchId, page.cost);
-    return page.items.map((video) => ({ step: "yt.comments" as const, cursor: { ...inherit, videoId: video.videoId } }));
+    return page.items.map((video) => ({ step: "yt.comments" as const, cursor: { ...inherit, videoId: video.videoId, threadTitle: video.title } }));
   }
   if (step === "yt.comments") {
     const page = await youtube.videoComments(process.env.YOUTUBE_API_KEY, cursor.videoId!, {
@@ -162,7 +164,7 @@ async function runJob(
       order: plan.timeWindow.from ? "time" : "relevance",
     });
     await charge(searchId, page.cost);
-    await store(searchId, plan, page.items, room);
+    await store(searchId, plan, withThread(page.items, cursor.threadTitle), room);
     return [];
   }
   if (step === "rd.search") {
@@ -176,12 +178,18 @@ async function runJob(
       .filter((p) => p.url && inWindow(plan, p.postedAt))
       .sort((a, b) => Number(b.engagement?.comments ?? 0) - Number(a.engagement?.comments ?? 0))
       .slice(0, plan.reddit.commentThreadsPerQuery);
-    return busiest.map((p) => ({ step: "rd.comments" as const, cursor: { ...inherit, url: p.url! } }));
+    return busiest.map((p) => ({ step: "rd.comments" as const, cursor: { ...inherit, url: p.url!, threadTitle: p.title || undefined } }));
   }
   const page = await reddit.postComments(process.env.SCRAPECREATORS_API_KEY, cursor.url!);
   await charge(searchId, page.cost);
-  await store(searchId, plan, page.items, room);
+  await store(searchId, plan, withThread(page.items, cursor.threadTitle), room);
   return [];
+}
+
+/** A comment alone ("mine died in 3 months") can't say what it's about; the video or thread title can. */
+function withThread(items: RawPost[], threadTitle: string | undefined): RawPost[] {
+  if (!threadTitle) return items;
+  return items.map((p) => ({ ...p, engagement: { ...(p.engagement ?? {}), thread: threadTitle.slice(0, 300) } }));
 }
 
 export interface Progress {
