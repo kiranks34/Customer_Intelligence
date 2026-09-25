@@ -7,7 +7,8 @@
  */
 import { z } from "zod";
 
-export const CATALOG_LIMITS = { series: 15, modelsPerSeries: 30, aliases: 12, name: 80 } as const;
+// HP lists 27 Smart Tank series (up to 15 models each), so the limits leave room for a family of that size.
+export const CATALOG_LIMITS = { series: 40, modelsPerSeries: 30, aliases: 12, name: 80 } as const;
 
 /** Brands dropped when turning a family name into the words people use for it ("HP Smart Tank" → "smart tank"). */
 const BRANDS = ["hp", "epson", "canon", "brother", "xerox", "lexmark", "kodak", "samsung"];

@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
 import type { Source } from "@/lib/catalog-reference";
+
+type ReferenceSource = Source & { page: string | null };
 import { CATALOG_LIMITS, mergeModel, modelFromMention, normalize, type Mention, type ModelPath, type TreeNode } from "@/lib/catalog";
 
 import { ChipField } from "../../chip-field";
@@ -23,7 +25,7 @@ interface Props {
 
 export interface ReferenceInfo {
   checkedAt: string;
-  sources: Record<string, Source[]>;
+  sources: Record<string, ReferenceSource[]>;
   notes: Record<string, string>;
   unverified: { name: string; reason: string }[];
 }
@@ -298,15 +300,21 @@ function Verified({ value, onChange }: { value: boolean; onChange: (v: boolean) 
 }
 
 /** Where a node was verified: links to the pages, with the retailer/region note when there is one. */
-function SourceLine({ sources, note }: { sources?: Source[]; note?: string }) {
+function SourceLine({ sources, note }: { sources?: ReferenceSource[]; note?: string }) {
   if (!sources?.length) return null;
   const host = (url: string) => new URL(url).hostname.replace(/^www\./, "");
+  const pages = [...new Set(sources.map((src) => src.page).filter((p): p is string => p !== null))];
   return (
     <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
       <span>Verified:</span>
+      {pages.map((page) => (
+        <a key={page} href={page} target="_blank" rel="noreferrer noopener" className="underline hover:text-accent">
+          HP support page ↗
+        </a>
+      ))}
       {sources.map((src) => (
         <a key={src.url} href={src.url} target="_blank" rel="noreferrer noopener" title={`“${src.quote}”`} className="underline hover:text-accent">
-          {host(src.url)} ↗
+          {src.page ? "HP data" : host(src.url)} ↗
         </a>
       ))}
       {note && <span>· {note}</span>}

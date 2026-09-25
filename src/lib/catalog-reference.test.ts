@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TreeNode } from "./catalog";
-import { applyReference, modelNote, ReferenceSchema, sourcesByName, treeFromReference } from "./catalog-reference";
+import { applyReference, modelNote, readablePage, ReferenceSchema, sourcesByName, treeFromReference } from "./catalog-reference";
 
 const src = (url: string, quote: string) => ({ url, title: "HP page", quote });
 const raw = {
@@ -102,4 +102,10 @@ describe("using a reference", () => {
     ]);
     expect(removed).toEqual(["Smart Tank 7000 series", "Smart Tank 7999"]);
   });
+});
+
+it("links HP's normal support page when the evidence is its product-data endpoint", () => {
+  const data = { url: "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736", title: "", quote: "" };
+  expect(readablePage(data, "HP Smart Tank 7300 series")).toBe("https://support.hp.com/us-en/product/details/hp-smart-tank-7300-series/2100178736");
+  expect(readablePage({ url: "https://www.hp.com/us-en/shop/pdp/x", title: "", quote: "" }, "x")).toBeNull();
 });

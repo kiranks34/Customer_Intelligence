@@ -62,11 +62,12 @@ export const ReferenceSchema = z
 export type Reference = z.infer<typeof ReferenceSchema>;
 
 /** Where each verified node's proof is: normalized node name → sources. Used to show links on the review screen. */
-export function sourcesByName(ref: Reference): Record<string, Source[]> {
-  const out: Record<string, Source[]> = {};
+export function sourcesByName(ref: Reference): Record<string, (Source & { page: string | null })[]> {
+  const out: Record<string, (Source & { page: string | null })[]> = {};
+  const withPages = (srcs: Source[], series: string) => srcs.map((src) => ({ ...src, page: readablePage(src, series) }));
   for (const s of ref.series) {
-    out[normalize(s.name)] = s.sources;
-    for (const m of s.models) out[normalize(m.name)] = m.sources;
+    out[normalize(s.name)] = withPages(s.sources, s.name);
+    for (const m of s.models) out[normalize(m.name)] = withPages(m.sources, s.name);
   }
   return out;
 }
@@ -132,4 +133,16 @@ export function applyReference(current: TreeNode, ref: Reference): { tree: TreeN
   };
   const removed = [...oldSeries, ...oldModels].filter((n) => n.id !== null && !used.has(n.id)).map((n) => n.name);
   return { tree, removed };
+}
+
+/**
+ * A page a person can read for a source. HP's support site builds its pages from a JSON endpoint; when the evidence
+ * is that endpoint, link the series' normal support page (same series id) next to it.
+ */
+export function readablePage(src: Source, seriesName: string): string | null {
+  const u = new URL(src.url);
+  const id = u.hostname === "support.hp.com" && u.pathname.startsWith("/wcc-services/productdata/") ? u.searchParams.get("seriesid") : null;
+  if (!id || !/^\d+$/.test(id)) return null;
+  const slug = seriesName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `https://support.hp.com/us-en/product/details/${slug}/${id}`;
 }
