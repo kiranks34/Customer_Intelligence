@@ -17,6 +17,8 @@ import {
   NOT_PRODUCT,
   NOT_SURE,
   OTHER_BRAND,
+  OWNERSHIP,
+  POST_TYPES,
   QUESTION_SET,
   orderOf,
   Q,
@@ -24,11 +26,13 @@ import {
   readAnswers,
   stateFor,
   themeQuestion,
+  touchpointQuestion,
   UNCERTAIN,
   type Codebook,
   type PostForJev,
 } from "./codebook";
 import { claudeModel, tokenCostUsd } from "./ai";
+import { AutoCheckError, claudeCheck } from "./auto-check";
 import { CodebookError, draftCodebook, type Mistake } from "./codebook-drafter";
 import { loadPlan } from "./collect";
 import { paidWorkBlockedReason, recordCost } from "./cost";
@@ -43,8 +47,8 @@ import { removeDuplicatePosts } from "./posts";
 export const JEV_MODEL = "typesafe-ai/jev";
 const STEP = "analyze";
 const BATCH = 8;
-/** Jev allows 2 calls at once through the gateway (docs/JEV.md). */
-const CONCURRENCY = 2;
+/** Posts read at once. The gateway answers 429 when busy; each call retries with back-off (maxRetries). */
+const CONCURRENCY = 4;
 const MAX_ATTEMPTS = 3;
 const STALE_RUNNING_SECONDS = 120;
 const SAMPLE_SIZE = 60;
@@ -98,7 +102,7 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   if (total === 0) return { started: false, reason: "Collect some posts first." };
   await prepare(searchId);
   let current = await latestCodebook(searchId);
-  if (current && current.codebook.competitors !== undefined && (await pendingStats(searchId, current.version)).n === 0) {
+  if (current && !missingLists(current.codebook) && (await pendingStats(searchId, current.version)).n === 0) {
     return { started: false, reason: "Every post is already analyzed with this codebook." };
   }
 
@@ -117,17 +121,19 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
         if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
         throw err;
       }
-    } else if (current.codebook.competitors === undefined) {
-      // Drafted before competitors existed: add Claude's list from a sample, keep everything else as it is.
+    } else if (missingLists(current.codebook)) {
+      // Drafted before competitors (D39) or touchpoints (D42) existed: add Claude's lists from a sample, keep
+      // everything else as it is (lists you already have are never replaced).
+      const keep = current.codebook;
       try {
         const { codebook, cost } = await draftCodebook(plan.plan, await sampleOf(searchId));
         await recordCost({ searchId, ...cost });
-        const merged = { ...current.codebook, competitors: codebook.competitors ?? [] };
+        const merged = { ...keep, competitors: keep.competitors ?? codebook.competitors ?? [], touchpoints: keep.touchpoints ?? codebook.touchpoints ?? [] };
         current = { version: await saveCodebook(searchId, merged), codebook: merged };
       } catch (err) {
         if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
-        // Without a list the analysis still runs; competitor posts are grouped, just not by brand.
-        const merged = { ...current.codebook, competitors: [] };
+        // Without the lists the analysis still runs; competitor posts are grouped, just not by brand.
+        const merged = { ...keep, competitors: keep.competitors ?? [], touchpoints: keep.touchpoints ?? [] };
         current = { version: await saveCodebook(searchId, merged), codebook: merged };
       }
     }
@@ -141,6 +147,9 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   }
   return { started: true, drafted };
 }
+
+/** A codebook saved before competitors (D39) or touchpoints (D42) existed gets those lists drafted first. */
+const missingLists = (c: Codebook) => c.competitors === undefined || c.touchpoints === undefined;
 
 /** A random sample of the search's posts for Claude to draft from. */
 async function sampleOf(searchId: number): Promise<{ source: string; text: string }[]> {
@@ -280,7 +289,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
     await finish(job.id, "failed", "Codebook or plan not found.");
     return analysisState(searchId);
   }
-  if ((cb.codebook as Codebook).competitors === undefined) {
+  if (missingLists(cb.codebook as Codebook)) {
     // A run queued or resumed on a codebook from before competitors: reading now would miss the competitor questions
     // and cost a second full read later. Analyze adds the list first (like an interrupted draft: back to "Analyze").
     await requireDb()
@@ -290,6 +299,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
     return analysisState(searchId);
   }
   const questions = questionsFor(cb.codebook as Codebook, plan.plan.subject);
+  const productNotes = (cb.codebook as Codebook).productNotes ?? null;
 
   // Failures in a row; a batch that works resets it, so a long run isn't failed by scattered hiccups.
   let attempts = job.attempts;
@@ -311,7 +321,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
           const settled = await Promise.allSettled(
             pair.map(async (post) => {
               try {
-                const result = await evaluate({ model: JEV_MODEL, state: stateFor(post), questions, maxRetries: 3, abortSignal: AbortSignal.timeout(30_000) });
+                const result = await evaluate({ model: JEV_MODEL, state: stateFor({ ...post, productNotes }), questions, maxRetries: 3, abortSignal: AbortSignal.timeout(30_000) });
                 inputTokens += result.usage.inputTokens ?? estimateTokens(post.text.length + post.title.length, cb.codebook as Codebook, plan.plan.subject);
                 for (const r of readAnswers(result.answers)) rows.push({ postId: post.id, codebookVersion: version, model: JEV_MODEL, ...r });
               } catch (err) {
@@ -418,9 +428,10 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
   const version = running ? jobVersion : current.version;
   const pending = await pendingStats(searchId, version);
   // A codebook from before competitors gets a list drafted first (one Claude call) and two more questions per post.
-  const upgrading = current.codebook.competitors === undefined && !running;
+  const upgrading = missingLists(current.codebook) && !running;
+  const placeholder = (n: number) => Array.from({ length: n }, (_, i) => ({ key: `item_${i}`, label: "Item name", definition: "What a post must mention." }));
   const planned: Codebook = upgrading
-    ? { ...current.codebook, competitors: Array.from({ length: 5 }, (_, i) => ({ key: `brand_${i}`, label: "Brand name", definition: "Printers of this brand." })) }
+    ? { ...current.codebook, competitors: current.codebook.competitors ?? placeholder(5), touchpoints: current.codebook.touchpoints ?? placeholder(6) }
     : current.codebook;
   const estimateUsd =
     jevUsd(pending.chars / 4 + estimateTokens(0, planned, "") * pending.n) + (upgrading ? tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output) : 0);
@@ -447,6 +458,21 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
       ),
     );
   return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved: (legacy?.n ?? 0) > 0 };
+}
+
+/**
+ * The catalog products whose mention makes a post count (D41): the search's pick (a model, or a series and its
+ * models); any product in the catalog for a family-wide or typed search (null).
+ */
+async function namedNodeIds(searchId: number): Promise<number[] | null> {
+  const plan = await loadPlan(searchId);
+  const nodeId = plan?.plan.target?.nodeId ?? null;
+  if (!nodeId) return null;
+  const rows = await requireDb()
+    .select({ id: catalogNodes.id })
+    .from(catalogNodes)
+    .where(sql`${catalogNodes.id} = ${nodeId} or ${catalogNodes.parentId} = ${nodeId}`);
+  return rows.map((r) => r.id);
 }
 
 // ---- Results (all SQL) -----------------------------------------------------------------------------------------
@@ -484,7 +510,19 @@ export interface AnalysisSummary {
   sentiment: Tally[];
   stages: Tally[];
   segments: Tally[];
-  themes: (Tally & { kind: string })[];
+  /** Each theme with how serious its problems are on average (severity 0–4, from posts sure to mention it). */
+  themes: (Tally & { kind: string; severity: number | null })[];
+  /** Touchpoints (D42): posts that use or deal with each, and how many of those are complaints. */
+  touchpoints: (Tally & { complaints: number })[];
+  /** D41 journey anchors; empty when the results were read before these questions existed. */
+  postTypes: Tally[];
+  ownership: Tally[];
+  /** Posts about the subject that Jev is sure describe the writer's own experience, and sure that they don't. */
+  firstHand: { yes: number; no: number };
+  /** Would-recommend, from the 0–4 score: against (< 1.5), no clear view, for (> 2.5). */
+  recommend: { against: number; neutral: number; for: number } | null;
+  /** The journey map: posts per stage × post type (both answers sure). */
+  grid: { stage: string; type: string; n: number }[];
 }
 
 /**
@@ -496,19 +534,27 @@ export interface AnalysisSummary {
  * Your Keep/Drop wins (relevance doesn't depend on the codebook, so it applies to every version). Answers stored with
  * the older yes/no question are read the same way until the post is read again.
  */
-const relevanceCte = (searchId: number, version: number) => sql`
+const relevanceCte = (searchId: number, version: number, named: number[] | null) => sql`
   rel as (
     select d.post_id,
       case
         when r.human_answer = 'yes' then 'product'
         when r.human_answer = 'no' then 'not'
         when d.answer = 'skipped' then 'skipped'
+        -- D41: a post that names the product (catalog match in its title or text) is about it, unless Jev is sure
+        -- it's only chat or off-topic.
+        when pp.answer = ${QUESTION_SET}
+          and exists (select 1 from ${postProducts} named where named.post_id = d.post_id${
+            // The pick was removed from the catalog: nothing counts as "named" (never an empty "in ()").
+            named ? (named.length ? sql` and named.node_id in (${sql.join(named.map((id) => sql`${id}`), sql`, `)})` : sql` and false`) : sql``
+          })
+          and not (d.answer in (${ABOUT.chat}, ${ABOUT.offTopic}) and d.confidence >= ${COUNTED}) then 'product'
         when d.question = ${Q.relevant} then
           case when d.answer = 'yes' and d.confidence >= ${COUNTED} then 'product'
                when d.answer = 'no' and d.confidence >= ${COUNTED} then 'not' else 'look' end
         when d.answer = ${ABOUT.unclear} then 'look'
         when pp.confidence >= ${COUNTED} then 'product'
-        when d.answer <> ${ABOUT.product} and (pp.confidence <= ${NOT_PRODUCT} or (d.confidence >= 0.5 and pp.confidence < 0.5)) then
+        when d.answer <> ${ABOUT.product} and (pp.confidence <= ${NOT_PRODUCT} or (d.confidence >= 0.5 and pp.confidence < ${LEANS_AWAY})) then
           case d.answer when ${ABOUT.competitor} then 'competitor' when ${ABOUT.otherBrands} then 'competitor' when ${ABOUT.chat} then 'chat' else 'not' end
         else 'look'
       end as grp
@@ -525,6 +571,9 @@ const relevanceCte = (searchId: number, version: number) => sql`
         select 1 from ${decisions} x where x.post_id = d.post_id and x.codebook_version = d.codebook_version and x.question = ${Q.about})))
   )`;
 
+/** Below this likelihood of being about the subject, a post Jev placed in another group goes there without a look. */
+const LEANS_AWAY = 0.35;
+
 const SENTIMENTS = [
   { key: "positive", label: "Positive" },
   { key: "negative", label: "Negative" },
@@ -534,11 +583,12 @@ const SENTIMENTS = [
 
 export async function analysisSummary(searchId: number, version: number): Promise<AnalysisSummary | null> {
   const db = requireDb();
+  const named = await namedNodeIds(searchId);
   const [cb] = await db.select().from(codebooks).where(and(eq(codebooks.searchId, searchId), eq(codebooks.version, version)));
   if (!cb) return null;
   const codebook = cb.codebook as Codebook;
-  const [relRes, ansRes, compRes] = await Promise.all([
-    db.execute(sql`with ${relevanceCte(searchId, version)}
+  const [relRes, ansRes, compRes, gridRes, sevRes, recRes, touchRes] = await Promise.all([
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
       select
         count(*) filter (where grp = 'product')::int as counted,
         count(*) filter (where grp = 'competitor')::int as competitors,
@@ -548,16 +598,17 @@ export async function analysisSummary(searchId: number, version: number): Promis
         count(*) filter (where grp = 'skipped')::int as skipped
       from rel`),
     // Every other answer, only for posts that are surely about the subject.
-    db.execute(sql`with ${relevanceCte(searchId, version)}
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
       select d.question, d.answer,
         count(*) filter (where d.confidence >= ${COUNTED})::int as counted,
         count(*) filter (where d.confidence >= ${UNCERTAIN} and d.confidence < ${COUNTED})::int as uncertain
       from ${decisions} d
       join rel on rel.post_id = d.post_id and rel.grp = 'product'
-      where d.codebook_version = ${version} and d.question not in (${Q.relevant}, ${Q.about}, ${Q.aboutProduct}, ${Q.competitor}, ${Q.competitorFeeling})
+      where d.codebook_version = ${version}
+        and d.question not in (${Q.relevant}, ${Q.about}, ${Q.aboutProduct}, ${Q.competitor}, ${Q.competitorFeeling}, ${Q.severity}, ${Q.recommend})
       group by d.question, d.answer`),
     // Brands, from competitor posts and Smart Tank posts that compare; Jev sure (≥ 0.8) of the brand.
-    db.execute(sql`with ${relevanceCte(searchId, version)}
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
       select b.answer as key, count(*)::int as posts,
         count(*) filter (where f.answer = 'positive' and f.confidence >= ${COUNTED})::int as positive,
         count(*) filter (where f.answer = 'negative' and f.confidence >= ${COUNTED})::int as negative
@@ -566,6 +617,36 @@ export async function analysisSummary(searchId: number, version: number): Promis
       left join ${decisions} f on f.post_id = rel.post_id and f.codebook_version = ${version} and f.question = ${Q.competitorFeeling}
       where rel.grp in ('competitor', 'product') and b.answer <> ${NO_BRAND}
       group by b.answer`),
+    // The journey map: stage × post type, both sure.
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
+      select s.answer as stage, t.answer as type, count(*)::int as n
+      from rel
+      join ${decisions} s on s.post_id = rel.post_id and s.codebook_version = ${version} and s.question = ${Q.stage} and s.confidence >= ${COUNTED}
+      join ${decisions} t on t.post_id = rel.post_id and t.codebook_version = ${version} and t.question = ${Q.postType} and t.confidence >= ${COUNTED}
+      where rel.grp = 'product'
+      group by 1, 2`),
+    // Average severity per theme, over posts sure to mention it.
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
+      select th.question, round(avg(sv.answer::numeric), 2)::float as severity
+      from rel
+      join ${decisions} th on th.post_id = rel.post_id and th.codebook_version = ${version} and th.question like 'theme:%' and th.answer = 'yes' and th.confidence >= ${COUNTED}
+      join ${decisions} sv on sv.post_id = rel.post_id and sv.codebook_version = ${version} and sv.question = ${Q.severity}
+      where rel.grp = 'product'
+      group by th.question`),
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
+      select count(*) filter (where r.answer::numeric < 1.5)::int as against,
+        count(*) filter (where r.answer::numeric between 1.5 and 2.5)::int as neutral,
+        count(*) filter (where r.answer::numeric > 2.5)::int as "for"
+      from rel join ${decisions} r on r.post_id = rel.post_id and r.codebook_version = ${version} and r.question = ${Q.recommend}
+      where rel.grp = 'product'`),
+    // Complaints per touchpoint: posts sure to mention it that are complaints (both sure).
+    db.execute(sql`with ${relevanceCte(searchId, version, named)}
+      select tp.question, count(*)::int as complaints
+      from rel
+      join ${decisions} tp on tp.post_id = rel.post_id and tp.codebook_version = ${version} and tp.question like 'touch:%' and tp.answer = 'yes' and tp.confidence >= ${COUNTED}
+      join ${decisions} ty on ty.post_id = rel.post_id and ty.codebook_version = ${version} and ty.question = ${Q.postType} and ty.answer = 'complaint' and ty.confidence >= ${COUNTED}
+      where rel.grp = 'product'
+      group by tp.question`),
   ]);
   const relevance = relRes.rows[0] as AnalysisSummary["relevance"];
   const answers = ansRes.rows as { question: string; answer: string; counted: number; uncertain: number }[];
@@ -585,6 +666,9 @@ export async function analysisSummary(searchId: number, version: number): Promis
     .filter((r) => brandLabel.has(r.key))
     .map((r) => ({ ...r, label: brandLabel.get(r.key)! }))
     .sort((a, b) => b.posts - a.posts);
+  const severity = new Map((sevRes.rows as { question: string; severity: number }[]).map((r) => [r.question, Number(r.severity)]));
+  const asked = (question: string) => answers.some((a) => a.question === question);
+  const recommendation = recRes.rows[0] as { against: number; neutral: number; for: number };
   const stageOrder = orderOf(codebook.stages);
   const notStated = { key: NOT_STATED, label: "Not stated" };
   const hasSegments = codebook.segments.length > 0;
@@ -597,8 +681,22 @@ export async function analysisSummary(searchId: number, version: number): Promis
     stages: oneOf(Q.stage, [...codebook.stages, notStated]).sort((a, b) => (stageOrder.get(a.key) ?? 99) - (stageOrder.get(b.key) ?? 99)),
     segments: hasSegments ? oneOf(Q.segment, [...[...codebook.segments].sort((a, b) => tally(Q.segment, b.key).counted - tally(Q.segment, a.key).counted), notStated]) : [],
     themes: codebook.themes
-      .map((t) => ({ key: t.key, label: t.label, kind: t.kind, ...pick(tally(themeQuestion(t.key), "yes")) }))
+      .map((t) => ({ key: t.key, label: t.label, kind: t.kind, ...pick(tally(themeQuestion(t.key), "yes")), severity: severity.get(themeQuestion(t.key)) ?? null }))
       .sort((a, b) => b.counted - a.counted || b.uncertain - a.uncertain),
+    touchpoints: (codebook.touchpoints ?? [])
+      .map((t) => ({
+        key: t.key,
+        label: t.label,
+        ...pick(tally(touchpointQuestion(t.key), "yes")),
+        complaints: Number((touchRes.rows as { question: string; complaints: number }[]).find((r) => r.question === touchpointQuestion(t.key))?.complaints ?? 0),
+      }))
+      .sort((a, b) => b.counted - a.counted || b.uncertain - a.uncertain),
+    postTypes: asked(Q.postType) ? oneOf(Q.postType, [...POST_TYPES, { key: "other", label: "Other" }]) : [],
+    ownership: asked(Q.ownership) ? oneOf(Q.ownership, [...OWNERSHIP, notStated]) : [],
+    firstHand: { yes: tally(Q.firstHand, "yes").counted, no: tally(Q.firstHand, "no").counted },
+    // Scores aren't in `answers` (they're read above), so "asked" is whether any post has one.
+    recommend: recommendation.against + recommendation.neutral + recommendation.for > 0 ? recommendation : null,
+    grid: gridRes.rows as { stage: string; type: string; n: number }[],
   };
 }
 const pick = (t: { counted: number; uncertain: number }) => ({ counted: t.counted, uncertain: t.uncertain });
@@ -617,7 +715,8 @@ export interface LookPost {
 
 /** Posts Jev couldn't place (unclear, or 20–80% likely to be product feedback) that you haven't decided yet. */
 export async function needsLook(searchId: number, version: number, limit = 200): Promise<LookPost[]> {
-  const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version)}
+  const named = await namedNodeIds(searchId);
+  const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version, named)}
     select * from (
       -- The same author's same text (a repost or cross-post) is listed once; Keep/Drop applies to every copy.
       select distinct on (coalesce(p.author_hash, p.id::text), md5(p.text)) p.id, p.source, p.url, p.title, p.text,
@@ -654,6 +753,10 @@ export async function saveReview(searchId: number, postId: number, version: numb
 // ---- Spot-check: how right is Jev? (docs/EVALUATION.md §1, D40) -------------------------------------------------
 
 export const SPOT_CHECK_SIZE = 20;
+/** Claude's answers in the reviews table (kind), next to yours ("spot_check"). */
+const CLAUDE_CHECK = "claude_check";
+/** The questions the check covers besides themes. */
+const CHECKED = [Q.sentiment, Q.stage, Q.segment, Q.postType, Q.ownership];
 
 export interface CheckAnswer {
   answer: string;
@@ -671,6 +774,8 @@ export interface CheckItem {
   jev: Record<string, CheckAnswer>;
   /** Your answers when this post has been checked. */
   person: Record<string, string> | null;
+  /** Claude's answers when the auto-check ran. */
+  claude: Record<string, string> | null;
 }
 
 /**
@@ -679,7 +784,8 @@ export interface CheckItem {
  */
 export async function spotCheckItems(searchId: number, version: number): Promise<CheckItem[]> {
   const db = requireDb();
-  const res = await db.execute(sql`with ${relevanceCte(searchId, version)}
+  const named = await namedNodeIds(searchId);
+  const res = await db.execute(sql`with ${relevanceCte(searchId, version, named)}
     select p.id, p.source, p.url, p.title, p.text, coalesce(p.engagement->>'thread', parent.title) as thread
     from rel join ${posts} p on p.id = rel.post_id
     left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
@@ -695,20 +801,23 @@ export async function spotCheckItems(searchId: number, version: number): Promise
       .from(decisions)
       .where(and(inArray(decisions.postId, ids), eq(decisions.codebookVersion, version))),
     db
-      .select({ postId: reviews.postId, question: reviews.question, answer: reviews.humanAnswer })
+      .select({ postId: reviews.postId, question: reviews.question, answer: reviews.humanAnswer, kind: reviews.kind })
       .from(reviews)
-      .where(and(inArray(reviews.postId, ids), eq(reviews.codebookVersion, version), eq(reviews.kind, "spot_check"))),
+      .where(and(inArray(reviews.postId, ids), eq(reviews.codebookVersion, version), inArray(reviews.kind, ["spot_check", CLAUDE_CHECK]))),
   ]);
-  const checkedQuestions = new Set([Q.sentiment, Q.stage, Q.segment]);
+  const checkedQuestions = new Set<string>(CHECKED);
   return rows.map((r) => {
     const id = Number(r.id);
     const jev = Object.fromEntries(
       answers
-        .filter((a) => a.postId === id && (checkedQuestions.has(a.question as typeof Q.sentiment) || a.question.startsWith("theme:")))
+        .filter((a) => a.postId === id && (checkedQuestions.has(a.question) || a.question.startsWith("theme:")))
         .map((a) => [a.question, { answer: a.answer, confidence: a.confidence }]),
     );
-    const mine = checks.filter((c) => c.postId === id);
-    return { ...r, id, jev, person: mine.length ? Object.fromEntries(mine.map((c) => [c.question, c.answer])) : null };
+    const by = (kind: string) => {
+      const rows = checks.filter((c) => c.postId === id && c.kind === kind);
+      return rows.length ? Object.fromEntries(rows.map((c) => [c.question, c.answer])) : null;
+    };
+    return { ...r, id, jev, person: by("spot_check"), claude: by(CLAUDE_CHECK) };
   });
 }
 
@@ -725,6 +834,8 @@ export async function saveSpotCheck(searchId: number, version: number, postId: n
     [Q.sentiment]: ["positive", "negative", "mixed", "neutral"],
     [Q.stage]: [...codebook.stages.map((s) => s.key), NOT_STATED],
     ...(codebook.segments.length ? { [Q.segment]: [...codebook.segments.map((s) => s.key), NOT_STATED] } : {}),
+    [Q.postType]: [...POST_TYPES.map((t) => t.key), "other"],
+    [Q.ownership]: [...OWNERSHIP.map((o) => o.key), NOT_STATED],
     ...Object.fromEntries(codebook.themes.map((t) => [themeQuestion(t.key), ["yes", "no"]])),
   };
   const rows = Object.entries(answers)
@@ -738,51 +849,114 @@ export async function saveSpotCheck(searchId: number, version: number, postId: n
 }
 
 export interface Accuracy {
-  /** Posts you checked. */
+  /** Posts checked by you or by Claude. */
   checked: number;
-  /** Per question: of Jev's sure answers (≥ 0.8) you checked, how many you agreed with; plus the less sure ones. */
-  questions: { key: string; label: string; sure: number; right: number; notSure: number }[];
+  /** Posts you checked yourself. */
+  byYou: number;
+  /**
+   * Per question: of Jev's sure answers (≥ 0.8) that were checked, how many the judge agreed with (you where you
+   * answered, Claude otherwise); the less sure ones; and Claude-vs-Jev disagreements still waiting for you.
+   */
+  questions: { key: string; label: string; sure: number; right: number; notSure: number; open: number }[];
 }
 
-/** Agreement between Jev's answers and yours, per question (themes pooled: every yes/no call counts). */
+/** The judge per post and question: your answer when you gave one, otherwise Claude's. */
+const judgeCte = (searchId: number, version: number, sample: number[]) => sql`
+  judge as (
+    select distinct on (r.post_id, r.question) r.post_id, r.question, r.human_answer, r.kind
+    from ${reviews} r join ${posts} p on p.id = r.post_id
+    where p.search_id = ${searchId} and r.codebook_version = ${version} and r.kind in ('spot_check', ${CLAUDE_CHECK})
+      and r.post_id in (${sql.join([0, ...sample].map((id) => sql`${id}`), sql`, `)})
+    order by r.post_id, r.question, (r.kind = 'spot_check') desc
+  )`;
+
+/** Agreement between Jev's answers and the judge's, per question (themes pooled: every yes/no call counts). */
 export async function spotCheckAccuracy(searchId: number, version: number): Promise<Accuracy> {
-  const res = await requireDb().execute(sql`
-    select case when r.question like 'theme:%' then 'themes' else r.question end as key,
+  // Only the current sample: posts that left it (new posts, a Keep or Drop) no longer count.
+  const sample = (await spotCheckItems(searchId, version)).map((i) => i.id);
+  const res = await requireDb().execute(sql`with ${judgeCte(searchId, version, sample)}
+    select case when j.question like 'theme:%' then 'themes' else j.question end as key,
       count(*) filter (where d.confidence >= ${COUNTED})::int as sure,
-      count(*) filter (where d.confidence >= ${COUNTED} and d.answer = r.human_answer)::int as "right",
+      count(*) filter (where d.confidence >= ${COUNTED} and d.answer = j.human_answer)::int as "right",
       count(*) filter (where d.confidence < ${COUNTED})::int as "notSure",
-      count(distinct r.post_id)::int as posts
-    from ${reviews} r
-    join ${posts} p on p.id = r.post_id
-    join ${decisions} d on d.post_id = r.post_id and d.codebook_version = r.codebook_version and d.question = r.question
-    where p.search_id = ${searchId} and r.codebook_version = ${version} and r.kind = 'spot_check'
+      count(*) filter (where j.kind = ${CLAUDE_CHECK} and d.confidence >= ${COUNTED} and d.answer <> j.human_answer)::int as open,
+      count(distinct j.post_id)::int as posts,
+      count(distinct j.post_id) filter (where j.kind = 'spot_check')::int as "byYou"
+    from judge j
+    join ${decisions} d on d.post_id = j.post_id and d.codebook_version = ${version} and d.question = j.question
     group by 1`);
-  const rows = res.rows as { key: string; sure: number; right: number; notSure: number; posts: number }[];
-  const labels: Record<string, string> = { sentiment: "Sentiment", stage: "Journey stage", segment: "Who is posting", themes: "Themes (each yes/no)" };
+  const rows = res.rows as { key: string; sure: number; right: number; notSure: number; open: number; posts: number; byYou: number }[];
+  const labels: Record<string, string> = {
+    stage: "Journey stage",
+    sentiment: "Sentiment",
+    post_type: "What people do",
+    ownership: "How long they've had it",
+    segment: "Who is posting",
+    themes: "Themes (each yes/no)",
+  };
   return {
     checked: Math.max(0, ...rows.map((r) => r.posts)),
-    questions: ["stage", "sentiment", "themes", "segment"]
+    byYou: Math.max(0, ...rows.map((r) => r.byYou)),
+    questions: ["stage", "sentiment", "post_type", "ownership", "themes", "segment"]
       .map((key) => rows.find((r) => r.key === key))
       .filter((r) => r !== undefined)
-      .map((r) => ({ key: r.key, label: labels[r.key], sure: r.sure, right: r.right, notSure: r.notSure })),
+      .map((r) => ({ key: r.key, label: labels[r.key], sure: r.sure, right: r.right, notSure: r.notSure, open: r.open })),
   };
+}
+
+/** Runs Claude's check on the 20 sample posts (a few cents) and stores its answers next to yours. */
+export async function runAutoCheck(searchId: number): Promise<{ posts: number }> {
+  const db = requireDb();
+  const version = await resultsVersion(searchId);
+  const plan = await loadPlan(searchId);
+  if (!version || !plan) throw new Error("Analyze the posts first.");
+  const [cb] = await db.select().from(codebooks).where(and(eq(codebooks.searchId, searchId), eq(codebooks.version, version)));
+  const items = await spotCheckItems(searchId, version);
+  if (!cb || items.length === 0) throw new Error("No posts about the subject to check yet.");
+  let result;
+  try {
+    result = await claudeCheck(plan.plan.subject, cb.codebook as Codebook, items);
+  } catch (err) {
+    if (err instanceof AutoCheckError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
+    throw err;
+  }
+  await recordCost({ searchId, ...result.cost });
+  const rows = [...result.answers].flatMap(([postId, answers]) =>
+    Object.entries(answers).map(([question, humanAnswer]) => ({ postId, codebookVersion: version, question, humanAnswer, kind: CLAUDE_CHECK })),
+  );
+  await db.batch([
+    db.delete(reviews).where(and(inArray(reviews.postId, items.map((i) => i.id)), eq(reviews.codebookVersion, version), eq(reviews.kind, CLAUDE_CHECK))),
+    ...(rows.length ? [db.insert(reviews).values(rows)] : []),
+  ]);
+  return { posts: result.answers.size };
 }
 
 /** Where Jev and you disagree, in words, for Claude to improve the definitions. */
 export async function spotCheckMistakes(searchId: number, version: number, codebook: Codebook): Promise<Mistake[]> {
-  const res = await requireDb().execute(sql`
-    select p.text, r.question, d.answer as jev, r.human_answer as person
-    from ${reviews} r
-    join ${posts} p on p.id = r.post_id
-    join ${decisions} d on d.post_id = r.post_id and d.codebook_version = r.codebook_version and d.question = r.question
-    where p.search_id = ${searchId} and r.codebook_version = ${version} and r.kind = 'spot_check' and d.answer <> r.human_answer
+  const sample = (await spotCheckItems(searchId, version)).map((i) => i.id);
+  const res = await requireDb().execute(sql`with ${judgeCte(searchId, version, sample)}
+    select p.text, j.question, d.answer as jev, j.human_answer as person
+    from judge j
+    join ${posts} p on p.id = j.post_id
+    join ${decisions} d on d.post_id = j.post_id and d.codebook_version = ${version} and d.question = j.question
+    where d.answer <> j.human_answer
     limit 60`);
   const name = new Map<string, string>([
     ...[...codebook.stages, ...codebook.segments, ...codebook.themes].map((c) => [c.key, c.label] as const),
     [NOT_STATED, "not stated"],
   ]);
   const question = (q: string) =>
-    q === Q.stage ? "journey stage" : q === Q.segment ? "who is posting" : q === Q.sentiment ? "sentiment" : `theme “${name.get(q.slice(6)) ?? q.slice(6)}”`;
+    q === Q.stage
+      ? "journey stage"
+      : q === Q.segment
+        ? "who is posting"
+        : q === Q.sentiment
+          ? "sentiment"
+          : q === Q.postType
+            ? "what the post does"
+            : q === Q.ownership
+              ? "how long they've had it"
+              : `theme “${name.get(q.slice(6)) ?? q.slice(6)}”`;
   return (res.rows as { text: string; question: string; jev: string; person: string }[]).map((m) => ({
     post: m.text,
     question: question(m.question),
@@ -804,16 +978,19 @@ export async function proposeCodebook(searchId: number): Promise<{ codebook: Cod
   // Mistakes are named with the codebook they were made with (results may still be on an older version).
   const [checked] = version ? await db.select().from(codebooks).where(and(eq(codebooks.searchId, searchId), eq(codebooks.version, version))) : [];
   const mistakes = version && checked ? await spotCheckMistakes(searchId, version, checked.codebook as Codebook) : [];
+  const named = await namedNodeIds(searchId);
   // Posts about the subject when there are enough; otherwise any posts.
   const about = version
-    ? await db.execute(sql`with ${relevanceCte(searchId, version)}
+    ? await db.execute(sql`with ${relevanceCte(searchId, version, named)}
         select p.source, p.text from rel join ${posts} p on p.id = rel.post_id where rel.grp = 'product' order by random() limit ${SAMPLE_SIZE}`)
     : null;
   const sample = about && about.rows.length >= 20 ? (about.rows as { source: string; text: string }[]) : await sampleOf(searchId);
   try {
     const { codebook, cost } = await draftCodebook(plan.plan, sample, { current: current.codebook, mistakes });
     await recordCost({ searchId, ...cost });
-    return { codebook, mistakes: mistakes.length };
+    // Your product notes are yours: Claude reads them but never rewrites or drops them.
+    const notes = current.codebook.productNotes;
+    return { codebook: notes ? { ...codebook, productNotes: notes } : codebook, mistakes: mistakes.length };
   } catch (err) {
     if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
     throw err;

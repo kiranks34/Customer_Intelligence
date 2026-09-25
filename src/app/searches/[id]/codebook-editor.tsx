@@ -7,9 +7,15 @@ import { CODEBOOK_LIMITS, keyFor, type Code, type Codebook, type Theme } from "@
 
 import { proposeCodebookAction, saveCodebookAction } from "../analysis-actions";
 
-type List = "themes" | "stages" | "segments" | "competitors";
-const LISTS: List[] = ["themes", "stages", "segments", "competitors"];
-const TITLES: Record<List, string> = { themes: "Themes", stages: "Journey stages (in order)", segments: "Who is posting", competitors: "Competitors (brands people compare with)" };
+type List = "themes" | "stages" | "segments" | "competitors" | "touchpoints";
+const LISTS: List[] = ["themes", "stages", "touchpoints", "segments", "competitors"];
+const TITLES: Record<List, string> = {
+  themes: "Themes",
+  stages: "Journey stages (in order)",
+  touchpoints: "Touchpoints (app, support, website, store…)",
+  segments: "Who is posting",
+  competitors: "Competitors (brands people compare with)",
+};
 const KINDS: Theme["kind"][] = ["pain", "delight", "need", "topic"];
 const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
 
@@ -20,7 +26,7 @@ const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
 export function CodebookEditor({ searchId, codebook, version }: { searchId: number; codebook: Codebook; version: number }) {
   const router = useRouter();
   // Codebooks saved before competitors existed have none.
-  const initial = { ...codebook, competitors: codebook.competitors ?? [] };
+  const initial = { ...codebook, competitors: codebook.competitors ?? [], touchpoints: codebook.touchpoints ?? [], productNotes: codebook.productNotes ?? "" };
   const [draft, setDraft] = useState<Required<Codebook>>(initial);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -38,7 +44,7 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
       setAsking(false);
       setNote({ ok: r.ok, text: r.message });
       if (r.ok) {
-        setDraft({ ...r.codebook, competitors: r.codebook.competitors ?? [] });
+        setDraft({ ...r.codebook, competitors: r.codebook.competitors ?? [], touchpoints: r.codebook.touchpoints ?? [], productNotes: r.codebook.productNotes ?? "" });
         setOpen(true);
       }
     });
@@ -71,10 +77,12 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
           }),
         ];
       }),
-    ) as Codebook;
+    ) as unknown as Codebook;
+    const notes = draft.productNotes.trim();
+    const withNotes: Codebook = { ...withKeys, ...(notes ? { productNotes: notes } : {}) };
     setNote(null);
     startTransition(async () => {
-      const r = await saveCodebookAction(searchId, withKeys);
+      const r = await saveCodebookAction(searchId, withNotes);
       setNote({ ok: r.ok, text: r.message });
       if (r.ok) router.refresh();
     });
@@ -94,6 +102,19 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
             Sharper definitions with “counts when / not when” and real examples, fixing any mistakes from “Check accuracy”. A few cents; you review before saving.
           </span>
         </div>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">How the product works</span>
+          <span className="text-xs text-muted">
+            Facts Jev and Claude should know instead of guessing, e.g. “Printheads are installed during setup and can be replaced later if damaged.”
+          </span>
+          <textarea
+            value={draft.productNotes}
+            onChange={(e) => setDraft((d) => ({ ...d, productNotes: e.target.value }))}
+            maxLength={1500}
+            rows={3}
+            className={`${input} min-h-20`}
+          />
+        </label>
         {LISTS.map((list) => (
           <fieldset key={list} className="flex flex-col gap-2">
             <legend className="mb-1 text-sm font-medium">{TITLES[list]}</legend>

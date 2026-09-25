@@ -23,12 +23,17 @@ Produce:
   (e.g. "Wi-Fi setup and connection drops", not "problems"). Always include one value-for-money theme.
 - competitors: up to 8 other brands or product lines people in the sample compare with, own, recommend or switch to
   (e.g. "Epson EcoTank", "Canon MegaTank"). Only ones that appear in the sample.
+- touchpoints: up to 10 channels and tools people deal with along the journey that appear in the sample: the
+  maker's app, support (chat, phone, forum), website and downloads, retailer or store, subscription services,
+  the packaging and manual, the product's own screen or buttons.
 
-For every stage, segment, theme and competitor write:
+For every stage, segment, theme, competitor and touchpoint write:
 - definition: one sentence saying what a post must mention to count.
 - counts: the concrete signals that mean it counts (words, situations, time since purchase).
-- excludes: the look-alikes that do NOT count, especially neighbouring stages or themes (e.g. "Set up" vs
-  "Problems": a failure during the first installation is Set up; a failure after it had worked is Problems).
+- excludes: the look-alikes that do NOT count, especially neighbouring stages or themes.
+Stages are about the writer's situation (how long they've had it, whether it worked before), never about which
+part or topic is mentioned: the same part can come up at setup and much later. Do not assume how the product works
+beyond the product notes (if given) and what the posts say.
 - example_post: the number of one post from the sample that clearly fits, and example_quote: a short phrase copied
   exactly from that post. Use null when no post fits.
 Stages must not overlap: every post should fit exactly one, or none. Labels are short and plain. Never invent
@@ -51,6 +56,7 @@ const DraftSchema = z.object({
   segments: z.array(DraftCode).max(CODEBOOK_LIMITS.segments),
   themes: z.array(DraftTheme).min(3).max(CODEBOOK_LIMITS.themes),
   competitors: z.array(DraftCode).max(CODEBOOK_LIMITS.competitors),
+  touchpoints: z.array(DraftCode).max(CODEBOOK_LIMITS.touchpoints),
 });
 
 type ClaudeCost = CallCost & { provider: "anthropic" };
@@ -90,6 +96,7 @@ function fromDraft(draft: z.infer<typeof DraftSchema>, sample: { text: string }[
     segments: draft.segments.map(convert),
     themes: draft.themes.map(convert),
     competitors: draft.competitors.map(convert),
+    touchpoints: draft.touchpoints.map(convert),
   };
 }
 
@@ -121,6 +128,7 @@ export async function draftCodebook(
         `Subject: ${plan.subject}`,
         plan.question ? `The user's question: ${plan.question}` : null,
         plan.focus.length ? `Focus: ${plan.focus.join(", ")}` : null,
+        improve?.current.productNotes ? `How the product works (from the user; trust this over your own knowledge):\n${improve.current.productNotes}` : null,
         improve ? `Current codebook (JSON):\n${JSON.stringify(improve.current)}` : null,
         improve?.mistakes.length
           ? `Mistakes found by the spot-check:\n${improve.mistakes

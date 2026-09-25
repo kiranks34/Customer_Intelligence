@@ -24,7 +24,7 @@ export const ThemeSchema = CodeSchema.extend({
   kind: z.enum(["pain", "delight", "need", "topic"]).describe("pain = problem or complaint; delight = praise; need = wish or unmet need; topic = neutral subject"),
 });
 
-export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12, competitors: 8 } as const;
+export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12, competitors: 8, touchpoints: 10 } as const;
 
 export const CodebookSchema = z.object({
   stages: z.array(CodeSchema).min(2).max(CODEBOOK_LIMITS.stages).describe("Customer journey stages, in order"),
@@ -35,6 +35,16 @@ export const CodebookSchema = z.object({
     .max(CODEBOOK_LIMITS.competitors)
     .default([])
     .describe("Other brands or product lines people compare with or switch to, e.g. Epson EcoTank, Canon MegaTank"),
+  touchpoints: z
+    .array(CodeSchema)
+    .max(CODEBOOK_LIMITS.touchpoints)
+    .default([])
+    .describe("Channels and tools people deal with along the journey, e.g. the maker's app, support, website, store, subscription"),
+  /**
+   * How the product works, in your words or approved by you (D42): read by Jev with every post and by Claude when it
+   * drafts, so neither has to guess (e.g. "printheads are installed at setup and can be replaced later").
+   */
+  productNotes: z.string().max(1500).optional(),
 });
 
 export type Code = z.infer<typeof CodeSchema>;
@@ -48,7 +58,7 @@ export const NOT_STATED = "not_stated";
  * Version of the questions Jev is asked, stored as the answer of the "about:product" row. Posts read with an older
  * set are read again (D39: competitors). Bump it whenever the questions change in a way results depend on.
  */
-export const QUESTION_SET = "q39";
+export const QUESTION_SET = "q41";
 
 /** Reserved answers for the competitor question. */
 export const OTHER_BRAND = "other_brand";
@@ -67,7 +77,7 @@ export function criterion(c: Code): string {
 export function validateCodebook(candidate: unknown): { ok: true; codebook: Codebook } | { ok: false; error: string } {
   const parsed = CodebookSchema.safeParse(candidate);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid codebook" };
-  for (const list of ["stages", "segments", "themes", "competitors"] as const) {
+  for (const list of ["stages", "segments", "themes", "competitors", "touchpoints"] as const) {
     const keys = parsed.data[list].map((c) => c.key);
     if (new Set(keys).size !== keys.length) return { ok: false, error: `Two ${list} have the same key.` };
     if (keys.some((k) => [NOT_STATED, OTHER_BRAND, NO_BRAND].includes(k))) return { ok: false, error: `"${keys.find((k) => [NOT_STATED, OTHER_BRAND, NO_BRAND].includes(k))}" is reserved.` };
@@ -108,7 +118,52 @@ export const Q = {
   competitorFeeling: "competitor:feeling",
   stage: "stage",
   segment: "segment",
+  /** D41: three independent yes/no questions instead of one forced choice, so a comparison counts for both sides. */
+  subject: "about:subject",
+  mentionsCompetitor: "about:competitor",
+  chat: "about:chat",
+  /** D41: what the post does, and the journey anchors. */
+  postType: "post_type",
+  ownership: "ownership",
+  firstHand: "first_hand",
+  severity: "severity",
+  recommend: "recommend",
 } as const;
+
+/** What a post does (D41), crossed with the journey stage on the journey map. */
+export const POST_TYPES = [
+  { key: "question", label: "Question", definition: "Asks something: how to, which to buy, whether it can do something." },
+  { key: "complaint", label: "Complaint or problem", definition: "Reports a problem, a failure or frustration." },
+  { key: "praise", label: "Praise", definition: "Says what they like or that it works well." },
+  { key: "advice", label: "Advice or a fix", definition: "Tells others what to do, shares a fix, a tip or a warning." },
+  { key: "comparison", label: "Comparison", definition: "Compares it with other models or brands, or recommends one over another." },
+  { key: "decision", label: "Decision", definition: "Says they bought, returned, replaced, switched or will never buy again." },
+] as const;
+
+/** How long the writer has had it (D41): anchors the journey stage. */
+export const OWNERSHIP = [
+  { key: "not_owner", label: "Doesn't own one", definition: "Considering, researching or asking before buying; or never owned one." },
+  { key: "new", label: "Just got it (under a month)", definition: "Just bought, unboxing, setting up, or had it for days or weeks." },
+  { key: "months", label: "Months", definition: "Has used it for a few months up to a year." },
+  { key: "years", label: "Over a year", definition: "Has had it for more than a year." },
+  { key: "gone", label: "No longer uses it", definition: "Returned, replaced, threw away or stopped using it." },
+] as const;
+
+/** Severity levels (score 0–4) and would-recommend levels (score 0–4). */
+export const SEVERITY_LEVELS = [
+  "No problem mentioned.",
+  "Minor annoyance; still works fine.",
+  "Recurring hassle that costs time or ink.",
+  "Blocks an important task; needed support or a fix.",
+  "Unusable: returned, replaced or given up on.",
+];
+export const RECOMMEND_LEVELS = [
+  "Warns others not to buy it.",
+  "Leans against it.",
+  "No clear view.",
+  "Leans towards recommending it.",
+  "Clearly recommends it.",
+];
 
 /**
  * The kinds of post (D38, D39). Only "product" posts are analysed for the journey; competitor posts get their brand
@@ -116,10 +171,12 @@ export const Q = {
  */
 export const ABOUT = { product: "product", competitor: "competitor", chat: "chat", offTopic: "off_topic", unclear: "unclear", otherBrands: "other_brands" } as const;
 export const themeQuestion = (key: string) => `theme:${key}`;
+export const touchpointQuestion = (key: string) => `touch:${key}`;
 
 type Question =
   | { type: "boolean"; instructions: string; criteria?: { true?: string; false?: string } }
-  | { type: "choice"; instructions: string; criteria: Record<string, string> };
+  | { type: "choice"; instructions: string; criteria: Record<string, string> }
+  | { type: "score"; instructions: string; criteria: string[] };
 
 /**
  * The typed questions Jev answers for every post, all in one call: relevance, sentiment, journey stage, segment,
@@ -127,17 +184,38 @@ type Question =
  */
 export function questionsFor(codebook: Codebook, subject: string): Record<string, Question> {
   const questions: Record<string, Question> = {
-    [Q.about]: {
-      type: "choice",
-      instructions: `What kind of post is this, for research on ${subject}? Use its context: the video or thread it was posted under, and any products it names.`,
+    [Q.subject]: {
+      type: "boolean",
+      instructions: `Does the post share an experience, a problem, a question or an opinion about ${subject}? Use its context: the video or thread it was posted under, and the products it names.`,
       criteria: {
-        [ABOUT.product]: `About ${subject}: owning, buying, setting up, using, a problem, a question or an opinion. It counts when the post names it, or when it is a comment under a video or thread about ${subject} and talks about that. Comparisons that include it count.`,
-        [ABOUT.competitor]: `Mainly about another brand or product line (one they own, recommend, switched to or compare with), not ${subject} itself. It counts even under a video or thread about ${subject}.`,
-        [ABOUT.chat]: "Thanks or praise for the video or poster, greetings or jokes, with no experience, opinion or question about any product.",
-        [ABOUT.offTopic]: "About something else entirely (not these products or this kind of product), or spam.",
-        [ABOUT.unclear]: "Too short or vague to tell what it is about.",
+        true: `It talks about ${subject} itself: named, or clearly the printer in the video or thread it replies to. Comparisons that include it count.`,
+        false: `Not about ${subject}: only about other brands, only thanks or chat, or something else.`,
       },
     },
+    [Q.mentionsCompetitor]: {
+      type: "boolean",
+      instructions: `Does the post talk about another brand or product line than ${subject} (one they own, recommend, switched to or compare with)?`,
+    },
+    [Q.chat]: {
+      type: "boolean",
+      instructions: "Is the post only thanks or praise for the video or poster, a greeting, a joke or off-topic talk, with no experience, question or opinion about a product?",
+    },
+    [Q.postType]: {
+      type: "choice",
+      instructions: "What does the post mainly do?",
+      criteria: { ...Object.fromEntries(POST_TYPES.map((t) => [t.key, t.definition])), other: "None of these." },
+    },
+    [Q.ownership]: {
+      type: "choice",
+      instructions: `How long has the writer had ${subject}?`,
+      criteria: { ...Object.fromEntries(OWNERSHIP.map((o) => [o.key, o.definition])), [NOT_STATED]: "The post doesn't say." },
+    },
+    [Q.firstHand]: {
+      type: "boolean",
+      instructions: "Is the writer describing their own experience with the product, not repeating what they heard or read?",
+    },
+    [Q.severity]: { type: "score", instructions: `How serious is the problem the writer has with ${subject}?`, criteria: SEVERITY_LEVELS },
+    [Q.recommend]: { type: "score", instructions: `Would the writer recommend ${subject} to others?`, criteria: RECOMMEND_LEVELS },
     [Q.sentiment]: {
       type: "choice",
       instructions: `Overall, how does the writer feel about ${subject}?`,
@@ -150,7 +228,7 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
     },
     [Q.stage]: {
       type: "choice",
-      instructions: `Where is the writer in their journey with ${subject}?`,
+      instructions: `Where is the writer in their journey with ${subject}? Judge by their situation (how long they've had it, whether it worked before), not by which part or topic they mention.`,
       criteria: { ...Object.fromEntries(codebook.stages.map((s) => [s.key, criterion(s)])), [NOT_STATED]: "The post doesn't show where they are." },
     },
   };
@@ -183,6 +261,13 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
       criteria: { ...Object.fromEntries(codebook.segments.map((s) => [s.key, criterion(s)])), [NOT_STATED]: "The post doesn't say." },
     };
   }
+  for (const t of codebook.touchpoints ?? []) {
+    questions[touchpointQuestion(t.key)] = {
+      type: "boolean",
+      instructions: `Does the writer use or deal with “${t.label}”?`,
+      criteria: { true: [t.definition, t.counts && `Counts when: ${t.counts}`, t.example && `Example: “${t.example}”`].filter(Boolean).join(" "), false: t.excludes ? `Not when: ${t.excludes}` : "Not mentioned." },
+    };
+  }
   for (const t of codebook.themes) {
     questions[themeQuestion(t.key)] = {
       type: "boolean",
@@ -209,12 +294,15 @@ export interface PostForJev {
   isComment?: boolean;
   /** Catalog products the post names (from the catalog matcher), e.g. "HP Smart Tank 7301". */
   names?: string | null;
+  /** How the product works (codebook product notes), so Jev doesn't guess. */
+  productNotes?: string | null;
 }
 
 export function stateFor(post: PostForJev): Record<string, string> {
   const channel =
     post.source === "youtube" ? "YouTube comment" : post.source === "reddit" ? (post.isComment ? "Reddit comment" : "Reddit post") : post.source;
   const state: Record<string, string> = { channel };
+  if (post.productNotes) state.how_the_product_works = post.productNotes;
   if (post.thread) state.context = post.source === "youtube" ? `Comment on the YouTube video “${post.thread}”` : `Reply in the Reddit thread “${post.thread}”`;
   if (post.names) state.products_named = post.names;
   if (post.title) state.title = post.title;
@@ -222,7 +310,10 @@ export function stateFor(post: PostForJev): Record<string, string> {
   return state;
 }
 
-type Answer = { type: "boolean"; probability: number } | { type: "choice"; choice: string; probabilities?: Record<string, number> } | { type: "score"; score: number };
+type Answer =
+  | { type: "boolean"; probability: number }
+  | { type: "choice"; choice: string; probabilities?: Record<string, number> }
+  | { type: "score"; score: number; probabilities?: Record<string, number> };
 
 export interface DecisionRow {
   question: string;
@@ -237,8 +328,14 @@ export interface DecisionRow {
  */
 export function readAnswers(answers: Record<string, Answer>): DecisionRow[] {
   const rows: DecisionRow[] = [];
+  const yes: Record<string, number> = {};
   for (const [question, a] of Object.entries(answers)) {
-    if (a.type === "boolean") {
+    if (a.type === "score") {
+      // The position on the scale (e.g. 2.6 of 0–4); confidence is the most likely level's probability, if given.
+      const top = a.probabilities ? Math.max(...Object.values(a.probabilities)) : undefined;
+      rows.push({ question, answer: (Number.isFinite(a.score) ? a.score : 0).toFixed(2), confidence: top === undefined ? 0.5 : clamp(top) });
+    } else if (a.type === "boolean") {
+      yes[question] = clamp(a.probability);
       const p = clamp(a.probability);
       rows.push({ question, answer: p >= 0.5 ? "yes" : "no", confidence: Math.max(p, 1 - p) });
     } else if (a.type === "choice") {
@@ -250,6 +347,18 @@ export function readAnswers(answers: Record<string, Answer>): DecisionRow[] {
         rows.push({ question: Q.aboutProduct, answer: QUESTION_SET, confidence: product === undefined ? (a.choice === ABOUT.product && p !== undefined ? clamp(p) : 0.5) : clamp(product) });
       }
     }
+  }
+  // D41: the kind of post follows from the three yes/no answers; stored like the older choice so every count reads
+  // one way. P(about the subject) decides what counts; a comparison can be "about" and mention a competitor.
+  if (Q.subject in yes) {
+    const subject = yes[Q.subject];
+    const competitor = yes[Q.mentionsCompetitor] ?? 0;
+    const chat = yes[Q.chat] ?? 0;
+    const kind =
+      subject >= 0.5 ? ABOUT.product : competitor >= 0.5 ? ABOUT.competitor : chat >= 0.5 ? ABOUT.chat : ABOUT.offTopic;
+    const sure = kind === ABOUT.product ? subject : kind === ABOUT.competitor ? competitor : kind === ABOUT.chat ? chat : 1 - Math.max(subject, competitor, chat);
+    rows.push({ question: Q.about, answer: kind, confidence: sure });
+    rows.push({ question: Q.aboutProduct, answer: QUESTION_SET, confidence: subject });
   }
   return rows;
 }
@@ -264,7 +373,8 @@ const CHARS_PER_TOKEN = 4;
 /** Rough tokens for one post's call: the post plus every question's wording. Errs high. */
 export function estimateTokens(postChars: number, codebook: Codebook, subject: string): number {
   const questionChars = JSON.stringify(questionsFor(codebook, subject)).length;
-  return Math.ceil((Math.min(postChars, MAX_POST_CHARS) + questionChars + 200) / CHARS_PER_TOKEN);
+  // The product notes go with every post too.
+  return Math.ceil((Math.min(postChars, MAX_POST_CHARS) + questionChars + (codebook.productNotes?.length ?? 0) + 200) / CHARS_PER_TOKEN);
 }
 
 export const jevUsd = (inputTokens: number) => (inputTokens * JEV_USD_PER_MILLION_INPUT) / 1_000_000;

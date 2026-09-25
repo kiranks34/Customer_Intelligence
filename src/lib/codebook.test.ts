@@ -17,7 +17,7 @@ const codebook: Codebook = {
 
 describe("validateCodebook", () => {
   it("accepts a valid codebook", () => {
-    expect(validateCodebook(codebook)).toEqual({ ok: true, codebook: { ...codebook, competitors: [] } });
+    expect(validateCodebook(codebook)).toEqual({ ok: true, codebook: { ...codebook, competitors: [], touchpoints: [] } });
   });
   it("rejects duplicate keys, duplicate names and the reserved key", () => {
     const dupKey = { ...codebook, themes: [...codebook.themes, { ...codebook.themes[0], label: "Other" }] };
@@ -60,10 +60,26 @@ describe("keyFor", () => {
 describe("questionsFor", () => {
   const q = questionsFor(codebook, "HP Smart Tank 7301");
   it("asks the kind of post, sentiment, stage, segment and one yes/no per theme in one call", () => {
-    expect(Object.keys(q)).toEqual(["about", "sentiment", "stage", "segment", "theme:wifi", "theme:ink_cost", "theme:print_quality"]);
-    expect(q.about.type).toBe("choice");
-    expect(Object.keys((q.about as { criteria: object }).criteria)).toEqual(["product", "competitor", "chat", "off_topic", "unclear"]);
-    expect(JSON.stringify(q.about)).toContain("HP Smart Tank 7301");
+    expect(Object.keys(q)).toEqual([
+      "about:subject",
+      "about:competitor",
+      "about:chat",
+      "post_type",
+      "ownership",
+      "first_hand",
+      "severity",
+      "recommend",
+      "sentiment",
+      "stage",
+      "segment",
+      "theme:wifi",
+      "theme:ink_cost",
+      "theme:print_quality",
+    ]);
+    expect(q["about:subject"]).toMatchObject({ type: "boolean" });
+    expect(JSON.stringify(q["about:subject"])).toContain("HP Smart Tank 7301");
+    expect(q.severity).toMatchObject({ type: "score" });
+    expect(Object.keys((q.post_type as { criteria: object }).criteria)).toEqual(["question", "complaint", "praise", "advice", "comparison", "decision", "other"]);
     expect(q[themeQuestion("wifi")]).toMatchObject({ type: "boolean" });
   });
   it("offers 'not stated' for stage and segment", () => {
@@ -75,6 +91,14 @@ describe("questionsFor", () => {
     const withBrands = questionsFor({ ...codebook, competitors: [{ key: "epson", label: "Epson EcoTank", definition: "Epson EcoTank printers." }] }, "HP Smart Tank");
     expect(Object.keys((withBrands.competitor as { criteria: object }).criteria)).toEqual(["epson", "other_brand", "no_brand"]);
     expect(withBrands["competitor:feeling"]).toMatchObject({ type: "choice" });
+  });
+  it("asks one yes/no per touchpoint, and judges the stage by the writer's situation", () => {
+    const withTouch = questionsFor({ ...codebook, touchpoints: [{ key: "hp_app", label: "HP Smart app", definition: "The HP Smart app." }] }, "HP Smart Tank");
+    expect(withTouch["touch:hp_app"]).toMatchObject({ type: "boolean" });
+    expect(withTouch.stage.instructions).toContain("not by which part or topic");
+  });
+  it("sends the product notes with every post", () => {
+    expect(stateFor({ source: "youtube", title: "", text: "x", productNotes: "Printheads can be replaced later." })).toMatchObject({ how_the_product_works: "Printheads can be replaced later." });
   });
   it("leaves out the segment question when there are no segments", () => {
     expect(questionsFor({ ...codebook, segments: [] }, "x").segment).toBeUndefined();
@@ -91,6 +115,23 @@ describe("readAnswers", () => {
       { question: "sentiment", answer: "negative", confidence: 0.7 },
     ]);
     expect(readAnswers({ sentiment: { type: "choice", choice: "positive" } })).toEqual([{ question: "sentiment", answer: "positive", confidence: 0.5 }]);
+  });
+  it("works out the kind of post from three yes/no answers; a comparison is about the product and names a competitor", () => {
+    const rows = readAnswers({
+      "about:subject": { type: "boolean", probability: 0.9 },
+      "about:competitor": { type: "boolean", probability: 0.95 },
+      "about:chat": { type: "boolean", probability: 0.05 },
+    });
+    expect(rows).toContainEqual({ question: "about", answer: "product", confidence: 0.9 });
+    expect(rows).toContainEqual({ question: "about:product", answer: QUESTION_SET, confidence: 0.9 });
+    const chat = readAnswers({ "about:subject": { type: "boolean", probability: 0.1 }, "about:competitor": { type: "boolean", probability: 0.1 }, "about:chat": { type: "boolean", probability: 0.9 } });
+    expect(chat).toContainEqual({ question: "about", answer: "chat", confidence: 0.9 });
+    const offTopic = readAnswers({ "about:subject": { type: "boolean", probability: 0.1 }, "about:competitor": { type: "boolean", probability: 0.2 }, "about:chat": { type: "boolean", probability: 0.3 } });
+    expect(offTopic).toContainEqual({ question: "about", answer: "off_topic", confidence: 0.7 });
+  });
+  it("stores a score as its position with the most likely level's probability", () => {
+    expect(readAnswers({ severity: { type: "score", score: 2.64, probabilities: { "2": 0.5, "3": 0.4, "1": 0.1 } } })).toEqual([{ question: "severity", answer: "2.64", confidence: 0.5 }]);
+    expect(readAnswers({ recommend: { type: "score", score: 1 } })).toEqual([{ question: "recommend", answer: "1.00", confidence: 0.5 }]);
   });
   it("stores how likely a post is product feedback next to its kind", () => {
     expect(readAnswers({ about: { type: "choice", choice: "chat", probabilities: { product: 0.1, competitor: 0.05, chat: 0.8, unclear: 0.05 } } })).toEqual([

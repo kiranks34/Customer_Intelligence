@@ -218,10 +218,36 @@ function Results({ summary, subject, totalPosts }: { summary: AnalysisSummary; s
         <Stacked parts={summary.sentiment.map((t) => ({ key: t.key, label: t.label, n: t.counted, color: SENTIMENT_COLORS[t.key] }))} total={r.counted} label="Sentiment" />
       </div>
 
+      {summary.grid.length > 0 && <JourneyMap summary={summary} />}
+
+      {summary.postTypes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span>
+              <span className="font-medium tabular-nums">{summary.firstHand.yes}</span> <span className="text-muted">share their own experience</span>
+              {summary.firstHand.no > 0 && <span className="text-muted"> · {summary.firstHand.no} repeat what they heard</span>}
+            </span>
+            {summary.recommend && (
+              <span>
+                <span className="text-muted">Would recommend:</span> <span className="font-medium tabular-nums">{summary.recommend.for}</span>{" "}
+                <span className="text-muted">yes ·</span> <span className="font-medium tabular-nums">{summary.recommend.against}</span>{" "}
+                <span className="text-muted">warn against · {summary.recommend.neutral} no clear view</span>
+              </span>
+            )}
+          </p>
+          <div className="grid gap-7 sm:grid-cols-2">
+            <Bars title="What people do" note="One per post: asking, complaining, praising, advising, comparing, deciding." items={summary.postTypes} />
+            <Bars title="How long they've had it" note="Anchors where they are in the journey." items={summary.ownership} />
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-7 sm:grid-cols-2">
         <Themes items={summary.themes} total={r.counted} />
         <Bars title="Journey stage" note="One stage per post; adds up to the posts about it." items={summary.stages} />
       </div>
+      {summary.touchpoints.length > 0 && <Touchpoints items={summary.touchpoints} />}
+
       <div className="grid gap-7 sm:grid-cols-2">
         {summary.segments.length > 0 && <Bars title="Who is posting" note="From what people say about themselves." items={summary.segments} />}
         <Competitors items={summary.competitors} hasList={(summary.codebook.competitors ?? []).length > 0} />
@@ -230,6 +256,99 @@ function Results({ summary, subject, totalPosts }: { summary: AnalysisSummary; s
         “Sure” means Jev was at least 80% confident. “Not sure” is everything below that, so every chart adds up. All numbers are counted from the
         stored answers, not written by AI.
       </p>
+    </div>
+  );
+}
+
+/**
+ * The journey map: stages down, what people do across. Each cell is a moment (e.g. Set up × Complaint); shading shows
+ * where people are loudest. Only answers Jev was sure of, so it can be smaller than the charts below.
+ */
+function JourneyMap({ summary }: { summary: AnalysisSummary }) {
+  const types = summary.postTypes.filter((t) => t.key !== NOT_SURE && t.key !== "other");
+  const stages = summary.codebook.stages;
+  const cell = (stage: string, type: string) => summary.grid.find((g) => g.stage === stage && g.type === type)?.n ?? 0;
+  const max = Math.max(1, ...summary.grid.map((g) => g.n));
+  const shownTypes = new Set(types.map((t) => t.key));
+  const shownStages = new Set(stages.map((st) => st.key));
+  // Only the cells in the table ("not stated" stages and "other" types aren't shown).
+  const total = summary.grid.filter((g) => shownStages.has(g.stage) && shownTypes.has(g.type)).reduce((n, g) => n + g.n, 0);
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h3 className="text-sm font-medium">Journey map</h3>
+        <p className="text-xs text-muted">
+          Where people are (rows) × what they do (columns). Darker = more posts. {total} posts where Jev was sure of both.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[36rem] border-separate border-spacing-1 text-sm">
+          <thead>
+            <tr>
+              <th className="w-40" />
+              {types.map((t) => (
+                <th key={t.key} className="px-1 text-left text-xs font-normal text-muted">
+                  {t.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {stages.map((s) => (
+              <tr key={s.key}>
+                <th className="pr-2 text-left font-normal">{s.label}</th>
+                {types.map((t) => {
+                  const n = cell(s.key, t.key);
+                  return (
+                    <td
+                      key={t.key}
+                      className="h-9 rounded-md text-center tabular-nums"
+                      style={{ background: n ? `color-mix(in srgb, var(--accent) ${Math.round(12 + (n / max) * 70)}%, transparent)` : undefined }}
+                      title={`${s.label} × ${t.label}: ${n}`}
+                    >
+                      {n || <span className="text-muted/50">·</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Where people meet the product and the company (app, support, website, store…), and how often it goes wrong there. */
+function Touchpoints({ items }: { items: AnalysisSummary["touchpoints"] }) {
+  const shown = items.filter((t) => t.counted + t.uncertain > 0);
+  const max = Math.max(1, ...items.map((t) => t.counted));
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h3 className="text-sm font-medium">Touchpoints</h3>
+        <p className="text-xs text-muted">Where people deal with the product or the company. A post can mention several.</p>
+      </div>
+      {shown.length === 0 ? (
+        <p className="text-sm text-muted">None found yet.</p>
+      ) : (
+        <ul className="grid gap-x-7 gap-y-1.5 sm:grid-cols-2">
+          {shown.map((t) => (
+            <li key={t.key} className="grid grid-cols-[minmax(0,1fr)_5rem_6.5rem] items-center gap-3 text-sm">
+              <span className="truncate" title={t.label}>
+                {t.label}
+              </span>
+              <span className="h-1.5 rounded-full bg-border/50" aria-hidden>
+                <span className="block h-1.5 rounded-full bg-accent" style={{ width: `${(t.counted / max) * 100}%` }} />
+              </span>
+              <span className="text-right tabular-nums">
+                {t.counted}
+                {t.complaints > 0 && <span className="text-xs text-critical"> · {t.complaints} complaints</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -323,7 +442,7 @@ function Bars({ title, note, items }: { title: string; note: string; items: Tall
 }
 
 /** Themes can overlap (a post can mention several), so they don't add up. Solid = sure, light = likely. */
-function Themes({ items, total }: { items: (Tally & { kind: string })[]; total: number }) {
+function Themes({ items, total }: { items: (Tally & { kind: string; severity: number | null })[]; total: number }) {
   const shown = items.filter((t) => t.counted + t.uncertain > 0);
   const max = Math.max(1, ...items.map((t) => t.counted + t.uncertain));
   return (
@@ -349,6 +468,11 @@ function Themes({ items, total }: { items: (Tally & { kind: string })[]; total: 
               <span className="truncate" title={t.label}>
                 {t.label}
                 <span className="ml-2 text-xs text-muted">{KIND[t.kind] ?? ""}</span>
+                {t.severity !== null && t.severity >= 0.5 && (
+                  <span className="ml-2 text-xs text-muted" title="Average seriousness of the problem, 0 (none) to 4 (unusable)">
+                    · severity {t.severity.toFixed(1)}/4
+                  </span>
+                )}
               </span>
               <span className="flex h-1.5 overflow-hidden rounded-full bg-border/50" aria-hidden>
                 <span className="h-1.5 bg-accent" style={{ width: `${(t.counted / max) * 100}%` }} />
