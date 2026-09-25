@@ -352,7 +352,8 @@ export function modelFromMention(mention: string): TreeNode {
 // ---- Names: what's recognised automatically, and conflicts ----------------------------------------------------
 
 /** Compared ignoring case, spaces, dashes and doubled letters ("Smart-Tank 7301" = "smarttank7301" = "smartank 7301"). */
-const squash = (s: string) => normalize(s).replace(/\s+/g, "").replace(/(\p{L})\1+/gu, "$1");
+export const squashName = (s: string) => normalize(s).replace(/\s+/g, "").replace(/(\p{L})\1+/gu, "$1");
+const squash = squashName;
 
 /**
  * Examples of how a model's number is recognised without anyone typing them in (shown on the catalog page), e.g.
@@ -391,4 +392,41 @@ export function nameConflict(root: TreeNode, nodeId: number, name: string): stri
     return null;
   };
   return walk(root);
+}
+
+// ---- Proposals: new models found in posts ---------------------------------------------------------------------
+
+const modelNumber = (n: TreeNode) => [n.name, ...n.aliases].map((a) => a.match(/(\d{3,4})[a-z]{0,2}\s*$/i)?.[1]).find((x) => x !== undefined);
+
+/**
+ * The series a new model number most likely belongs to: the one whose models share the longest leading digits
+ * with it and the same number of digits (7315 → the 7300 series), nearest number breaking ties. Null when no
+ * series has a model with the same number of digits; then you pick the series.
+ */
+export function guessSeries(root: TreeNode, number: string): number | null {
+  let best: { id: number; prefix: number; distance: number } | null = null;
+  for (const s of root.children) {
+    if (s.id === null) continue;
+    for (const m of s.children) {
+      const n = modelNumber(m);
+      if (!n || n.length !== number.length) continue;
+      let prefix = 0;
+      while (prefix < n.length && n[prefix] === number[prefix]) prefix++;
+      const distance = Math.abs(Number(n) - Number(number));
+      if (prefix > 0 && (!best || prefix > best.prefix || (prefix === best.prefix && distance < best.distance))) best = { id: s.id, prefix, distance };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/** A short piece of a post around a mention, for showing why something was proposed. */
+export function snippet(text: string, mention: string, radius = 70): string | null {
+  const t = text.replace(/\s+/g, " ").trim();
+  const words = normalize(mention).split(" ");
+  const re = new RegExp(words.map((w, i) => (i === 0 ? escape(w) : `\\s*${escape(w)}`)).join(""), "i");
+  const m = re.exec(t.normalize("NFKC").replace(/[-_/]/g, " "));
+  if (!m) return null;
+  const start = Math.max(0, m.index - radius);
+  const end = Math.min(t.length, m.index + m[0].length + radius);
+  return `${start > 0 ? "…" : ""}${t.slice(start, end).trim()}${end < t.length ? "…" : ""}`;
 }

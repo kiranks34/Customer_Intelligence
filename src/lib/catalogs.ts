@@ -6,7 +6,22 @@ import { requireDb } from "@/db/client";
 import { catalogNodes, catalogs, postProducts, posts, searches } from "@/db/schema";
 
 import { referenceFor } from "./catalog-references";
-import { cleanTree, compileMatcher, findMentions, familyTerms, flatten, isCovered, type FlatNode, type Level, type Mention, type TreeNode } from "./catalog";
+import {
+  cleanTree,
+  compileMatcher,
+  findMentions,
+  familyTerms,
+  flatten,
+  guessSeries,
+  isCovered,
+  modelFromMention,
+  snippet,
+  squashName,
+  type FlatNode,
+  type Level,
+  type Mention,
+  type TreeNode,
+} from "./catalog";
 
 /** Database side of the product catalog (docs/DECISIONS.md D29). Counts come from SQL over post_products. */
 
@@ -259,4 +274,168 @@ export async function setRetired(catalogId: number, nodeId: number, retired: boo
     db.update(catalogNodes).set({ retiredAt: null }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), eq(catalogNodes.retiredAt, node.retiredAt))),
     db.update(catalogNodes).set({ retiredAt: null }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
   ]);
+}
+
+// ---- Families, manual additions and proposals ------------------------------------------------------------------
+
+/** Every family (one catalog each), for the Family picker. */
+export async function listFamilies(): Promise<{ id: number; name: string }[]> {
+  return requireDb().select({ id: catalogs.id, name: catalogs.name }).from(catalogs).orderBy(asc(catalogs.name));
+}
+
+/** Adds a series under the family, or a model under a series, as approved (you typed it). */
+export async function addNode(catalogId: number, parentId: number, level: "series" | "model", name: string, aliases: string[]): Promise<number> {
+  const [{ id }] = await requireDb()
+    .insert(catalogNodes)
+    .values({ catalogId, parentId, level, name, aliases, verified: false, sort: 1000 })
+    .returning({ id: catalogNodes.id });
+  return id;
+}
+
+export interface ProposalEvidence {
+  /** Where it came from: model mentions in collected posts, or the family's verified reference list. */
+  source: "posts" | "reference";
+  posts?: number;
+  examples?: string[];
+  url?: string;
+}
+
+export interface Proposal {
+  id: number;
+  level: "series" | "model";
+  name: string;
+  aliases: string[];
+  parentId: number | null;
+  evidence: ProposalEvidence | null;
+}
+
+/** Proposals waiting for your decision (rejected ones stay stored so they are never proposed again). */
+export async function listProposals(catalogId: number): Promise<Proposal[]> {
+  const rows = await requireDb()
+    .select({ id: catalogNodes.id, level: catalogNodes.level, name: catalogNodes.name, aliases: catalogNodes.aliases, parentId: catalogNodes.parentId, evidence: catalogNodes.evidence })
+    .from(catalogNodes)
+    .where(and(eq(catalogNodes.catalogId, catalogId), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt)))
+    .orderBy(asc(catalogNodes.id));
+  return rows.map((r) => ({ ...r, level: r.level as "series" | "model", evidence: (r.evidence as ProposalEvidence | null) ?? null }));
+}
+
+const MIN_POSTS = 2;
+
+/**
+ * "Update product catalog": proposes what the catalog is missing, for your approval.
+ * 1. Series and models in the family's verified reference list that aren't in the catalog.
+ * 2. Model numbers written with the family's name in 2+ collected posts ("Smart Tank 7315") that no model covers,
+ *    with the number of posts, two short examples and a guessed series.
+ * Anything already in the catalog, retired, waiting, or rejected before is never proposed again.
+ */
+export async function findProposals(catalogId: number): Promise<{ reference: number; posts: number }> {
+  const db = requireDb();
+  const found = await getCatalog(catalogId);
+  if (!found) return { reference: 0, posts: 0 };
+  const { catalog, tree } = found;
+  const family = tree.id;
+  if (family === null) return { reference: 0, posts: 0 };
+
+  // Everything already known, including proposals (pending or rejected), by squashed name and by model number.
+  const known = await db
+    .select({ name: catalogNodes.name, aliases: catalogNodes.aliases })
+    .from(catalogNodes)
+    .where(eq(catalogNodes.catalogId, catalogId));
+  const names = new Set(known.flatMap((k) => [k.name, ...k.aliases]).map(squashName));
+  const isKnown = (...xs: string[]) => xs.some((x) => names.has(squashName(x)));
+  const remember = (...xs: string[]) => xs.forEach((x) => names.add(squashName(x)));
+  const now = new Date();
+  let fromReference = 0;
+  let fromPosts = 0;
+
+  const ref = referenceFor(catalog.key);
+  if (ref) {
+    const seriesByName = new Map(tree.children.map((s) => [squashName(s.name), s.id]));
+    for (const s of ref.series) {
+      let parentId = seriesByName.get(squashName(s.name)) ?? null;
+      if (parentId === null && !isKnown(s.name)) {
+        [{ id: parentId }] = await db
+          .insert(catalogNodes)
+          .values({ catalogId, parentId: family, level: "series", name: s.name, aliases: [], verified: true, proposedAt: now, evidence: { source: "reference", url: s.sources[0]?.url } })
+          .returning({ id: catalogNodes.id });
+        remember(s.name);
+        fromReference++;
+      }
+      for (const m of s.models) {
+        if (isKnown(m.name, m.number)) continue;
+        await db.insert(catalogNodes).values({
+          catalogId,
+          parentId,
+          level: "model",
+          name: m.name,
+          aliases: [m.number, ...m.aliases],
+          verified: true,
+          proposedAt: now,
+          evidence: { source: "reference", url: m.sources[0]?.url },
+        });
+        remember(m.name, m.number);
+        fromReference++;
+      }
+    }
+  }
+
+  const nodes = flatten(tree);
+  const match = compileMatcher(nodes, { sharedNumbers: ref?.sharedNumbers ?? [] });
+  const texts = await postTexts({ catalogId });
+  for (const m of findMentions(texts, familyTerms([tree.name, ...tree.aliases]), 60)) {
+    const number = m.text.match(/(\d{3,4}[a-z]{0,2})$/)?.[1];
+    if (m.posts < MIN_POSTS || !number || isCovered(m.text, match, nodes) || isKnown(m.text, number)) continue;
+    const proposal = modelFromMention(m.text);
+    const examples = texts.map((t) => snippet(t, m.text)).filter((x): x is string => x !== null).slice(0, 2);
+    await db.insert(catalogNodes).values({
+      catalogId,
+      parentId: guessSeries(tree, number.replace(/[a-z]+$/, "")),
+      level: "model",
+      name: proposal.name,
+      aliases: proposal.aliases,
+      verified: false,
+      proposedAt: now,
+      evidence: { source: "posts", posts: m.posts, examples },
+    });
+    remember(m.text, number);
+    fromPosts++;
+  }
+  return { reference: fromReference, posts: fromPosts };
+}
+
+/**
+ * Approves a proposal with the name and series you chose. Approving a proposed series approves the models
+ * proposed under it too. Returns the approved node ids.
+ */
+export async function approveProposal(catalogId: number, nodeId: number, name: string, parentId: number): Promise<void> {
+  const db = requireDb();
+  await db.batch([
+    db.update(catalogNodes).set({ name, parentId, proposedAt: null }).where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.id, nodeId))),
+    db
+      .update(catalogNodes)
+      .set({ proposedAt: null })
+      .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.parentId, nodeId), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt))),
+  ]);
+}
+
+/** Rejects a proposal (and, for a series, the models proposed under it). It stays stored so it's never proposed again. */
+export async function rejectProposal(catalogId: number, nodeId: number): Promise<void> {
+  const db = requireDb();
+  const at = new Date();
+  await db.batch([
+    db.update(catalogNodes).set({ retiredAt: at }).where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.id, nodeId))),
+    db
+      .update(catalogNodes)
+      .set({ retiredAt: at })
+      .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.parentId, nodeId), sql`${catalogNodes.proposedAt} is not null`)),
+  ]);
+}
+
+/** A proposal of this catalog, or null. */
+export async function proposalNode(catalogId: number, nodeId: number) {
+  const [n] = await requireDb()
+    .select({ id: catalogNodes.id, level: catalogNodes.level, name: catalogNodes.name })
+    .from(catalogNodes)
+    .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.id, nodeId), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt)));
+  return n ?? null;
 }

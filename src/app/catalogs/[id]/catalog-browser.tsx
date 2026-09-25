@@ -5,8 +5,20 @@ import { useMemo, useState, useTransition, type KeyboardEvent, type ReactNode } 
 
 import { automaticVariants, type TreeNode } from "@/lib/catalog";
 import type { Source } from "@/lib/catalog-reference";
+import type { Proposal } from "@/lib/catalogs";
 
-import { addNameAction, applyReferenceAction, approveCatalogAction, removeNameAction, setRetiredAction } from "../actions";
+import {
+  addFamilyAction,
+  addNameAction,
+  addProductAction,
+  applyReferenceAction,
+  approveCatalogAction,
+  approveProposalAction,
+  rejectProposalAction,
+  removeNameAction,
+  setRetiredAction,
+  updateCatalogAction,
+} from "../actions";
 
 export type ReferenceSource = Source & { page: string | null };
 
@@ -25,7 +37,14 @@ interface Props {
   byNode: Record<number, number>;
   bySeries: Record<number, number>;
   reference: ReferenceInfo | null;
+  /** Every family (one catalog each), for the Family picker. */
+  families: { id: number; name: string }[];
+  /** Additions waiting for your approval (from "Update product catalog"). */
+  proposals: Proposal[];
 }
+
+const ADD = "__add";
+type Adding = null | "family" | "series" | "model";
 
 const select = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
 const short = (name: string) => name.replace(/^HP\s+/i, "");
@@ -37,7 +56,7 @@ const numberOf = (m: TreeNode) => Number(m.aliases.find((a) => /^\d{3,4}/.test(a
  * and merges are handled by Pulse; here you only add a name it doesn't know yet, retire what's no longer sold,
  * and approve. Every action saves straight away.
  */
-export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, reference }: Props) {
+export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, reference, families, proposals }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -49,6 +68,7 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
   const retiredSeries = tree.children.filter((s) => s.retired);
   const [seriesId, setSeriesId] = useState<number | null>(activeSeries[0]?.id ?? null);
   const [modelId, setModelId] = useState<number | "all">("all");
+  const [adding, setAdding] = useState<Adding>(null);
 
   // A retired series or model drops out of the pickers, so the selection falls back to what's still active.
   const series = activeSeries.find((s) => s.id === seriesId) ?? activeSeries[0] ?? null;
@@ -79,6 +99,15 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
             </button>
           </>
         )}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => run(() => updateCatalogAction(catalogId))}
+          className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium hover:border-accent disabled:opacity-60"
+          title="Look for series and models the catalog is missing, in HP's verified list and in your collected posts"
+        >
+          {pending ? "Working…" : "Update product catalog"}
+        </button>
         {reference && (
           <span className="text-sm text-muted">
             Verified against HP&apos;s own data on {reference.checkedAt} ·{" "}
@@ -102,11 +131,33 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
         </p>
       )}
 
+      {proposals.length > 0 && (
+        <Proposals
+          proposals={proposals}
+          series={activeSeries}
+          pending={pending}
+          onApprove={(p, name, seriesId) => run(() => approveProposalAction(catalogId, p.id, name, seriesId))}
+          onReject={(p) => run(() => rejectProposalAction(catalogId, p.id))}
+        />
+      )}
+
       <section aria-label="Find a product" className="grid gap-3 rounded-xl border border-border bg-surface p-5 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-sm">
           Family
-          <select className={select} value={tree.id ?? ""} disabled>
-            <option value={tree.id ?? ""}>{short(tree.name)}</option>
+          <select
+            className={select}
+            value={catalogId}
+            onChange={(e) => {
+              if (e.target.value === ADD) return setAdding("family");
+              router.push(`/catalogs/${e.target.value}`);
+            }}
+          >
+            {families.map((f) => (
+              <option key={f.id} value={f.id}>
+                {short(f.name)}
+              </option>
+            ))}
+            <option value={ADD}>+ Add family…</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -115,6 +166,7 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
             className={select}
             value={series?.id ?? ""}
             onChange={(e) => {
+              if (e.target.value === ADD) return setAdding("series");
               setSeriesId(Number(e.target.value));
               setModelId("all");
             }}
@@ -124,19 +176,42 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
                 {short(s.name)} · {bySeries[s.id!] ?? 0} posts
               </option>
             ))}
+            <option value={ADD}>+ Add series…</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Model
-          <select className={select} value={model?.id ?? "all"} onChange={(e) => setModelId(e.target.value === "all" ? "all" : Number(e.target.value))}>
+          <select className={select} value={model?.id ?? "all"} onChange={(e) => (e.target.value === ADD ? setAdding("model") : setModelId(e.target.value === "all" ? "all" : Number(e.target.value)))}>
             <option value="all">All models ({models.length})</option>
             {models.map((m) => (
               <option key={m.id} value={m.id!}>
                 {short(m.name)} · {byNode[m.id!] ?? 0} posts
               </option>
             ))}
+            {series && <option value={ADD}>+ Add model…</option>}
           </select>
         </label>
+        {adding && (
+          <AddForm
+            kind={adding}
+            seriesName={series ? short(series.name) : ""}
+            pending={pending}
+            onCancel={() => setAdding(null)}
+            onAdd={(name, number) => {
+              if (adding === "family") {
+                setNote(null);
+                startTransition(async () => {
+                  const r = await addFamilyAction(name);
+                  setNote({ ok: r.ok, text: r.message });
+                  if (r.ok) router.push(`/catalogs/${r.catalogId}`);
+                });
+              } else {
+                run(() => addProductAction(catalogId, adding, name, series?.id ?? null, number));
+              }
+              setAdding(null);
+            }}
+          />
+        )}
       </section>
 
       {series && !model && (
@@ -307,5 +382,146 @@ function SourceLine({ sources, note }: { sources?: ReferenceSource[]; note?: str
         ))}
       {note && <span>· {note}</span>}
     </p>
+  );
+}
+
+/** A one-line form under the pickers to add a family, series or model by hand. */
+function AddForm(props: { kind: "family" | "series" | "model"; seriesName: string; pending: boolean; onAdd: (name: string, number: string) => void; onCancel: () => void }) {
+  const [name, setName] = useState("");
+  const [number, setNumber] = useState("");
+  const label = props.kind === "family" ? "New family" : props.kind === "series" ? "New series" : `New model in ${props.seriesName}`;
+  const hint = props.kind === "family" ? "e.g. HP DeskJet" : props.kind === "series" ? "e.g. HP Smart Tank 8000 series" : "e.g. HP Smart Tank 8001";
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2 border-t border-border pt-3 sm:col-span-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) props.onAdd(name, number);
+      }}
+    >
+      <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm">
+        {label}
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder={hint} className={select} />
+      </label>
+      {props.kind === "model" && (
+        <label className="flex w-32 flex-col gap-1 text-sm">
+          Model number
+          <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="8001" className={select} />
+        </label>
+      )}
+      <button type="submit" disabled={props.pending || !name.trim()} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+        Add
+      </button>
+      <button type="button" onClick={props.onCancel} className="px-2 py-2 text-sm text-muted underline">
+        Cancel
+      </button>
+    </form>
+  );
+}
+
+/** Additions found by "Update product catalog", each with its evidence, waiting for approve or reject. */
+function Proposals(props: {
+  proposals: Proposal[];
+  series: TreeNode[];
+  pending: boolean;
+  onApprove: (p: Proposal, name: string, seriesId: number | null) => void;
+  onReject: (p: Proposal) => void;
+}) {
+  const proposedSeries = props.proposals.filter((p) => p.level === "series");
+  const waitingOn = new Map(proposedSeries.map((p) => [p.id, p.name]));
+  return (
+    <section aria-labelledby="review-heading" className="flex flex-col gap-3 rounded-xl border border-warning/60 bg-warning/5 p-5">
+      <h2 id="review-heading" className="text-lg font-medium">
+        To review ({props.proposals.length})
+      </h2>
+      <p className="-mt-2 text-sm text-muted">Found by “Update product catalog”. Nothing is used until you approve it; rejected items aren&apos;t proposed again.</p>
+      <ul className="flex flex-col divide-y divide-border">
+        {props.proposals.map((p) => (
+          <ProposalRow
+            key={p.id}
+            p={p}
+            series={props.series}
+            waitingOn={p.parentId !== null ? waitingOn.get(p.parentId) : undefined}
+            pending={props.pending}
+            onApprove={props.onApprove}
+            onReject={props.onReject}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ProposalRow(props: {
+  p: Proposal;
+  series: TreeNode[];
+  waitingOn?: string;
+  pending: boolean;
+  onApprove: (p: Proposal, name: string, seriesId: number | null) => void;
+  onReject: (p: Proposal) => void;
+}) {
+  const { p } = props;
+  const [name, setName] = useState(p.name);
+  const [seriesId, setSeriesId] = useState<number | "">(p.parentId !== null && props.series.some((s) => s.id === p.parentId) ? p.parentId : "");
+  const ev = p.evidence;
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-border/60 px-2 py-0.5 text-xs">{p.level}</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" className="min-w-40 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm" />
+        {p.level === "model" &&
+          (props.waitingOn ? (
+            <span className="text-xs text-muted">in {short(props.waitingOn)} (approve the series first)</span>
+          ) : (
+            <select
+              value={seriesId}
+              onChange={(e) => setSeriesId(e.target.value ? Number(e.target.value) : "")}
+              aria-label="Series"
+              className="max-w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            >
+              <option value="">Choose series…</option>
+              {props.series.map((s) => (
+                <option key={s.id} value={s.id!}>
+                  {short(s.name)}
+                </option>
+              ))}
+            </select>
+          ))}
+        <button
+          type="button"
+          disabled={props.pending || !name.trim() || (p.level === "model" && (seriesId === "" || !!props.waitingOn))}
+          onClick={() => props.onApprove(p, name, seriesId === "" ? null : seriesId)}
+          className="rounded-md bg-accent px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Approve
+        </button>
+        <button type="button" disabled={props.pending} onClick={() => props.onReject(p)} className="px-2 py-1 text-sm text-muted underline hover:text-critical">
+          Reject
+        </button>
+      </div>
+      {ev?.source === "reference" && (
+        <p className="text-xs text-muted">
+          In HP&apos;s verified list
+          {ev.url && (
+            <>
+              {" · "}
+              <a href={ev.url} target="_blank" rel="noreferrer noopener" className="underline">
+                source ↗
+              </a>
+            </>
+          )}
+        </p>
+      )}
+      {ev?.source === "posts" && (
+        <div className="text-xs text-muted">
+          Named in {ev.posts} collected posts. Not verified by HP.
+          {ev.examples?.map((x) => (
+            <p key={x} className="mt-1 italic">
+              “{x}”
+            </p>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }
