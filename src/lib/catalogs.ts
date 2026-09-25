@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, countDistinct, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { requireDb } from "@/db/client";
 import { catalogNodes, catalogs, postProducts, posts, searches } from "@/db/schema";
@@ -24,18 +24,32 @@ export async function catalogByKey(key: string): Promise<CatalogRow | null> {
   return c ?? null;
 }
 
+/**
+ * The catalog's approved nodes (proposals waiting for approval are left out). Retired nodes are included: they still
+ * match posts so history adds up, and the pickers hide them.
+ */
 async function loadNodes(catalogId: number) {
   return requireDb()
-    .select({ id: catalogNodes.id, parentId: catalogNodes.parentId, level: catalogNodes.level, name: catalogNodes.name, aliases: catalogNodes.aliases, verified: catalogNodes.verified })
+    .select({
+      id: catalogNodes.id,
+      parentId: catalogNodes.parentId,
+      level: catalogNodes.level,
+      name: catalogNodes.name,
+      aliases: catalogNodes.aliases,
+      verified: catalogNodes.verified,
+      retiredAt: catalogNodes.retiredAt,
+    })
     .from(catalogNodes)
-    .where(eq(catalogNodes.catalogId, catalogId))
+    .where(and(eq(catalogNodes.catalogId, catalogId), isNull(catalogNodes.proposedAt)))
     .orderBy(asc(catalogNodes.sort), asc(catalogNodes.id));
 }
 
 async function loadTree(catalogId: number, fallbackName: string): Promise<TreeNode> {
   const rows = await loadNodes(catalogId);
   const byId = new Map<number, TreeNode>();
-  for (const r of rows) byId.set(r.id, { id: r.id, level: r.level as Level, name: r.name, aliases: r.aliases, verified: r.verified, children: [] });
+  for (const r of rows) {
+    byId.set(r.id, { id: r.id, level: r.level as Level, name: r.name, aliases: r.aliases, verified: r.verified, retired: r.retiredAt !== null, children: [] });
+  }
   let root: TreeNode | null = null;
   for (const r of rows) {
     const node = byId.get(r.id)!;
@@ -72,7 +86,10 @@ const runBatch = (db: Db, items: unknown[]) => (items.length ? db.batch(items as
 export async function saveTree(catalogId: number, tree: TreeNode): Promise<void> {
   const db = requireDb();
   const clean = cleanTree(tree);
-  const existing = new Set((await db.select({ id: catalogNodes.id }).from(catalogNodes).where(eq(catalogNodes.catalogId, catalogId))).map((r) => r.id));
+  // Proposals aren't part of the tree being saved, so they are neither updated nor deleted here.
+  const existing = new Set(
+    (await db.select({ id: catalogNodes.id }).from(catalogNodes).where(and(eq(catalogNodes.catalogId, catalogId), isNull(catalogNodes.proposedAt)))).map((r) => r.id),
+  );
   const kept = new Set<number>();
 
   // Each entry: a node to write under an already-saved parent. Returns the saved children for the next level.
@@ -143,8 +160,10 @@ export interface CatalogStats {
   posts: number;
   /** Of those, posts linked to at least one node below the family (a series or model). */
   postsNamingProduct: number;
-  /** Posts per node id. */
+  /** Posts per node id (the most specific node each post names). */
   byNode: Record<number, number>;
+  /** Posts per series id: posts naming the series or any of its models, each post counted once. */
+  bySeries: Record<number, number>;
   searches: number;
 }
 
@@ -159,7 +178,8 @@ export async function catalogStats(catalogId: number, searchId?: number): Promis
     .from(catalogNodes)
     .where(and(eq(catalogNodes.catalogId, catalogId), sql`${catalogNodes.level} <> 'family'`));
 
-  const [[total], [named], perNode, [linked]] = await Promise.all([
+  const seriesOf = sql<number>`case when ${catalogNodes.level} = 'model' then ${catalogNodes.parentId} else ${catalogNodes.id} end`;
+  const [[total], [named], perNode, [linked], perSeries] = await Promise.all([
     db.select({ n: count() }).from(posts).innerJoin(searches, eq(posts.searchId, searches.id)).where(scope),
     db
       .select({ n: countDistinct(postProducts.postId) })
@@ -171,11 +191,18 @@ export async function catalogStats(catalogId: number, searchId?: number): Promis
       .where(and(inArray(postProducts.nodeId, nodeRows), inArray(postProducts.postId, inScope)))
       .groupBy(postProducts.nodeId),
     db.select({ n: count() }).from(searches).where(scope),
+    db
+      .select({ seriesId: seriesOf, n: countDistinct(postProducts.postId) })
+      .from(postProducts)
+      .innerJoin(catalogNodes, eq(postProducts.nodeId, catalogNodes.id))
+      .where(and(eq(catalogNodes.catalogId, catalogId), sql`${catalogNodes.level} in ('series','model')`, inArray(postProducts.postId, inScope)))
+      .groupBy(seriesOf),
   ]);
   return {
     posts: total?.n ?? 0,
     postsNamingProduct: named?.n ?? 0,
     byNode: Object.fromEntries(perNode.map((r) => [r.nodeId, r.n])),
+    bySeries: Object.fromEntries(perSeries.map((r) => [Number(r.seriesId), r.n])),
     searches: linked?.n ?? 0,
   };
 }
@@ -196,4 +223,28 @@ export async function uncoveredMentions(catalogId: number, tree: TreeNode, key: 
   return findMentions(await postTexts({ catalogId }), terms, 60)
     .filter((m) => !isCovered(m.text, match, nodes))
     .slice(0, limit);
+}
+
+/** A node of this catalog with its level and parent, or null (so actions can't touch another catalog's nodes). */
+export async function catalogNode(catalogId: number, nodeId: number) {
+  const [n] = await requireDb()
+    .select({ id: catalogNodes.id, level: catalogNodes.level, parentId: catalogNodes.parentId, name: catalogNodes.name, aliases: catalogNodes.aliases })
+    .from(catalogNodes)
+    .where(and(eq(catalogNodes.id, nodeId), eq(catalogNodes.catalogId, catalogId)));
+  return n ?? null;
+}
+
+export async function setAliases(nodeId: number, aliases: string[]): Promise<void> {
+  await requireDb().update(catalogNodes).set({ aliases }).where(eq(catalogNodes.id, nodeId));
+}
+
+/** Retires (or restores) a node and everything under it: a retired series takes its models with it. */
+export async function setRetired(catalogId: number, nodeId: number, retired: boolean): Promise<void> {
+  const db = requireDb();
+  const children = await db.select({ id: catalogNodes.id }).from(catalogNodes).where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.parentId, nodeId)));
+  const ids = [nodeId, ...children.map((c) => c.id)];
+  await db
+    .update(catalogNodes)
+    .set({ retiredAt: retired ? sql`now()` : null })
+    .where(and(eq(catalogNodes.catalogId, catalogId), inArray(catalogNodes.id, ids)));
 }

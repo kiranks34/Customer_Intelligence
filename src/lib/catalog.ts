@@ -128,6 +128,7 @@ export const TreeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
     name: z.string(),
     aliases: z.array(z.string()),
     verified: z.boolean(),
+    retired: z.boolean().optional(),
     children: z.array(TreeNodeSchema),
   }),
 );
@@ -139,6 +140,8 @@ export interface TreeNode {
   name: string;
   aliases: string[];
   verified: boolean;
+  /** Retired (sunset): kept for history, hidden from pickers and new reports. */
+  retired?: boolean;
   children: TreeNode[];
 }
 
@@ -344,4 +347,46 @@ const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, sp: string, c:
 export function modelFromMention(mention: string): TreeNode {
   const num = mention.match(/(\d{3,4}[a-z]{0,2})$/)?.[1];
   return { id: null, level: "model", name: titleCase(mention), aliases: num ? [num] : [], verified: false, children: [] };
+}
+
+// ---- Names: what's recognised automatically, and conflicts ----------------------------------------------------
+
+/** Compared ignoring case, spaces, dashes and doubled letters ("Smart-Tank 7301" = "smarttank7301" = "smartank 7301"). */
+const squash = (s: string) => normalize(s).replace(/\s+/g, "").replace(/(\p{L})\1+/gu, "$1");
+
+/**
+ * Examples of how a model's number is recognised without anyone typing them in (shown on the catalog page), e.g.
+ * for 7301: "SmartTank 7301", "Smartank 7301", "tank 7301", "ink tank 7301", "inktank 7301". Case never matters.
+ */
+export function automaticVariants(model: TreeNode, family: TreeNode, limit = 8): string[] {
+  const numbers = [model.name, ...model.aliases].map((a) => a.match(/(\d{3,4}[a-z]{0,2})\s*$/i)?.[1]).filter((n): n is string => !!n);
+  const n = numbers[0];
+  if (!n) return [];
+  // The family's words ("smart tank"); single-word forms like "SmartTank" are covered by the spelling rules.
+  const words = familyTerms([family.name, ...family.aliases]).find((t) => t.includes(" "))?.split(" ");
+  if (!words) return [];
+  const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
+  const joined = words.map(cap).join("");
+  const last = words.at(-1)!;
+  const forms = new Set([joined, joined.replace(/(\p{L})\1+/giu, "$1"), last, `ink ${last}`, `ink${last}`]);
+  const taken = new Set([model.name, ...model.aliases].map(normalize));
+  return [...forms].map((f) => `${f} ${n}`).filter((v) => !taken.has(normalize(v))).slice(0, limit);
+}
+
+/**
+ * The other node a new name would clash with, if any: the same name or other name (ignoring case, spaces and doubled
+ * letters) already belongs to another series or model, so adding it would merge two products by mistake.
+ */
+export function nameConflict(root: TreeNode, nodeId: number, name: string): string | null {
+  const key = squash(name);
+  if (!key) return null;
+  const walk = (n: TreeNode): string | null => {
+    if (n.id !== nodeId && n.level !== "family" && [n.name, ...n.aliases].some((a) => squash(a) === key)) return n.name;
+    for (const c of n.children) {
+      const hit = walk(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return walk(root);
 }

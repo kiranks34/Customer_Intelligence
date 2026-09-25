@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, isCovered, looseFamilyKey, mergeModel, treeLimitError, modelFromMention, normalize, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
+import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, automaticVariants, isCovered, looseFamilyKey, mergeModel, nameConflict, treeLimitError, modelFromMention, normalize, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
 
 describe("familyKey and familyTerms", () => {
   it("gives searches of one family the same key", () => {
@@ -191,4 +191,17 @@ it("numbers shared with another product line only count after this family's own 
 it("looseFamilyKey treats brand, spacing and doubled letters as the same family", () => {
   for (const k of ["hp smart tank", "smart tank", "HP SmartTank printers", "smartank"]) expect(looseFamilyKey(k)).toBe("smartank");
   expect(looseFamilyKey("hp ink tank")).not.toBe(looseFamilyKey("hp smart tank"));
+});
+
+describe("names on the catalog page", () => {
+  it("lists how a model is recognised without typing anything in", () => {
+    const [model] = tree.children[0].children; // Smart Tank 7301
+    expect(automaticVariants(model, tree)).toEqual(["SmartTank 7301", "Smartank 7301", "tank 7301", "ink tank 7301", "inktank 7301"]);
+  });
+  it("refuses a name that already belongs to another product, ignoring case and spacing", () => {
+    expect(nameConflict(tree, 4, "smart-tank 7301")).toBe("Smart Tank 7301");
+    expect(nameConflict(tree, 4, "7301")).toBe("Smart Tank 7301");
+    expect(nameConflict(tree, 3, "7301")).toBeNull(); // its own name
+    expect(nameConflict(tree, 4, "ST 7602 Pro")).toBeNull();
+  });
 });

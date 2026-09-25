@@ -129,6 +129,12 @@ export const catalogNodes = pgTable(
     /** False when Claude proposed it but wasn't sure it is a real product; shown as "unverified" until you approve. */
     verified: boolean("verified").notNull().default(false),
     sort: integer("sort").notNull().default(0),
+    /** Retired (sunset): hidden from pickers and new reports; posts already linked keep their links for history. */
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+    /** Proposed from posts, waiting for your approval: not used for matching or pickers until approved. */
+    proposedAt: timestamp("proposed_at", { withTimezone: true }),
+    /** Why it was proposed: how many posts mention it and a few example snippets. */
+    evidence: jsonb("evidence"),
     createdAt: createdAt(),
   },
   (t) => [index("catalog_nodes_catalog").on(t.catalogId, t.level)],

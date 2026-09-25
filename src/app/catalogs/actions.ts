@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
-import { familyKey, familyTerms, findMentions, treeFromDraft, treeLimitError, TreeNodeSchema, type TreeNode } from "@/lib/catalog";
+import { CATALOG_LIMITS, familyKey, familyTerms, findMentions, nameConflict, normalize, treeFromDraft, type TreeNode } from "@/lib/catalog";
 import { applyReference, treeFromReference } from "@/lib/catalog-reference";
 import { referenceFor } from "@/lib/catalog-references";
 import { CatalogDraftError, draftCatalog } from "@/lib/catalog-drafter";
-import { approveCatalog, catalogByKey, createCatalog, getCatalog, linkSearch, matchCatalog, matchSearch, postTexts, saveTree } from "@/lib/catalogs";
+import { approveCatalog, catalogByKey, catalogNode, createCatalog, getCatalog, linkSearch, matchCatalog, matchSearch, postTexts, saveTree, setAliases, setRetired } from "@/lib/catalogs";
 import { loadPlan } from "@/lib/collect";
 import { recordCost } from "@/lib/cost";
 
@@ -108,22 +108,77 @@ export async function applyReferenceAction(catalogId: number): Promise<ActionSta
   }
 }
 
-/** Saves an edited catalog (and approves it when asked), then re-links every linked search's posts. */
-export async function saveCatalogAction(catalogId: number, tree: unknown, approve: boolean): Promise<ActionState> {
+
+const NAME_MAX = 80;
+
+/**
+ * Adds a name people use for a series or model. Refused when another product already has it, so two products are
+ * never merged by accident. Posts are re-linked so the new name counts straight away.
+ */
+export async function addNameAction(catalogId: number, nodeId: number, name: string): Promise<ActionState> {
   const denied = await authed();
   if (denied) return denied;
-  const parsed = TreeNodeSchema.safeParse(tree);
-  if (!parsed.success || parsed.data.level !== "family") return { ok: false, message: "The catalog couldn't be read. Reload and try again." };
-  const tooBig = treeLimitError(parsed.data);
-  if (tooBig) return { ok: false, message: tooBig };
+  const clean = String(name ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return { ok: false, message: "Type a name first." };
+  if (clean.length > NAME_MAX) return { ok: false, message: `Keep names under ${NAME_MAX} characters.` };
   try {
-    if (!(await getCatalog(catalogId))) return { ok: false, message: "Catalog not found." };
-    await saveTree(catalogId, parsed.data);
-    if (approve) await approveCatalog(catalogId);
+    const [found, node] = await Promise.all([getCatalog(catalogId), catalogNode(catalogId, nodeId)]);
+    if (!found || !node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
+    if ([node.name, ...node.aliases].some((a) => normalize(a) === normalize(clean))) return { ok: true, message: `“${clean}” is already recognised.` };
+    const clash = nameConflict(found.tree, nodeId, clean);
+    if (clash) return { ok: false, message: `“${clean}” already means ${clash}. Use a name that only fits ${node.name}.` };
+    await setAliases(nodeId, [...node.aliases, clean].slice(0, CATALOG_LIMITS.aliases));
     await matchCatalog(catalogId);
     revalidatePath(`/catalogs/${catalogId}`);
-    return { ok: true, message: approve ? "Approved. Posts were re-linked to the models." : "Saved. Posts were re-linked to the models." };
+    return { ok: true, message: `Added “${clean}”. Posts were re-linked.` };
   } catch (err) {
-    return { ok: false, message: `Couldn't save the catalog: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't add the name: ${errorText(err)}` };
+  }
+}
+
+export async function removeNameAction(catalogId: number, nodeId: number, name: string): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const node = await catalogNode(catalogId, nodeId);
+    if (!node) return { ok: false, message: "That product isn't in this catalog." };
+    await setAliases(
+      nodeId,
+      node.aliases.filter((a) => a !== name),
+    );
+    await matchCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: `Removed “${name}”. Posts were re-linked.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't remove the name: ${errorText(err)}` };
+  }
+}
+
+/** Retires (sunset) or restores a series or model. Retired products leave the pickers; past post links stay. */
+export async function setRetiredAction(catalogId: number, nodeId: number, retired: boolean): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const node = await catalogNode(catalogId, nodeId);
+    if (!node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
+    await setRetired(catalogId, nodeId, retired);
+    revalidatePath(`/catalogs/${catalogId}`);
+    const what = node.level === "series" ? `${node.name} and its models` : node.name;
+    return { ok: true, message: retired ? `Retired ${what}. Past posts stay linked.` : `Restored ${what}.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't update: ${errorText(err)}` };
+  }
+}
+
+export async function approveCatalogAction(catalogId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    if (!(await getCatalog(catalogId))) return { ok: false, message: "Catalog not found." };
+    await approveCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: "Catalog approved." };
+  } catch (err) {
+    return { ok: false, message: `Couldn't approve: ${errorText(err)}` };
   }
 }
