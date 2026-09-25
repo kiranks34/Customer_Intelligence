@@ -9,11 +9,13 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:generate": "drizzle-kit generate && node scripts/editor-sql.mjs",
+    "db:migrate": "drizzle-kit migrate",
+    "db:editor-sql": "node scripts/editor-sql.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "apify-client": "^2.25.0",
     "drizzle-orm": "^0.45.3",
     "next": "16.3.6",
     "react": "19.2.8",
