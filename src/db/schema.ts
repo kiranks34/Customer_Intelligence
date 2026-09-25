@@ -31,6 +31,8 @@ export const searches = pgTable("searches", {
   kind: searchKind("kind").notNull(),
   regions: text("regions").array().notNull(),
   saved: boolean("saved").notNull().default(false),
+  /** Set when the search is cleared from the Recent list. Nothing is deleted; an archive view can show it again. */
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 

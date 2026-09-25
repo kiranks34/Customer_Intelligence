@@ -9,7 +9,7 @@ import { paidWorkBlockedReason, recordCost } from "@/lib/cost";
 import type { Plan } from "@/lib/plan";
 import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
-import { createSearch, resumeWaiting, savePlanVersion } from "@/lib/searches";
+import { createSearch, hideSearches, resumeWaiting, savePlanVersion } from "@/lib/searches";
 
 export interface ActionState {
   ok: boolean;
@@ -112,4 +112,23 @@ export async function progressAction(searchId: number): Promise<Progress | Actio
   const denied = await authed();
   if (denied) return denied;
   return progress(searchId);
+}
+
+/**
+ * Clears searches from the Recent list by id (the ones on screen, so "Clear all" never hides a search the
+ * user hasn't seen, e.g. one just started in another tab). Nothing is deleted.
+ */
+export async function clearSearchesAction(ids: number[]): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 200 || !ids.every((id) => Number.isInteger(id) && id > 0)) {
+    return { ok: false, message: "Unknown search." };
+  }
+  try {
+    const n = await hideSearches(ids);
+    revalidatePath("/");
+    return { ok: true, message: n === 1 ? "Cleared 1 search." : `Cleared ${n} searches.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't clear: ${errorText(err)}` };
+  }
 }

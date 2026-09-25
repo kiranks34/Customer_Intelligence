@@ -3,6 +3,7 @@ import Link from "next/link";
 import { monthToDate } from "@/lib/cost";
 import { recentSearches } from "@/lib/searches";
 
+import { RecentSearches } from "./recent-searches";
 import { SearchForm } from "./search-form";
 import { SpendMeter } from "./spend-meter";
 
@@ -10,7 +11,16 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const spend = await monthToDate();
-  const recent = spend.state === "ok" ? await recentSearches().catch(() => []) : [];
+  let recent: Awaited<ReturnType<typeof recentSearches>> = [];
+  let recentError: string | null = null;
+  if (spend.state === "ok") {
+    try {
+      recent = await recentSearches();
+    } catch {
+      // Most likely a database migration hasn't been run yet (see drizzle/editor/).
+      recentError = "Couldn't load recent searches. If you just updated Pulse, run the newest SQL file from drizzle/editor/ in Neon.";
+    }
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-4 py-12">
@@ -35,25 +45,13 @@ export default async function Home() {
         </Link>
       </nav>
 
-      <section aria-labelledby="recent-heading">
-        <h2 id="recent-heading" className="mb-2 text-lg font-medium">
-          Recent searches
-        </h2>
-        {recent.length === 0 ? (
-          <p className="text-sm text-muted">None yet.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
-            {recent.map((s) => (
-              <li key={s.id}>
-                <Link href={`/searches/${s.id}`} className="flex justify-between gap-4 px-4 py-3 hover:bg-surface">
-                  <span>{s.query}</span>
-                  <span className="shrink-0 text-sm text-muted">{s.createdAt.toISOString().slice(0, 10)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {recentError ? (
+        <p role="alert" className="text-sm text-critical">
+          {recentError}
+        </p>
+      ) : (
+        <RecentSearches items={recent} />
+      )}
     </main>
   );
 }

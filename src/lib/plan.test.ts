@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { tokenCostUsd } from "./ai";
 import { estimatePlan, inWindow, isExcluded, isRealDate, normalizePlan, redditTimeframe, roomFor, type Plan } from "./plan";
-import { activeDepth, activePeriod, addAsSearch, applyDepth, applyPeriod, isSearched, planSummary, planWarnings, validatePlan } from "./plan-edit";
+import { activeDepth, activePeriod, addAsSearch, applyDepth, applyPeriod, isSearched, planSummary, planTagline, planWarnings, validatePlan } from "./plan-edit";
 
 const base: Plan = {
   intent: "question",
@@ -186,5 +186,13 @@ describe("roomFor (per-channel cap)", () => {
   });
   it("keeps the old shared cap for runs started before per-channel caps", () => {
     expect(roomFor("reddit", { baseline: 100 }, { youtube: 150, reddit: 30 }, 100)).toBe(20);
+  });
+});
+
+describe("planTagline", () => {
+  it("tells searches apart by type, depth, period and channels", () => {
+    expect(planTagline(base)).toBe("Question · Standard · last 7 days · YouTube + Reddit");
+    const custom = { ...base, intent: "topic" as const, postCap: 250, reddit: { ...base.reddit, enabled: false } };
+    expect(planTagline(custom)).toBe("250 per channel · last 7 days · YouTube");
   });
 });
