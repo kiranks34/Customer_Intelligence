@@ -6,6 +6,7 @@ import { useOptimistic, useState, useSyncExternalStore, useTransition } from "re
 import type { Plan } from "@/lib/plan";
 import { planTagline } from "@/lib/plan-edit";
 
+import { Step } from "./product-lists";
 import { clearSearchesAction } from "./searches/actions";
 
 export interface RecentSearch {
@@ -45,35 +46,39 @@ export function RecentSearches({ items }: { items: RecentSearch[] }) {
 
   return (
     <section aria-labelledby="recent-heading">
-      <div className="mb-2 flex items-baseline justify-between gap-4">
-        <h2 id="recent-heading" className="text-lg font-medium">
-          Recent searches
-        </h2>
-        {shown.length > 0 && (
-          <button type="button" onClick={() => clear(shown.map((s) => s.id))} className="text-sm text-muted underline hover:text-critical">
-            Clear all
-          </button>
-        )}
-      </div>
+      <Step
+        n={3}
+        id="recent-heading"
+        title="Or continue a recent search"
+        right={
+          shown.length > 0 && (
+            <button type="button" onClick={() => clear(shown.map((s) => s.id))} className="text-sm text-muted underline hover:text-critical">
+              Clear list
+            </button>
+          )
+        }
+      />
       {message && (
         <p role="alert" className="mb-2 text-sm text-critical">
           {message}
         </p>
       )}
       {shown.length === 0 ? (
-        <p className="text-sm text-muted">None yet.</p>
+        <p className="rounded-xl border border-border bg-surface px-5 py-4 text-sm text-muted">None yet. Your searches will appear here.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
+        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
           {shown.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 pr-2 hover:bg-surface">
-              <Link href={`/searches/${s.id}`} className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-                <span className="line-clamp-2 break-words sm:line-clamp-1">{s.query}</span>
-                <span className="shrink-0 text-xs text-muted">
-                  {s.plan && `${planTagline(s.plan)} · `}
-                  {s.posts.toLocaleString()} posts ·{" "}
+            <li key={s.id} className="flex items-center gap-2 pr-3 hover:bg-border/20">
+              <Link href={`/searches/${s.id}`} className="flex min-w-0 flex-1 flex-col gap-1 py-3 pl-5">
+                <span className="line-clamp-2 font-medium break-words sm:line-clamp-1">{s.query}</span>
+                <span className="text-xs text-muted">
                   <LocalTime value={s.createdAt} />
+                  {s.plan && ` · ${planTagline(s.plan)}`}
                 </span>
               </Link>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs ${s.posts > 0 ? "bg-accent/10 text-accent" : "bg-border/60 text-muted"}`}>
+                {s.posts > 0 ? `${s.posts.toLocaleString()} posts` : "No posts yet"}
+              </span>
               <button
                 type="button"
                 onClick={() => clear([s.id])}
