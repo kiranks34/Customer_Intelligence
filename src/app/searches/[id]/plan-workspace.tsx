@@ -222,7 +222,7 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
               limits={LIMITS.commentThreadsPerQuery}
               onChange={(commentThreadsPerQuery) => update({ reddit: { ...draft.reddit, commentThreadsPerQuery } })}
             />
-            <NumberField label="Stop after posts" value={draft.postCap} limits={LIMITS.postCap} onChange={(postCap) => update({ postCap })} />
+            <NumberField label="Posts per channel" value={draft.postCap} limits={LIMITS.postCap} onChange={(postCap) => update({ postCap })} />
           </div>
 
           <label className={label}>

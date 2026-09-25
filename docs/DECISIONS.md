@@ -30,7 +30,8 @@
 | D24 | Database changes ship as paste-ready SQL for Neon's SQL Editor (`drizzle/editor/`) | The command-line migration needs a local setup; the editor path is what worked |
 | D25 | The search box accepts a topic or a question. Questions become a focused, time-bounded collection; the answer card (step 8) gives numbers from SQL and cites posts, and says when evidence is thin | Your request. "How many users" means "how many people posted publicly on the sources read" |
 | D26 | Collection is driven by the open search page calling small steps (no background worker yet); closing the page pauses safely | Fits Vercel Hobby without Pro or extra services. Daily refresh of saved searches (cron) comes in Phase 2 |
-| D27 | The search page shows a one-line summary with one-click period, depth (Quick ~100 / Standard ~300 / Deep ~1,000 posts) and source choices; searches are removable chips; everything else sits under "More options". Run saves edits, and exclusions that would drop a search's own results are flagged | Less typing and fewer decisions per search |
+| D27 | The search page shows a one-line summary with one-click period, depth (Quick 100 / Standard 300 / Deep 1,000 posts per channel, see D28) and source choices; searches are removable chips; everything else sits under "More options". Run saves edits, and exclusions that would drop a search's own results are flagged | Less typing and fewer decisions per search |
+| D28 | The post cap is per channel, per run: each channel may add up to the cap in new posts, and a channel that finds fewer keeps fewer (unused room is not passed to other channels) | One shared cap let whichever channel ran first crowd out the others (a Quick run gave 72% YouTube), skewing the source mix by chance. Per channel keeps channels comparable and adding a channel never shrinks the others. A channel finding fewer posts is itself a signal |
 
 ## Open questions
 

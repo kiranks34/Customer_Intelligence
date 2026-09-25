@@ -60,9 +60,9 @@ export function activePeriod(p: Plan, today = new Date()): PeriodId {
 }
 
 export const DEPTHS = [
-  { id: "quick", label: "Quick", hint: "~100 posts", videosPerQuery: 3, commentsPerVideo: 30, commentThreadsPerQuery: 1, postCap: 100 },
-  { id: "standard", label: "Standard", hint: "~300 posts", videosPerQuery: 5, commentsPerVideo: 50, commentThreadsPerQuery: 3, postCap: 300 },
-  { id: "deep", label: "Deep", hint: "~1,000 posts", videosPerQuery: 10, commentsPerVideo: 100, commentThreadsPerQuery: 5, postCap: 1000 },
+  { id: "quick", label: "Quick", hint: "100 per channel", videosPerQuery: 3, commentsPerVideo: 30, commentThreadsPerQuery: 1, postCap: 100 },
+  { id: "standard", label: "Standard", hint: "300 per channel", videosPerQuery: 5, commentsPerVideo: 50, commentThreadsPerQuery: 3, postCap: 300 },
+  { id: "deep", label: "Deep", hint: "1,000 per channel", videosPerQuery: 10, commentsPerVideo: 100, commentThreadsPerQuery: 5, postCap: 1000 },
 ] as const;
 export type DepthId = (typeof DEPTHS)[number]["id"] | "custom";
 
@@ -115,10 +115,13 @@ const SOURCE_NAMES = { youtube: "YouTube", reddit: "Reddit" } as const;
 
 /** One plain sentence describing what a run will do, e.g. for the top of the search page. */
 export function planSummary(p: Plan, est: Estimate): string {
-  const sources = (["youtube", "reddit"] as const).filter((s) => p[s].enabled && p[s].queries.length).map((s) => SOURCE_NAMES[s]);
-  const from = sources.length ? sources.join(" and ") : "no sources";
+  const on = (["youtube", "reddit"] as const).filter((s) => p[s].enabled && p[s].queries.length && est.maxBySource[s] > 0);
+  const n = (x: number) => x.toLocaleString("en-US");
   const cost = est.usd > 0 ? `up to $${est.usd.toFixed(3)}` : "free";
-  return `Up to ${est.maxPosts.toLocaleString("en-US")} posts from ${from} about ${p.subject}, ${p.timeWindow.label}. Cost: ${cost}.`;
+  if (on.length === 0) return `Nothing to collect yet: turn on a source and add a search.`;
+  const parts = on.map((s) => `${n(est.maxBySource[s])} from ${SOURCE_NAMES[s]}`).join(" and ");
+  const head = on.length > 1 ? `Up to ${n(est.maxPosts)} posts (${parts})` : `Up to ${parts.replace(" from", " posts from")}`;
+  return `${head} about ${p.subject}, ${p.timeWindow.label}. Cost: ${cost}.`;
 }
 
 const SEARCH_SOURCES = ["youtube", "reddit"] as const;
