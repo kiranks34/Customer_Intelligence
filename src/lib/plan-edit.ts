@@ -139,3 +139,11 @@ export function addAsSearch(p: Plan, term: string): Plan {
     t && src.enabled && !hasTerm(src.queries, t) && src.queries.length < LIMITS.queries ? [...src.queries, t] : src.queries;
   return { ...p, youtube: { ...p.youtube, queries: add(p.youtube) }, reddit: { ...p.reddit, queries: add(p.reddit) } };
 }
+
+/** A short line that tells past searches apart, e.g. "Quick · last 7 days · YouTube + Reddit". */
+export function planTagline(p: Plan): string {
+  const depth = activeDepth(p);
+  const size = depth === "custom" ? `${p.postCap.toLocaleString("en-US")} per channel` : DEPTHS.find((d) => d.id === depth)!.label;
+  const sources = SEARCH_SOURCES.filter((s) => p[s].enabled).map((s) => SOURCE_NAMES[s]);
+  return [p.intent === "question" ? "Question" : null, size, p.timeWindow.label, sources.join(" + ") || "no sources"].filter(Boolean).join(" · ");
+}

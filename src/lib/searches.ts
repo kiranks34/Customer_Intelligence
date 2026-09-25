@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { requireDb } from "@/db/client";
-import { jobs, searches } from "@/db/schema";
+import { jobs, plans, posts, searches } from "@/db/schema";
 
 import type { Plan } from "./plan";
 
@@ -43,12 +43,31 @@ export async function getSearch(id: number) {
   return s ?? null;
 }
 
-export async function recentSearches(limit = 10) {
-  return requireDb()
-    .select({ id: searches.id, query: searches.query, createdAt: searches.createdAt })
+/** Searches still on the Recent list, newest first, with their latest plan and post count so each row is distinguishable. */
+export async function recentSearches(limit = 50) {
+  const rows = await requireDb()
+    .select({
+      id: searches.id,
+      query: searches.query,
+      createdAt: searches.createdAt,
+      posts: sql<number>`(select count(*)::int from ${posts} where ${posts.searchId} = ${searches.id})`,
+      plan: sql<Plan | null>`(select ${plans.plan} from ${plans} where ${plans.searchId} = ${searches.id} order by ${plans.version} desc limit 1)`,
+    })
     .from(searches)
+    .where(isNull(searches.hiddenAt))
     .orderBy(desc(searches.id))
     .limit(limit);
+  return rows;
+}
+
+/** Clears searches from the Recent list. Nothing is deleted: posts, plans and costs stay for a later archive view. */
+export async function hideSearches(ids: number[]): Promise<number> {
+  const res = await requireDb()
+    .update(searches)
+    .set({ hiddenAt: sql`now()` })
+    .where(and(isNull(searches.hiddenAt), inArray(searches.id, ids)))
+    .returning({ id: searches.id });
+  return res.length;
 }
 
 /**
