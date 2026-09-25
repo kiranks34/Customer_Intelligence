@@ -7,6 +7,8 @@ import { automaticVariants, type TreeNode } from "@/lib/catalog";
 import type { Source } from "@/lib/catalog-reference";
 import type { Proposal, Unlisted as Unverified } from "@/lib/catalogs";
 
+import { defaultPick, FamilyTabs, ProductLists, type ListFamily, type Pick } from "../../product-lists";
+
 import {
   addFamilyAction,
   addNameAction,
@@ -35,6 +37,8 @@ interface Props {
   /** Posts per node (most specific) and per series (series or any of its models), counted in SQL. */
   byNode: Record<number, number>;
   bySeries: Record<number, number>;
+  /** Posts that name any series or model of the family. */
+  familyPosts: number;
   reference: ReferenceInfo | null;
   /** Every family (one catalog each), for the Family picker. */
   families: { id: number; name: string }[];
@@ -44,40 +48,48 @@ interface Props {
   unverified: Unverified[];
 }
 
-const ADD = "__add";
-type Adding = null | "family" | "series" | "model";
+type Adding = null | "series" | "model";
 
 const select = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
 const short = (name: string) => name.replace(/^HP\s+/i, "");
 const key = (s: string) => s.normalize("NFKC").toLowerCase().replace(/[-_/]+/g, " ").replace(/\s+/g, " ").trim();
-const numberOf = (m: TreeNode) => Number(m.aliases.find((a) => /^\d{3,4}/.test(a))?.match(/^\d+/)?.[0] ?? Infinity);
 
 /**
- * The product catalog as three pickers (family → series → model) and one card for what's picked. Name variants
- * and merges are handled by Pulse; here you only add a name it doesn't know yet, retire what's no longer sold,
- * and add or skip new products Pulse found. Every action saves straight away.
+ * The product catalog: family tabs, the same series and model lists as the home page, and one card for what's
+ * picked. Name variants and merges are handled by Pulse; here you only add a name it doesn't know yet, retire what's
+ * no longer sold, and add or skip new products Pulse found. Every action saves straight away.
  */
-export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, families, proposals, unverified }: Props) {
+export function CatalogBrowser({ catalogId, tree, byNode, bySeries, familyPosts, reference, families, proposals, unverified }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const activeSeries = useMemo(
-    () => tree.children.filter((s) => !s.retired && s.id !== null).sort((a, b) => (bySeries[b.id!] ?? 0) - (bySeries[a.id!] ?? 0) || a.name.localeCompare(b.name)),
-    [tree, bySeries],
-  );
-  const retiredSeries = tree.children.filter((s) => s.retired);
-  const [seriesId, setSeriesId] = useState<number | null>(activeSeries[0]?.id ?? null);
-  const [modelId, setModelId] = useState<number | "all">("all");
   const [adding, setAdding] = useState<Adding>(null);
 
-  // A retired series or model drops out of the pickers, so the selection falls back to what's still active.
-  const series = activeSeries.find((s) => s.id === seriesId) ?? activeSeries[0] ?? null;
-  const models = (series?.children ?? []).filter((m) => !m.retired).sort((a, b) => numberOf(a) - numberOf(b) || a.name.localeCompare(b.name));
+  const list: ListFamily = useMemo(
+    () => ({
+      id: catalogId,
+      name: tree.name,
+      posts: familyPosts,
+      waiting: proposals.length,
+      series: tree.children
+        .filter((s) => !s.retired && s.id !== null)
+        .map((s) => ({
+          id: s.id!,
+          name: s.name,
+          posts: bySeries[s.id!] ?? 0,
+          models: s.children.filter((m) => !m.retired && m.id !== null).map((m) => ({ id: m.id!, name: m.name, posts: byNode[m.id!] ?? 0 })),
+        })),
+    }),
+    [catalogId, tree, byNode, bySeries, familyPosts, proposals.length],
+  );
+  const activeSeries = tree.children.filter((s) => !s.retired && s.id !== null);
+  const retiredSeries = tree.children.filter((s) => s.retired);
+  const [chosen, setPick] = useState<Pick>(() => defaultPick(list));
+  // A retired series or model drops out of the lists, so the pick falls back to what's still active.
+  const series = activeSeries.find((s) => s.id === chosen.seriesId) ?? null;
+  const model = series?.children.find((m) => m.id === chosen.modelId && !m.retired) ?? null;
+  const pick: Pick = { seriesId: series?.id ?? null, modelId: model?.id ?? null };
   const retiredModels = (series?.children ?? []).filter((m) => m.retired);
-  const model = modelId === "all" ? null : (models.find((m) => m.id === modelId) ?? null);
-  const maxModel = Math.max(1, ...models.map((m) => byNode[m.id!] ?? 0));
-  const modelCount = activeSeries.reduce((n, s) => n + s.children.filter((m) => !m.retired).length, 0);
 
   function run(action: () => Promise<{ ok: boolean; message: string }>) {
     setNote(null);
@@ -88,30 +100,23 @@ export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, f
     });
   }
 
+  function addFamily(name: string) {
+    setNote(null);
+    startTransition(async () => {
+      const r = await addFamilyAction(name);
+      setNote({ ok: r.ok, text: r.message });
+      if (r.ok) router.push(`/catalogs/${r.catalogId}`);
+    });
+  }
+
+  const addLink = (what: "series" | "model") => (
+    <button type="button" onClick={() => setAdding(what)} className="font-medium text-accent hover:underline">
+      + Add {what}
+    </button>
+  );
+
   return (
     <div className="flex flex-col gap-6">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-        <span className="font-medium text-foreground">{short(tree.name)}</span>
-        <span>
-          · {activeSeries.length} series · {modelCount} models{reference && ` · checked against HP on ${reference.checkedAt}`} ·
-        </span>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => run(() => updateCatalogAction(catalogId))}
-          className="underline hover:text-accent disabled:opacity-60"
-          title="Look for series and models this catalog is missing, in HP's verified list and in your collected posts"
-        >
-          {pending ? "Checking…" : "Check for new models"}
-        </button>
-      </p>
-
-      {note && (
-        <p role="status" className={`-mt-3 text-sm ${note.ok ? "text-muted" : "text-critical"}`}>
-          {note.text}
-        </p>
-      )}
-
       {(proposals.length > 0 || unverified.length > 0) && (
         <Review
           proposals={proposals}
@@ -125,56 +130,41 @@ export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, f
         />
       )}
 
-      <section aria-label="Find a product" className="grid gap-3 rounded-xl border border-border bg-surface p-5 sm:grid-cols-3">
-        <label className="flex flex-col gap-1 text-sm">
-          Family
-          <select
-            className={select}
-            value={catalogId}
-            onChange={(e) => {
-              if (e.target.value === ADD) return setAdding("family");
-              router.push(`/catalogs/${e.target.value}`);
-            }}
-          >
-            {families.map((f) => (
-              <option key={f.id} value={f.id}>
-                {short(f.name)}
-              </option>
-            ))}
-            <option value={ADD}>+ Add family…</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Series
-          <select
-            className={select}
-            value={series?.id ?? ""}
-            onChange={(e) => {
-              if (e.target.value === ADD) return setAdding("series");
-              setSeriesId(Number(e.target.value));
-              setModelId("all");
-            }}
-          >
-            {activeSeries.map((s) => (
-              <option key={s.id} value={s.id!}>
-                {short(s.name)} · {bySeries[s.id!] ?? 0} posts
-              </option>
-            ))}
-            <option value={ADD}>+ Add series…</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Model
-          <select className={select} value={model?.id ?? "all"} onChange={(e) => (e.target.value === ADD ? setAdding("model") : setModelId(e.target.value === "all" ? "all" : Number(e.target.value)))}>
-            <option value="all">All models ({models.length})</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id!}>
-                {short(m.name)} · {byNode[m.id!] ?? 0} posts
-              </option>
-            ))}
-            {series && <option value={ADD}>+ Add model…</option>}
-          </select>
-        </label>
+      <section aria-label="Products" className="overflow-hidden rounded-xl border border-border bg-surface">
+        <FamilyTabs
+          families={families}
+          selected={catalogId}
+          onSelect={(id) => id !== catalogId && router.push(`/catalogs/${id}`)}
+          onAddFamily={addFamily}
+          pending={pending}
+          right={
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => updateCatalogAction(catalogId))}
+              className="font-medium text-accent hover:underline disabled:opacity-60"
+              title="Look for series and models this catalog is missing, in HP's verified list and in your collected posts"
+            >
+              {pending ? "Checking…" : "Check for new models"}
+            </button>
+          }
+        />
+        {note && (
+          <p role="status" className={`px-5 pt-3 text-sm ${note.ok ? "text-muted" : "text-critical"}`}>
+            {note.text}
+          </p>
+        )}
+        <ProductLists
+          family={list}
+          pick={pick}
+          onPick={(p) => {
+            setPick(p);
+            setAdding(null);
+          }}
+          seriesAction={addLink("series")}
+          modelAction={series ? addLink("model") : undefined}
+          modelHint=""
+        />
         {adding && (
           <AddForm
             kind={adding}
@@ -182,16 +172,7 @@ export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, f
             pending={pending}
             onCancel={() => setAdding(null)}
             onAdd={(name, number) => {
-              if (adding === "family") {
-                setNote(null);
-                startTransition(async () => {
-                  const r = await addFamilyAction(name);
-                  setNote({ ok: r.ok, text: r.message });
-                  if (r.ok) router.push(`/catalogs/${r.catalogId}`);
-                });
-              } else {
-                run(() => addProductAction(catalogId, adding, name, series?.id ?? null, number));
-              }
+              run(() => addProductAction(catalogId, adding, name, series?.id ?? null, number));
               setAdding(null);
             }}
           />
@@ -201,29 +182,16 @@ export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, f
       {series && !model && (
         <Card
           title={short(series.name)}
-          subtitle={`${bySeries[series.id!] ?? 0} posts name this series or one of its models`}
+          subtitle={`${(bySeries[series.id!] ?? 0).toLocaleString()} posts collected name this series or one of its models`}
           sources={<SourceLine sources={reference?.sources[key(series.name)]} />}
         >
-          <ul className="flex flex-col gap-1">
-            {models.map((m) => (
-              <li key={m.id}>
-                <button type="button" onClick={() => setModelId(m.id!)} className="grid w-full grid-cols-[minmax(0,1fr)_6rem_3rem] items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm hover:bg-border/40">
-                  <span className="truncate">{short(m.name)}</span>
-                  <span className="h-1.5 rounded-full bg-border">
-                    <span className="block h-1.5 rounded-full bg-accent" style={{ width: `${((byNode[m.id!] ?? 0) / maxModel) * 100}%` }} />
-                  </span>
-                  <span className="text-right tabular-nums text-muted">{byNode[m.id!] ?? 0}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
           <Retired items={retiredModels} pending={pending} onRestore={(id) => run(() => setRetiredAction(catalogId, id, false))} label="models" />
           <div className="flex justify-end border-t border-border pt-3">
             <button
               type="button"
               disabled={pending}
               onClick={() => {
-                if (window.confirm(`Retire ${short(series.name)} and all its models? They leave the pickers and new reports; past posts stay linked.`)) {
+                if (window.confirm(`Retire ${short(series.name)} and all its models? They leave the lists and new reports; past posts stay linked.`)) {
                   run(() => setRetiredAction(catalogId, series.id!, true));
                 }
               }}
@@ -238,7 +206,7 @@ export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, f
       {series && model && (
         <Card
           title={short(model.name)}
-          subtitle={`${byNode[model.id!] ?? 0} posts name this model · ${short(series.name)}`}
+          subtitle={`${(byNode[model.id!] ?? 0).toLocaleString()} posts collected name this model · ${short(series.name)}`}
           sources={<SourceLine sources={reference?.sources[key(model.name)]} note={reference?.notes[key(model.name)]} />}
         >
           <Names
@@ -248,15 +216,12 @@ export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, f
             onAdd={(name) => run(() => addNameAction(catalogId, model.id!, name))}
             onRemove={(name) => run(() => removeNameAction(catalogId, model.id!, name))}
           />
-          <div className="flex justify-between gap-3 border-t border-border pt-3">
-            <button type="button" onClick={() => setModelId("all")} className="text-sm text-muted underline">
-              ← All models in {short(series.name)}
-            </button>
+          <div className="flex justify-end border-t border-border pt-3">
             <button
               type="button"
               disabled={pending}
               onClick={() => {
-                if (window.confirm(`Retire ${short(model.name)}? It leaves the pickers and new reports; past posts stay linked.`)) run(() => setRetiredAction(catalogId, model.id!, true));
+                if (window.confirm(`Retire ${short(model.name)}? It leaves the lists and new reports; past posts stay linked.`)) run(() => setRetiredAction(catalogId, model.id!, true));
               }}
               className="text-sm text-muted underline hover:text-critical"
             >
@@ -370,14 +335,14 @@ function SourceLine({ sources, note }: { sources?: ReferenceSource[]; note?: str
 }
 
 /** A one-line form under the pickers to add a family, series or model by hand. */
-function AddForm(props: { kind: "family" | "series" | "model"; seriesName: string; pending: boolean; onAdd: (name: string, number: string) => void; onCancel: () => void }) {
+function AddForm(props: { kind: "series" | "model"; seriesName: string; pending: boolean; onAdd: (name: string, number: string) => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
-  const label = props.kind === "family" ? "New family" : props.kind === "series" ? "New series" : `New model in ${props.seriesName}`;
-  const hint = props.kind === "family" ? "e.g. HP DeskJet" : props.kind === "series" ? "e.g. HP Smart Tank 8000 series" : "e.g. HP Smart Tank 8001";
+  const label = props.kind === "series" ? "New series" : `New model in ${props.seriesName}`;
+  const hint = props.kind === "series" ? "e.g. HP Smart Tank 8000 series" : "e.g. HP Smart Tank 8001";
   return (
     <form
-      className="flex flex-wrap items-end gap-2 border-t border-border pt-3 sm:col-span-3"
+      className="flex flex-wrap items-end gap-2 border-t border-border px-5 py-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (name.trim()) props.onAdd(name, number);

@@ -29,7 +29,7 @@ export default async function CatalogPage({ params }: PageProps<"/catalogs/[id]"
     : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10">
       <header className="flex flex-col gap-1">
         <Link href="/" className="text-sm text-muted underline">
           ← Home
@@ -40,7 +40,8 @@ export default async function CatalogPage({ params }: PageProps<"/catalogs/[id]"
           {stats.searches === 1 ? "search" : "searches"}.
         </p>
       </header>
-      <CatalogBrowser key={catalog.updatedAt.toISOString()} catalogId={id} tree={tree} byNode={stats.byNode} bySeries={stats.bySeries} reference={reference} families={families} proposals={proposals}
+      <CatalogBrowser key={catalog.updatedAt.toISOString()} catalogId={id} tree={tree} byNode={stats.byNode} bySeries={stats.bySeries}
+        familyPosts={stats.postsNamingProduct} reference={reference} families={families} proposals={proposals}
         unverified={unverified}
       />
     </main>
