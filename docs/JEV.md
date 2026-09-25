@@ -71,6 +71,8 @@ can edit it on the search page, and every edit is a new version
   it was posted under, the catalog products it names (D38), and for a reply
   what it answers: the comment it replies to, or the Reddit post for a
   top-level comment, cut at 600 characters (D43).
+- "How the product works" goes with every post: the maker's official facts
+  (each from a quoted page, D44), then your notes.
 - Posts are cut at 3,000 characters. A post Jev rejects as bad input is stored
   as "skipped" and never counted.
 

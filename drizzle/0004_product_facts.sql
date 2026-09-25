@@ -1,0 +1,1 @@
+ALTER TABLE "catalogs" ADD COLUMN "product_facts" jsonb;

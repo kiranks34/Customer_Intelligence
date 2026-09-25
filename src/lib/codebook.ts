@@ -26,6 +26,15 @@ export const ThemeSchema = CodeSchema.extend({
 
 export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12, competitors: 8, touchpoints: 10 } as const;
 
+/** How many official facts a codebook carries. */
+export const PRODUCT_FACTS_MAX = 20;
+export const ProductFactSchema = z.object({
+  text: z.string().min(1).max(300),
+  url: z.string().url().max(500),
+  title: z.string().max(200).optional(),
+});
+export type ProductFact = z.infer<typeof ProductFactSchema>;
+
 export const CodebookSchema = z.object({
   stages: z.array(CodeSchema).min(2).max(CODEBOOK_LIMITS.stages).describe("Customer journey stages, in order"),
   segments: z.array(CodeSchema).max(CODEBOOK_LIMITS.segments).describe("Who people say they are / what they use it for"),
@@ -45,6 +54,11 @@ export const CodebookSchema = z.object({
    * drafts, so neither has to guess (e.g. "printheads are installed at setup and can be replaced later").
    */
   productNotes: z.string().max(1500).optional(),
+  /**
+   * Facts from the maker's official pages (D44), each with the page it came from. Claude finds them; you remove any
+   * that look wrong. Read with the notes above.
+   */
+  productFacts: z.array(ProductFactSchema).max(PRODUCT_FACTS_MAX).optional(),
 });
 
 export type Code = z.infer<typeof CodeSchema>;
@@ -296,7 +310,7 @@ export interface PostForJev {
   replyingTo?: string | null;
   /** Catalog products the post names (from the catalog matcher), e.g. "HP Smart Tank 7301". */
   names?: string | null;
-  /** How the product works (codebook product notes), so Jev doesn't guess. */
+  /** How the product works (`productKnowledge` of the codebook), so Jev doesn't guess. */
   productNotes?: string | null;
 }
 
@@ -373,11 +387,21 @@ const clamp = (x: number) => (Number.isFinite(x) ? Math.min(1, Math.max(0, x)) :
 export const JEV_USD_PER_MILLION_INPUT = 0.042;
 const CHARS_PER_TOKEN = 4;
 
+/**
+ * Everything known about how the product works, as one text: the official facts, then your notes. Jev reads it with
+ * every post; Claude reads it when drafting and checking. Empty when there is nothing.
+ */
+export function productKnowledge(codebook: Pick<Codebook, "productFacts" | "productNotes">): string {
+  const facts = (codebook.productFacts ?? []).map((f) => `- ${f.text}`).join("\n");
+  const notes = codebook.productNotes?.trim() ?? "";
+  return [facts && `From the maker's official pages:\n${facts}`, notes && `From the user:\n${notes}`].filter(Boolean).join("\n");
+}
+
 /** Rough tokens for one post's call: the post plus every question's wording. Errs high. */
 export function estimateTokens(postChars: number, codebook: Codebook, subject: string): number {
   const questionChars = JSON.stringify(questionsFor(codebook, subject)).length;
-  // The product notes go with every post too.
-  return Math.ceil((Math.min(postChars, MAX_POST_CHARS) + questionChars + (codebook.productNotes?.length ?? 0) + 200) / CHARS_PER_TOKEN);
+  // What's known about the product goes with every post too.
+  return Math.ceil((Math.min(postChars, MAX_POST_CHARS) + questionChars + productKnowledge(codebook).length + 200) / CHARS_PER_TOKEN);
 }
 
 export const jevUsd = (inputTokens: number) => (inputTokens * JEV_USD_PER_MILLION_INPUT) / 1_000_000;

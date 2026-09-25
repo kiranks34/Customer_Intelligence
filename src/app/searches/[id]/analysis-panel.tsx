@@ -32,13 +32,15 @@ interface Props {
   ready: boolean;
   /** The Claude model in use, and whether it comes from the PULSE_CLAUDE_MODEL setting (Vercel hides the value). */
   claude: { model: string; fromSetting: boolean };
+  /** Where the family's official facts come from, when Pulse knows the maker's sites (D44). */
+  facts: { domains: string[]; checkedAt: string | null } | null;
 }
 
 /**
  * Step 5 on the search page: one button to analyze, a progress bar while Jev reads, then the results (all counted
  * in SQL), the posts Jev wasn't sure about, and the codebook you can edit.
  */
-export function AnalysisPanel({ searchId, subject, initial, summary, look, codebook, check, ready, claude }: Props) {
+export function AnalysisPanel({ searchId, subject, initial, summary, look, codebook, check, ready, claude, facts }: Props) {
   const router = useRouter();
   const [s, setS] = useState(initial);
   const [message, setMessage] = useState<string | null>(null);
@@ -187,7 +189,7 @@ export function AnalysisPanel({ searchId, subject, initial, summary, look, codeb
           onImprove={() => editor.current?.improve()}
         />
       )}
-      {codebook && <CodebookEditor key={codebook.version} searchId={searchId} codebook={codebook.codebook} version={codebook.version} handle={editor} />}
+      {codebook && <CodebookEditor key={codebook.version} searchId={searchId} codebook={codebook.codebook} version={codebook.version} handle={editor} facts={facts} />}
       <p className="text-xs text-muted">
         Jev reads every post. Claude ({claude.model}
         {claude.fromSetting ? ", from your PULSE_CLAUDE_MODEL setting" : ", the default; set PULSE_CLAUDE_MODEL to change it"}) drafts the definitions and

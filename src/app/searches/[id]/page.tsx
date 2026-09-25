@@ -7,6 +7,7 @@ import { analysisState, analysisSummary, latestCodebook, needsLook, resultsVersi
 import { referenceFor } from "@/lib/catalog-references";
 import { catalogStats, ensureCatalogForSearch, getCatalog, waitingCount } from "@/lib/catalogs";
 import { loadPlan, progress } from "@/lib/collect";
+import { factsSourceFor } from "@/lib/product-knowledge";
 import { getSearch } from "@/lib/searches";
 
 import { AnalysisPanel } from "./analysis-panel";
@@ -30,7 +31,7 @@ export default async function SearchPage({ params }: PageProps<"/searches/[id]">
   // Older searches get linked to their family's catalog the first time they're opened (no AI, no cost).
   const catalogId = search.catalogId ?? (await ensureCatalogForSearch(id, plan.subject).catch(() => null));
   const catalog = catalogId ? await catalogLine(catalogId, id) : null;
-  const [analysis, shown, codebook] = await Promise.all([analysisState(id), resultsVersion(id), latestCodebook(id)]);
+  const [analysis, shown, codebook, factsSource] = await Promise.all([analysisState(id), resultsVersion(id), latestCodebook(id), factsSourceFor(id).catch(() => null)]);
   const [summary, look, checkItems, accuracy] = shown
     ? await Promise.all([analysisSummary(id, shown), needsLook(id, shown), spotCheckItems(id, shown), spotCheckAccuracy(id, shown)])
     : [null, [], [], null];
@@ -51,7 +52,19 @@ export default async function SearchPage({ params }: PageProps<"/searches/[id]">
 
       <PlanWorkspace searchId={id} plan={plan} version={version} usdPerCredit={usdPerCredit()} initialProgress={prog} locked={locked} />
       {prog.totalPosts > 0 && (
-        <AnalysisPanel key={`${analysis.version}-${analysis.status}`} searchId={id} subject={plan.subject} initial={analysis} summary={summary} look={look} codebook={codebook} check={accuracy ? { items: checkItems, accuracy } : null} ready={prog.finished} claude={{ model: claudeModel(), fromSetting: Boolean(process.env.PULSE_CLAUDE_MODEL?.trim()) }} />
+        <AnalysisPanel
+          key={`${analysis.version}-${analysis.status}`}
+          searchId={id}
+          subject={plan.subject}
+          initial={analysis}
+          summary={summary}
+          look={look}
+          codebook={codebook}
+          check={accuracy ? { items: checkItems, accuracy } : null}
+          ready={prog.finished}
+          claude={{ model: claudeModel(), fromSetting: Boolean(process.env.PULSE_CLAUDE_MODEL?.trim()) }}
+          facts={factsSource ? { domains: factsSource.domains, checkedAt: factsSource.stored?.checkedAt ?? null } : null}
+        />
       )}
       {catalog && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border bg-surface px-5 py-3 text-sm">
