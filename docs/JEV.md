@@ -23,7 +23,10 @@ Every hand-labelled item from the earlier project was sent to Jev
 
 ## How Pulse uses it
 
-Jev answers every per-post question. Claude never labels individual posts.
+Jev answers every per-post question, and only Jev's answers are counted. Claude
+never labels posts for the report; it may answer the same questions on a small
+sample (the auto-check, D41) so accuracy can be measured, and you decide where
+the two disagree.
 
 | Question | Options come from |
 |---|---|
@@ -38,6 +41,21 @@ Claude drafts the codebook (stages, segments, themes) once per search from a
 sample of up to 60 posts. It is used straight away, with no approval step; you
 can edit it on the search page, and every edit is a new version
 (docs/DECISIONS.md D37). Touchpoints come later with the journey map.
+
+### What Jev decides (D41)
+
+| Decision | Type | Answer | Used for |
+|---|---|---|---|
+| About the subject? / Mentions another brand? / Only chat? | yes/no ×3 | probabilities | Groups; a comparison counts for both the subject and Competitors |
+| Sentiment | choice | positive / negative / mixed / neutral | How people feel |
+| Journey stage | choice | codebook stages + not stated | Journey map rows |
+| What the post does | choice | question / complaint / praise / advice / comparison / decision / other | Journey map columns |
+| How long they've had it | choice | doesn't own / under a month / months / over a year / no longer uses it / not stated | Anchors the stage |
+| First-hand experience? | yes/no | probability | Real owners vs hearsay |
+| Severity | score 0–4 | position on the scale | Ranking pains |
+| Would recommend | score 0–4 | position on the scale | Stay or leave |
+| Themes | yes/no each | probability | What people talk about |
+| Which competitor, feeling about it | choice ×2 | codebook brands | Competitors mentioned |
 
 ### How it's called (confirmed from the AI SDK, `experimental_evaluate`)
 

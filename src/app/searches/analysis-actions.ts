@@ -10,6 +10,7 @@ import {
   latestCodebook,
   proposeCodebook,
   resumeAnalysis,
+  runAutoCheck,
   saveCodebook,
   saveReview,
   saveSpotCheck,
@@ -126,5 +127,19 @@ export async function proposeCodebookAction(searchId: number): Promise<ProposalR
     };
   } catch (err) {
     return { ok: false, message: `Couldn't get a proposal: ${errorText(err)}` };
+  }
+}
+
+/** Claude checks Jev on the 20 sample posts (a few cents); you then only look where they disagree. */
+export async function autoCheckAction(searchId: number): Promise<ActionState> {
+  const denied = (await authed()) ?? (await budgetBlock());
+  if (denied) return denied;
+  if (!validId(searchId)) return { ok: false, message: "Unknown search." };
+  try {
+    const { posts } = await runAutoCheck(searchId);
+    revalidatePath(`/searches/${searchId}`);
+    return { ok: true, message: `Claude checked ${posts} posts. Look at the ones where it disagrees with Jev.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't run the auto-check: ${errorText(err)}` };
   }
 }

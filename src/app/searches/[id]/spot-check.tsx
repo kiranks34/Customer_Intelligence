@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { Accuracy, CheckItem } from "@/lib/analysis";
-import { NOT_STATED, type Codebook } from "@/lib/codebook";
+import { NOT_STATED, OWNERSHIP, POST_TYPES, type Codebook } from "@/lib/codebook";
 
-import { saveSpotCheckAction } from "../analysis-actions";
+import { autoCheckAction, saveSpotCheckAction } from "../analysis-actions";
 
 const SENTIMENTS = ["positive", "negative", "mixed", "neutral"];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -19,29 +19,78 @@ const TARGET = 0.9;
  * and save; the score shows how often Jev's sure answers match yours, per question.
  */
 export function SpotCheck(props: { searchId: number; version: number; codebook: Codebook; items: CheckItem[]; accuracy: Accuracy }) {
-  const { items, accuracy } = props;
-  const done = items.filter((i) => i.person).length;
+  const { items, accuracy, searchId } = props;
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [note, setNote] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const claudeRan = items.some((i) => i.claude);
+  // Where Claude and Jev differ on a sure answer and you haven't decided: the only posts that need you.
+  // Per question: a post you checked before a question existed can still be disputed on that question.
+  const disputed = items.filter(
+    (i) => i.claude && Object.entries(i.claude).some(([q, a]) => !(i.person && q in i.person) && (i.jev[q]?.confidence ?? 0) >= 0.8 && i.jev[q]?.answer !== a),
+  );
+  const shown = !claudeRan || all ? items : disputed;
+  const open = accuracy.questions.reduce((n, q) => n + q.open, 0);
+
+  function autoCheck() {
+    setNote(null);
+    startTransition(async () => {
+      const r = await autoCheckAction(searchId);
+      setNote(r.message);
+      if (r.ok) router.refresh();
+    });
+  }
+
   return (
     <details className="rounded-lg border border-border px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">
-        Check accuracy ({done} of {items.length} checked){" "}
-        <span className="font-normal text-muted">· about 10 minutes. You correct Jev on 20 posts; the score shows if the journey can be trusted.</span>
+        Check accuracy{" "}
+        <span className="font-normal text-muted">
+          · {claudeRan ? `${disputed.length} ${disputed.length === 1 ? "post needs" : "posts need"} your call` : "measures how often Jev is right"}
+        </span>
       </summary>
       <div className="mt-4 flex flex-col gap-4">
-        <Score accuracy={accuracy} />
-        <ol className="flex flex-col divide-y divide-border">
-          {items.map((item, i) => (
-            <CheckRow key={item.id} n={i + 1} item={item} {...props} />
-          ))}
-        </ol>
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2 text-sm">
+          <button type="button" disabled={pending} onClick={autoCheck} className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50">
+            {pending ? "Claude is checking…" : claudeRan ? "Run the auto-check again" : "Auto-check with Claude"}
+          </button>
+          <span className="text-xs text-muted">
+            Claude answers the same questions for {items.length} posts (a few cents). You only decide where it disagrees with Jev; your answer always wins.
+          </span>
+        </div>
+        {note && <p className="text-sm text-muted">{note}</p>}
+        <Score accuracy={accuracy} open={open} />
+        {claudeRan && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">{all ? `All ${items.length} posts` : `${disputed.length} posts where Claude and Jev disagree`}</span>
+            <button type="button" onClick={() => setAll((v) => !v)} className="text-xs text-muted underline">
+              {all ? "Show only disagreements" : `Show all ${items.length}`}
+            </button>
+          </div>
+        )}
+        {shown.length === 0 ? (
+          <p className="text-sm text-muted">Nothing needs your call. Claude and Jev agree on every sure answer.</p>
+        ) : (
+          <ol className="flex flex-col divide-y divide-border">
+            {shown.map((item) => (
+              <CheckRow key={item.id} n={items.indexOf(item) + 1} item={item} {...props} />
+            ))}
+          </ol>
+        )}
       </div>
     </details>
   );
 }
 
-function Score({ accuracy }: { accuracy: Accuracy }) {
-  if (accuracy.checked === 0) return <p className="text-sm text-muted">No posts checked yet. The target is 18 of 20 right for journey stage and sentiment.</p>;
+function Score({ accuracy, open }: { accuracy: Accuracy; open: number }) {
+  if (accuracy.checked === 0) return <p className="text-sm text-muted">Not checked yet. The target is 18 of 20 right for journey stage and sentiment.</p>;
   return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted">
+        Judged by you on {accuracy.byYou} {accuracy.byYou === 1 ? "post" : "posts"} and by Claude on the rest
+        {open > 0 ? `; ${open} disagreements still count as Jev wrong until you decide` : ""}.
+      </p>
     <ul className="grid gap-2 sm:grid-cols-2">
       {accuracy.questions.map((q) => {
         const share = q.sure ? q.right / q.sure : 0;
@@ -67,6 +116,7 @@ function Score({ accuracy }: { accuracy: Accuracy }) {
         );
       })}
     </ul>
+    </div>
   );
 }
 
@@ -79,17 +129,24 @@ function CheckRow({ n, item, searchId, version, codebook }: { n: number; item: C
   const [sentiment, setSentiment] = useState(initial("sentiment", "neutral"));
   const [stage, setStage] = useState(initial("stage", NOT_STATED));
   const [segment, setSegment] = useState(initial("segment", NOT_STATED));
+  const [postType, setPostType] = useState(initial("post_type", "other"));
+  const [ownership, setOwnership] = useState(initial("ownership", NOT_STATED));
   const [themes, setThemes] = useState<Set<string>>(
     new Set(codebook.themes.filter((t) => (item.person ? item.person[`theme:${t.key}`] : item.jev[`theme:${t.key}`]?.answer) === "yes").map((t) => t.key)),
   );
   const sure = (q: string) => (item.jev[q]?.confidence ?? 0) >= 0.8;
-  const jevSays = (q: string, label: (a: string) => string) =>
-    item.jev[q] ? `Jev: ${label(item.jev[q].answer)}${sure(q) ? "" : " (not sure)"}` : "Jev: no answer";
+  const jevSays = (q: string, label: (a: string) => string) => {
+    const jev = item.jev[q] ? `Jev: ${label(item.jev[q].answer)}${sure(q) ? "" : " (not sure)"}` : "Jev: no answer";
+    const claude = item.claude?.[q];
+    return claude && claude !== item.jev[q]?.answer ? `${jev} · Claude: ${label(claude)}` : jev;
+  };
+  const typeLabel = (k: string) => POST_TYPES.find((t) => t.key === k)?.label ?? "Other";
+  const ownLabel = (k: string) => OWNERSHIP.find((o) => o.key === k)?.label ?? "Not stated";
   const stageLabel = (k: string) => codebook.stages.find((s) => s.key === k)?.label ?? (k === NOT_STATED ? "Not stated" : k);
   const segmentLabel = (k: string) => codebook.segments.find((s) => s.key === k)?.label ?? (k === NOT_STATED ? "Not stated" : k);
 
   function save() {
-    const answers: Record<string, string> = { sentiment, stage, ...(codebook.segments.length ? { segment } : {}) };
+    const answers: Record<string, string> = { sentiment, stage, post_type: postType, ownership, ...(codebook.segments.length ? { segment } : {}) };
     for (const t of codebook.themes) answers[`theme:${t.key}`] = themes.has(t.key) ? "yes" : "no";
     setNote(null);
     startTransition(async () => {
@@ -153,8 +210,32 @@ function CheckRow({ n, item, searchId, version, codebook }: { n: number; item: C
           </label>
         )}
       </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          What the post does · {jevSays("post_type", typeLabel)}
+          <select value={postType} onChange={(e) => setPostType(e.target.value)} className={select}>
+            {[...POST_TYPES.map((t) => t.key), "other"].map((k) => (
+              <option key={k} value={k}>
+                {typeLabel(k)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          How long they&apos;ve had it · {jevSays("ownership", ownLabel)}
+          <select value={ownership} onChange={(e) => setOwnership(e.target.value)} className={select}>
+            {[...OWNERSHIP.map((o) => o.key), NOT_STATED].map((k) => (
+              <option key={k} value={k}>
+                {ownLabel(k)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="mb-1 text-xs text-muted">Themes it mentions (ticked = Jev&apos;s picks; change what&apos;s wrong)</legend>
+        <legend className="mb-1 text-xs text-muted">
+          Themes it mentions (ticked = Jev&apos;s picks{item.claude ? "; ◆ = Claude's picks" : ""}; change what&apos;s wrong)
+        </legend>
         <div className="flex flex-wrap gap-1.5">
           {codebook.themes.map((t) => {
             const on = themes.has(t.key);
@@ -168,6 +249,7 @@ function CheckRow({ n, item, searchId, version, codebook }: { n: number; item: C
               >
                 {on ? "✓ " : ""}
                 {t.label}
+                {item.claude?.[`theme:${t.key}`] === "yes" ? " ◆" : ""}
               </button>
             );
           })}
