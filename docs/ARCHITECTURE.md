@@ -51,9 +51,8 @@ moved.
 | Tests | Vitest (unit), Playwright (UI) | |
 
 Environment variables (names reused from the earlier project):
-`AI_GATEWAY_API_KEY`, `YOUTUBE_API_KEY`, `REDDIT_CLIENT_ID`,
-`REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT`, `SCRAPECREATORS_API_KEY`,
-`APIFY_TOKEN`, `DATABASE_URL`, `PULSE_PASSCODE`, `AUTHOR_HASH_SALT`.
+`AI_GATEWAY_API_KEY`, `YOUTUBE_API_KEY`, `SCRAPECREATORS_API_KEY`,
+`SCRAPECREATORS_USD_PER_CREDIT`, `APIFY_TOKEN`, `APIFY_AMAZON_ACTOR`, `DATABASE_URL`, `PULSE_PASSCODE`, `AUTHOR_HASH_SALT`.
 
 ## 4. Data model (first cut)
 
@@ -81,8 +80,8 @@ country), which feed the product catalog.
 | Phase | Source | Region | Via | Cost |
 |---|---|---|---|---|
 | 1 | YouTube videos + comments | all | YouTube Data API | Free quota |
-| 1 | Reddit posts + comment threads | NA, India | Reddit OAuth API | Free |
-| 1 | Amazon.com listings + reviews | NA | Apify actor | Free monthly credit (resets on the 27th) |
+| 1 | Reddit posts + comment threads | NA, India | ScrapeCreators (`/v1/reddit/search`, `/v1/reddit/post/comments`) | ~1 credit per call (≈ $0.002) |
+| 1b | Amazon.com listings + reviews | NA | Apify actor (after Apify credits are topped up) | Per actor pricing |
 | 2 | Best Buy, Walmart, Target, Costco reviews | NA | Apify actors (to verify per retailer) | Credits |
 | 2 | Amazon.in, Flipkart | India | Apify actors | Credits |
 | 2 | Mercado Libre, Amazon MX/BR | LATAM | Apify actors | Credits |

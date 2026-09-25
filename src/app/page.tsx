@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { monthToDate } from "@/lib/cost";
 
 import { SpendMeter } from "./spend-meter";
@@ -38,6 +40,12 @@ export default async function Home() {
           Search is switched on in Phase 1, step 3. Examples: {EXAMPLES.join(" · ")}
         </p>
       </section>
+
+      <nav aria-label="Tools" className="text-sm">
+        <Link href="/sources" className="underline">
+          Test data sources →
+        </Link>
+      </nav>
 
       <section aria-labelledby="recent-heading">
         <h2 id="recent-heading" className="mb-2 text-lg font-medium">

@@ -25,10 +25,14 @@
 | D19 | Filters: family → series in Phase 1; model/SKU stored from day one, model filter in Phase 2 | Your choice. Storing early avoids re-scraping |
 | D20 | Price: store price observations per listing; price tier *within region*; promo detection via Jev; no exact price per post | Prices vary by region, promotion and date, and reviews rarely state price paid |
 | D21 | Per-channel journey and report views, plus a combined journey built stage by stage with channel mix, per-channel sentiment and evidence thresholds. Default is channel-balanced | Channels see different stages and people. Show only what the evidence supports |
+| D22 | Reddit is collected through ScrapeCreators, not Reddit's API | Reddit refused API access in the earlier project; ScrapeCreators worked there |
+| D23 | Phase 1 feasibility runs on YouTube + Reddit only; Amazon (Apify) follows when credits are topped up | Apify free credits are used up. Trade-off: fewer buy/setup-stage posts, so the journey gate is judged on social data first |
+| D24 | Database changes ship as paste-ready SQL for Neon's SQL Editor (`drizzle/editor/`) | The command-line migration needs a local setup; the editor path is what worked |
 
 ## Open questions
 
 | # | Question | Needed by |
 |---|---|---|
 | Q3 | Jev: several questions per call? multi-select? input length? Spanish, Portuguese and Hindi quality? (We'll test; Chinese was validated earlier) | Phase 1 |
+| Q5 | Which Apify actor did the earlier project use for Amazon reviews (its ID is in `amazon_reviews.py`)? | Before Amazon is switched on |
 | Q4 | Which retailers are reachable via Apify at acceptable cost (Best Buy, Costco, Target, Walmart, Flipkart, Mercado Libre, JD)? | Phase 2 |

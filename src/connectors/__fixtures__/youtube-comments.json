@@ -1,0 +1,39 @@
+{
+  "kind": "youtube#commentThreadListResponse",
+  "nextPageToken": "QURTSl9p",
+  "pageInfo": { "totalResults": 2, "resultsPerPage": 100 },
+  "items": [
+    {
+      "kind": "youtube#commentThread",
+      "id": "Ugz1",
+      "snippet": {
+        "videoId": "vid00000001",
+        "topLevelComment": {
+          "kind": "youtube#comment",
+          "id": "Ugz1",
+          "snippet": {
+            "videoId": "vid00000001",
+            "textDisplay": "Ink lasted 8 months for me, setup was a pain though.",
+            "textOriginal": "Ink lasted 8 months for me, setup was a pain though.",
+            "authorDisplayName": "@tankfan",
+            "likeCount": 12,
+            "publishedAt": "2026-05-03T09:30:00Z",
+            "updatedAt": "2026-05-03T09:30:00Z"
+          }
+        },
+        "canReply": true,
+        "totalReplyCount": 3,
+        "isPublic": true
+      }
+    },
+    {
+      "kind": "youtube#commentThread",
+      "id": "Ugz2",
+      "snippet": {
+        "videoId": "vid00000001",
+        "topLevelComment": { "kind": "youtube#comment", "id": "Ugz2", "snippet": { "textOriginal": "   ", "authorDisplayName": "@blank", "likeCount": 0, "publishedAt": "2026-05-04T00:00:00Z" } },
+        "totalReplyCount": 0
+      }
+    }
+  ]
+}

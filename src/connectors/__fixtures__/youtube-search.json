@@ -1,0 +1,18 @@
+{
+  "kind": "youtube#searchListResponse",
+  "nextPageToken": "CAIQAA",
+  "regionCode": "US",
+  "pageInfo": { "totalResults": 1000000, "resultsPerPage": 2 },
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#video", "videoId": "vid00000001" },
+      "snippet": { "publishedAt": "2026-05-01T12:00:00Z", "channelId": "UC1", "title": "HP Smart Tank 5101 review after 6 months", "description": "…", "channelTitle": "Printer Guy" }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#channel", "channelId": "UC2" },
+      "snippet": { "publishedAt": "2025-01-01T00:00:00Z", "channelId": "UC2", "title": "A channel, not a video", "description": "", "channelTitle": "Someone" }
+    }
+  ]
+}

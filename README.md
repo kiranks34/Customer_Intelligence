@@ -4,7 +4,7 @@ Search-driven customer intelligence from public data. Type a product,
 category or audience question. Get an evidence-backed report and a live
 customer journey map, verified post by post with Jev.
 
-**Status:** Phase 1, step 1: app skeleton (login, database schema, cost meter). No searches yet.
+**Status:** Phase 1, step 2: data sources (YouTube, Reddit via ScrapeCreators; Amazon via Apify later). Test them at `/sources`. No searches yet.
 
 | Doc | What it covers |
 |---|---|
@@ -32,5 +32,12 @@ Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
 2. **Storage → Create Database → Neon (Postgres)** and connect it to the project. This sets `DATABASE_URL`.
 3. **Settings → Environment Variables**: add `PULSE_PASSCODE`, `PULSE_SESSION_SECRET`, `AUTHOR_HASH_SALT`
    (see `.env.example`).
-4. Create the tables once from your machine: `DATABASE_URL=<value from Vercel> npm run db:migrate`.
-5. Redeploy and open the site. You'll be asked for your passcode.
+   Neon's integration must use the prefix `DATABASE` so the app finds `DATABASE_URL`.
+4. Create the tables: open Neon → SQL Editor (branch `main`, database `neondb`), paste all of
+   `drizzle/editor/0000_init.sql` and click Run. The last query should list 12 tables.
+5. Redeploy and open the site. You'll be asked for your passcode. The spend meter should read $0.00.
+
+## Database changes
+
+When a pull request adds a migration, it also adds `drizzle/editor/<name>.sql`. After merging, paste that file
+into Neon's SQL Editor once, the same way as step 4. (`npm run db:generate` creates both files.)
