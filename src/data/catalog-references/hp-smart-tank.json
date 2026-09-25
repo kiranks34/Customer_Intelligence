@@ -1,0 +1,3805 @@
+{
+  "family": "HP Smart Tank",
+  "key": "hp smart tank",
+  "checkedAt": "2026-09-25",
+  "familyAliases": [
+    "Smart Tank"
+  ],
+  "series": [
+    {
+      "name": "HP Smart Tank 210 Printer series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2101016337",
+          "title": "HP Support product data (JSON) for HP Smart Tank 210 Printer series",
+          "quote": "\"seriesName\":\"HP Smart Tank 210 Printer series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 210 Printer series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 210",
+          "number": "210",
+          "aliases": [
+            "210",
+            "Smart Tank 210"
+          ],
+          "regions": [
+            "BR",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2101016337",
+              "title": "HP Support product data (JSON) for HP Smart Tank 210 Printer series",
+              "quote": "\"modelName\":\"HP Smart Tank 210 Printer\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/impressora-hp-smart-tank-210-3d4l5a.html",
+              "title": "Impressora HP Smart Tank 210 - (3D4L5A) - Loja HP.com Brasil",
+              "quote": "Impressora HP Smart Tank 210"
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-hp-smart-tank-210-tinta-continua-color-wifi-smart-app-3d4l3a.html",
+              "title": "Impresora HP Smart Tank 210 + HP Poly Earbuds Voyager Free 60 UC - (3D4L3A) - Tienda HP.com México",
+              "quote": "Impresora HP Smart Tank 210"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 215",
+          "number": "215",
+          "aliases": [
+            "215",
+            "Smart Tank 215"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2101016337",
+              "title": "HP Support product data (JSON) for HP Smart Tank 210 Printer series",
+              "quote": "\"modelName\":\"HP Smart Tank 215 Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 218",
+          "number": "218",
+          "aliases": [
+            "218",
+            "Smart Tank 218"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2101016337",
+              "title": "HP Support product data (JSON) for HP Smart Tank 210 Printer series",
+              "quote": "\"modelName\":\"HP Smart Tank 218 Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 350 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180949",
+          "title": "HP Support product data (JSON) for HP Smart Tank 350 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 350 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 350 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 355",
+          "number": "355",
+          "aliases": [
+            "355",
+            "Smart Tank 355"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180949",
+              "title": "HP Support product data (JSON) for HP Smart Tank 350 series",
+              "quote": "\"modelName\":\"HP Smart Tank 355\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 4900r series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2103267388",
+          "title": "HP Support product data (JSON) for HP Smart Tank 4900r series",
+          "quote": "\"seriesName\":\"HP Smart Tank 4900r series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 4900r series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 4905r",
+          "number": "4905r",
+          "aliases": [
+            "4905r",
+            "Smart Tank 4905r"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2103267388",
+              "title": "HP Support product data (JSON) for HP Smart Tank 4900r series",
+              "quote": "\"modelName\":\"HP Smart Tank 4905r All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 500 All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=23394952",
+          "title": "HP Support product data (JSON) for HP Smart Tank 500 All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank 500 All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 500 All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 500",
+          "number": "500",
+          "aliases": [
+            "500",
+            "Smart Tank 500"
+          ],
+          "regions": [
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=23394952",
+              "title": "HP Support product data (JSON) for HP Smart Tank 500 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 500 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-500-4sr29a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 500 - (4SR29A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 500"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 502",
+          "number": "502",
+          "aliases": [
+            "502",
+            "Smart Tank 502"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=23394952",
+              "title": "HP Support product data (JSON) for HP Smart Tank 500 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 502 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 508",
+          "number": "508",
+          "aliases": [
+            "508",
+            "Smart Tank 508"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=23394952",
+              "title": "HP Support product data (JSON) for HP Smart Tank 500 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 508 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 510 Wireless All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+          "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank 510 Wireless All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 510 Wireless All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 511",
+          "number": "511",
+          "aliases": [
+            "511",
+            "Smart Tank 511"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 511 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 513",
+          "number": "513",
+          "aliases": [
+            "513",
+            "Smart Tank 513"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 513 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 514",
+          "number": "514",
+          "aliases": [
+            "514",
+            "Smart Tank 514"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 514 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 515",
+          "number": "515",
+          "aliases": [
+            "515",
+            "Smart Tank 515"
+          ],
+          "regions": [
+            "AR",
+            "CL",
+            "CO",
+            "MX",
+            "PE"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 515 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-515-1tj09a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 515 - (1TJ09A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 515"
+            },
+            {
+              "url": "https://www.hp.com/ar-es/shop/impresora-multifuncional-hp-smart-tank-515-1tj09a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 515 - (1TJ09A) - Tienda HP.com Argentina",
+              "quote": "Impresora Multifuncional HP Smart Tank 515"
+            },
+            {
+              "url": "https://www.hp.com/cl-es/shop/impresora-multifuncional-hp-smart-tank-515-1tj09a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 515 - (1TJ09A) - Tienda HP.com Chile",
+              "quote": "Impresora Multifuncional HP Smart Tank 515"
+            },
+            {
+              "url": "https://www.hp.com/co-es/shop/impresora-multifuncional-hp-smart-tank-515-1tj09a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 515 - (1TJ09A) - Tienda HP.com Colombia",
+              "quote": "Impresora Multifuncional HP Smart Tank 515"
+            },
+            {
+              "url": "https://www.hp.com/pe-es/shop/impresora-multifuncional-hp-smart-tank-515-1tj09a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 515 - (1TJ09A) - Tienda HP.com Perú",
+              "quote": "Impresora Multifuncional HP Smart Tank 515"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 516",
+          "number": "516",
+          "aliases": [
+            "516",
+            "Smart Tank 516"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 516 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 517",
+          "number": "517",
+          "aliases": [
+            "517",
+            "Smart Tank 517"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 517 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 518",
+          "number": "518",
+          "aliases": [
+            "518",
+            "Smart Tank 518"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 518 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 519",
+          "number": "519",
+          "aliases": [
+            "519",
+            "Smart Tank 519"
+          ],
+          "regions": [
+            "CL"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16449872",
+              "title": "HP Support product data (JSON) for HP Smart Tank 510 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 519 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/cl-es/shop/impresora-multifuncional-hp-smart-tank-519-3yw73a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 519 - (3YW73A) - Tienda HP.com Chile",
+              "quote": "Impresora Multifuncional HP Smart Tank 519"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 5100 All-in-One Printer Series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+          "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+          "quote": "\"seriesName\":\"HP Smart Tank 5100 All-in-One Printer Series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 5100 All-in-One Printer Series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 5000",
+          "number": "5000",
+          "aliases": [
+            "5000",
+            "Smart Tank 5000"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5000/5100 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/us-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Official Site",
+              "quote": "HP Smart Tank 5000 All-in-One"
+            },
+            {
+              "url": "https://www.hp.com/ca-en/shop/media/facets_url/products_url_ca_en.txt",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/products/printers/hp-smart-tank-5000-wireless-multifunction-colour-ink-tank-printer-5d1b6a-b1h"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5001",
+          "number": "5001",
+          "aliases": [
+            "5001",
+            "Smart Tank 5001"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5001 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5002",
+          "number": "5002",
+          "aliases": [
+            "5002",
+            "Smart Tank 5002"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5002 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5003",
+          "number": "5003",
+          "aliases": [
+            "5003",
+            "Smart Tank 5003"
+          ],
+          "regions": [
+            "CA"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5003 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-fr-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-fr/shop/products/printers/imprimante-tout-en-un-hp-smart-tank-5003-9b2d3a-b1h"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5100",
+          "number": "5100",
+          "aliases": [
+            "5100",
+            "Smart Tank 5100"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5100 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-5100-all-in-one-printer"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-fr-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-fr/shop/products/printers/hp-smart-tank-5100-all-in-one-printer-d06bla-b1h"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5101",
+          "number": "5101",
+          "aliases": [
+            "5101",
+            "Smart Tank 5101"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5101 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/us-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Official Site",
+              "quote": "HP Smart Tank 5101 All-in-One"
+            },
+            {
+              "url": "https://www.hp.com/ca-en/shop/media/facets_url/products_url_ca_en.txt",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/products/printers/hp-smart-tank-5101-wireless-multifunction-colour-ink-tank-printer-1f3y0a-b1h"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-en-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/smart-tank-5101-all-in-one-printer"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-hreflang-pdp-ca-en.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-5101-all-in-one-printer"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5102",
+          "number": "5102",
+          "aliases": [
+            "5102",
+            "Smart Tank 5102"
+          ],
+          "regions": [
+            "CA"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5102 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/ca-en/shop/media/facets_url/products_url_ca_en.txt",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/products/printers/hp-smart-tank-5102-wireless-multifunction-colour-ink-tank-printer-4a8d0a-b1h"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5103",
+          "number": "5103",
+          "aliases": [
+            "5103",
+            "Smart Tank 5103"
+          ],
+          "regions": [
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5103 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/us-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Official Site",
+              "quote": "HP Smart Tank 5103 All-in-One"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-5103-all-in-one-printer"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5104",
+          "number": "5104",
+          "aliases": [
+            "5104",
+            "Smart Tank 5104"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5104 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5105",
+          "number": "5105",
+          "aliases": [
+            "5105",
+            "Smart Tank 5105"
+          ],
+          "regions": [
+            "AU",
+            "NZ"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5105 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/nz-en/shop/hp-smart-tank-5105-all-in-one-printer-1f3y3a.html",
+              "title": "HP Smart Tank 5105 All-in-One Printer - (1F3Y3A) - Shop HP.com New Zealand",
+              "quote": "HP Smart Tank 5105"
+            },
+            {
+              "url": "https://www.hp.com/au-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Australia",
+              "quote": "HP Smart Tank 5105"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5106",
+          "number": "5106",
+          "aliases": [
+            "5106",
+            "Smart Tank 5106"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5106 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5107",
+          "number": "5107",
+          "aliases": [
+            "5107",
+            "Smart Tank 5107"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5107 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5108",
+          "number": "5108",
+          "aliases": [
+            "5108",
+            "Smart Tank 5108"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5108 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5109",
+          "number": "5109",
+          "aliases": [
+            "5109",
+            "Smart Tank 5109"
+          ],
+          "regions": [
+            "GB"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5109 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/uk-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® United Kingdom",
+              "quote": "HP Smart Tank 5109"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 5115",
+          "number": "5115",
+          "aliases": [
+            "5115",
+            "Smart Tank 5115"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992728",
+              "title": "HP Support product data (JSON) for HP Smart Tank 5100 All-in-One Printer Series",
+              "quote": "\"modelName\":\"HP Smart Tank 5115 All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 520 All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+          "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank 520 All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 520 All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 520",
+          "number": "520",
+          "aliases": [
+            "520",
+            "Smart Tank 520"
+          ],
+          "regions": [
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 520 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-520-tinta-continua-color-impresion-copia-escaner-deposito-de-impresora-de-gran-volumen-escanear-a-pdf-1f3w2a.html",
+              "title": "Impresora Todo-en-Uno HP Smart Tank 520 - (1F3W2A) - Tienda HP.com México",
+              "quote": "Impresora Todo-en-Uno HP Smart Tank 520"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 521",
+          "number": "521",
+          "aliases": [
+            "521",
+            "Smart Tank 521"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 521 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/impressora-multifuncional-hp-smart-tank-521-4a8s0a.html",
+              "title": "Impressora multifuncional HP Smart Tank 521 - (4A8S0A) - Loja HP.com Brasil",
+              "quote": "Impressora multifuncional HP Smart Tank 521"
+            },
+            {
+              "url": "https://www.hp.com/br-pt/printers/smart-tank.html",
+              "title": "Impressoras HP Smart Tank – Impressoras de tanque de tinta recarregável | HP® Brasil",
+              "quote": "HP Smart Tank 521"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 523",
+          "number": "523",
+          "aliases": [
+            "523",
+            "Smart Tank 523"
+          ],
+          "regions": [
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 523 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-523-color-smart-app-escaner-copia-4a8s2a-4a8s2a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 523 + Funda HP 15 Protección Reversible (Negro/Plateado) - (4A8S2A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 523"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 524",
+          "number": "524",
+          "aliases": [
+            "524",
+            "Smart Tank 524"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 524 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 525",
+          "number": "525",
+          "aliases": [
+            "525",
+            "Smart Tank 525"
+          ],
+          "regions": [
+            "IN",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 525 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-525-tinta-continua-color-copia-escaner-1f3w3a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 525, Tinta Continua, Color, Copia, Escaner (1F3W3A) - (1F3W3A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 525"
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-525-all-in-one-printer-1f3w3a-acj",
+              "title": "HP Smart Tank 525 All-in-One Printer | HP Store India",
+              "quote": "HP Smart Tank 525 All-in-One Printer"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 528",
+          "number": "528",
+          "aliases": [
+            "528",
+            "Smart Tank 528"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 528 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 529",
+          "number": "529",
+          "aliases": [
+            "529",
+            "Smart Tank 529"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992724",
+              "title": "HP Support product data (JSON) for HP Smart Tank 520 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 529 All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 530 Wireless All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+          "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank 530 Wireless All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 530 Wireless All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 530",
+          "number": "530",
+          "aliases": [
+            "530",
+            "Smart Tank 530"
+          ],
+          "regions": [
+            "AR",
+            "CL",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 530 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-530-4sb24a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 530, Tinta Continua, Color, Wi-Fi, Smart App, ADF Alimentador Automático (4SB24A) - (4SB24A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 530"
+            },
+            {
+              "url": "https://www.hp.com/ar-es/shop/impresora-todo-en-uno-hp-smart-tank-530-inalambrica-4sb24a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 530 - (4SB24A) - Tienda HP.com Argentina",
+              "quote": "Impresora Multifuncional HP Smart Tank 530"
+            },
+            {
+              "url": "https://www.hp.com/cl-es/shop/impresora-multifuncional-hp-smart-tank-530-4sb24a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 530 Tinta Continua, Color, Wi-Fi, Smart App, ADF Alimentador Automático (4SB24A) - (4SB24A) - Tienda HP.com Chile",
+              "quote": "Impresora Multifuncional HP Smart Tank 530"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 531",
+          "number": "531",
+          "aliases": [
+            "531",
+            "Smart Tank 531"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 531 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 532",
+          "number": "532",
+          "aliases": [
+            "532",
+            "Smart Tank 532"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 532 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/combo-impressora-multifuncional-hp-smart-tank-532-frasco-de-tinta-hp-gt53-preto-original-5hx16ab.html",
+              "title": "Combo Impressora Multifuncional HP Smart Tank 532 + Frasco de Tinta HP GT53 Preto Original - (5HX16AB) - Loja HP.com Brasil",
+              "quote": "Combo Impressora Multifuncional HP Smart Tank 532"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 533",
+          "number": "533",
+          "aliases": [
+            "533",
+            "Smart Tank 533"
+          ],
+          "regions": [
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 533 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-533-9kv00a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 533 - (9KV00A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 533"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 534",
+          "number": "534",
+          "aliases": [
+            "534",
+            "Smart Tank 534"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 534 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 536",
+          "number": "536",
+          "aliases": [
+            "536",
+            "Smart Tank 536"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 536 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 538",
+          "number": "538",
+          "aliases": [
+            "538",
+            "Smart Tank 538"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 538 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 539",
+          "number": "539",
+          "aliases": [
+            "539",
+            "Smart Tank 539"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342881",
+              "title": "HP Support product data (JSON) for HP Smart Tank 530 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 539 Wireless All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 580 All-in-One Printer",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+          "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+          "quote": "\"seriesName\":\"HP Smart Tank 580 All-in-One Printer\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 580 All-in-One Printer\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 580",
+          "number": "580",
+          "aliases": [
+            "580",
+            "Smart Tank 580"
+          ],
+          "regions": [
+            "IN",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 580 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-580-tinta-continua-color-wi-fi-smart-app-escaner-1f3y2a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 580, Tinta Continua, Color, Wi-Fi, Smart App, Escaner (1F3Y2A) - (1F3Y2A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 580"
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-580-all-in-one-printer-1f3y2a-acj",
+              "title": "HP Smart Tank 580 All-in-One Printer | HP Store India",
+              "quote": "HP Smart Tank 580 All-in-One Printer"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 581",
+          "number": "581",
+          "aliases": [
+            "581",
+            "Smart Tank 581"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 581 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/combo-impressora-multifuncional-hp-smart-tank-581-frasco-de-tinta-hp-gt53-preto-original-4a8d5a-b.html",
+              "title": "Combo Impressora Multifuncional HP Smart Tank 581 + Frasco de Tinta HP GT53 Preto Original - (4A8D5A_B) - Loja HP.com Brasil",
+              "quote": "Combo Impressora Multifuncional HP Smart Tank 581"
+            },
+            {
+              "url": "https://www.hp.com/br-pt/printers/smart-tank.html",
+              "title": "Impressoras HP Smart Tank – Impressoras de tanque de tinta recarregável | HP® Brasil",
+              "quote": "HP Smart Tank 581"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 582",
+          "number": "582",
+          "aliases": [
+            "582",
+            "Smart Tank 582"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 582 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 583",
+          "number": "583",
+          "aliases": [
+            "583",
+            "Smart Tank 583"
+          ],
+          "regions": [
+            "BR",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 583 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/impressora-multifuncional-hp-smart-tank-583-para-casa-e-home-office-impressao-copia-digitalizacao-sem-fio-reservatorio-de-impressora-de-alto-volume-imprima-do-smartphone-ou-tablet-digitalizar-e-pdf-4a8d8a.html",
+              "title": "Impressora multifuncional HP Smart Tank 583 - (4A8D8A) - Loja HP.com Brasil",
+              "quote": "Impressora multifuncional HP Smart Tank 583"
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-583-4a8d7a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 583 - (4A8D7A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 583"
+            },
+            {
+              "url": "https://www.hp.com/br-pt/printers/smart-tank.html",
+              "title": "Impressoras HP Smart Tank – Impressoras de tanque de tinta recarregável | HP® Brasil",
+              "quote": "HP Smart Tank 583"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 584",
+          "number": "584",
+          "aliases": [
+            "584",
+            "Smart Tank 584"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 584 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/printers/smart-tank.html",
+              "title": "Impressoras HP Smart Tank – Impressoras de tanque de tinta recarregável | HP® Brasil",
+              "quote": "HP Smart Tank 584"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 585",
+          "number": "585",
+          "aliases": [
+            "585",
+            "Smart Tank 585"
+          ],
+          "regions": [
+            "IN",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 585 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-585-tinta-continua-color-wi-fi-smart-app-escaner-copia-1f3y4a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 585, Tinta Continua, Color, Wi-Fi, Smart App, Escaner, Copia (1F3Y4A) - (1F3Y4A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 585"
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-585-all-in-one-printer-1f3y4a-acj",
+              "title": "HP Smart Tank 585 All-in-One Printer | HP Store India",
+              "quote": "HP Smart Tank 585 All-in-One Printer"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 588",
+          "number": "588",
+          "aliases": [
+            "588",
+            "Smart Tank 588"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 588 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 589",
+          "number": "589",
+          "aliases": [
+            "589",
+            "Smart Tank 589"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100992726",
+              "title": "HP Support product data (JSON) for HP Smart Tank 580 All-in-One Printer",
+              "quote": "\"modelName\":\"HP Smart Tank 589 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/impressora-multifuncional-hp-smart-tank-589-5d1a8a.html",
+              "title": "Impressora multifuncional HP Smart Tank 589 - (5D1A8A) - Loja HP.com Brasil",
+              "quote": "Impressora multifuncional HP Smart Tank 589"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 590 All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+          "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank 590 All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 590 All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 591",
+          "number": "591",
+          "aliases": [
+            "591",
+            "Smart Tank 591"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 591 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 592",
+          "number": "592",
+          "aliases": [
+            "592",
+            "Smart Tank 592"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 592 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 593",
+          "number": "593",
+          "aliases": [
+            "593",
+            "Smart Tank 593"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 593 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 595",
+          "number": "595",
+          "aliases": [
+            "595",
+            "Smart Tank 595"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 595 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 596",
+          "number": "596",
+          "aliases": [
+            "596",
+            "Smart Tank 596"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 596 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 597",
+          "number": "597",
+          "aliases": [
+            "597",
+            "Smart Tank 597"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 597 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 598",
+          "number": "598",
+          "aliases": [
+            "598",
+            "Smart Tank 598"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 598 All-in-One Printer\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 599",
+          "number": "599",
+          "aliases": [
+            "599",
+            "Smart Tank 599"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102170386",
+              "title": "HP Support product data (JSON) for HP Smart Tank 590 All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 599 All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 6000 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178737",
+          "title": "HP Support product data (JSON) for HP Smart Tank 6000 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 6000 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 6000 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 6001",
+          "number": "6001",
+          "aliases": [
+            "6001",
+            "Smart Tank 6001"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178737",
+              "title": "HP Support product data (JSON) for HP Smart Tank 6000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 6001 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/us-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Official Site",
+              "quote": "HP Smart Tank 6001 All-in-One"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-6001-all-in-one"
+            },
+            {
+              "url": "https://www.hp.com/ca-en/shop/media/facets_url/products_url_ca_en.txt",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/products/printers/hp-smart-tank-6001-wireless-multifunction-colour-ink-tank-printer-2h0b9a-b1h"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-en-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/smart-tank-6001-all-in-one"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-hreflang-pdp-ca-en.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-6001-all-in-one"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 6002",
+          "number": "6002",
+          "aliases": [
+            "6002",
+            "Smart Tank 6002"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178737",
+              "title": "HP Support product data (JSON) for HP Smart Tank 6000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 6002 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 6003",
+          "number": "6003",
+          "aliases": [
+            "6003",
+            "Smart Tank 6003"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178737",
+              "title": "HP Support product data (JSON) for HP Smart Tank 6000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 6003 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-6003-all-in-one-printer-p-d35xxa-b1h-1"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-fr-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-fr/shop/products/printers/imprimante-tout-en-un-hp-smart-tank-6003-9b5c8a-b1h"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 6005",
+          "number": "6005",
+          "aliases": [
+            "6005",
+            "Smart Tank 6005"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178737",
+              "title": "HP Support product data (JSON) for HP Smart Tank 6000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 6005 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 6006",
+          "number": "6006",
+          "aliases": [
+            "6006",
+            "Smart Tank 6006"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178737",
+              "title": "HP Support product data (JSON) for HP Smart Tank 6000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 6006 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 6000r series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2103650704",
+          "title": "HP Support product data (JSON) for HP Smart Tank 6000r series",
+          "quote": "\"seriesName\":\"HP Smart Tank 6000r series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 6000r series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 6001r",
+          "number": "6001r",
+          "aliases": [
+            "6001r",
+            "Smart Tank 6001r"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2103650704",
+              "title": "HP Support product data (JSON) for HP Smart Tank 6000r series",
+              "quote": "\"modelName\":\"HP Smart Tank 6001r All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 610 Wireless All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695933",
+          "title": "HP Support product data (JSON) for HP Smart Tank 610 Wireless All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank 610 Wireless All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 610 Wireless All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 615",
+          "number": "615",
+          "aliases": [
+            "615",
+            "Smart Tank 615"
+          ],
+          "regions": [
+            "CL",
+            "CO",
+            "MX",
+            "MY",
+            "SG",
+            "TH"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695933",
+              "title": "HP Support product data (JSON) for HP Smart Tank 610 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 615 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-615-tinta-continua-color-wi-fi-smart-app-adf-alimentador-automatico-fax-y0f71a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 615, Tinta Continua, Color, Wi-Fi, Smart App, ADF Alimentador Automático, Fax (Y0F71A) - (Y0F71A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 615"
+            },
+            {
+              "url": "https://www.hp.com/cl-es/shop/impresora-multifuncional-hp-smart-tank-615-y0f71a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 615 - (Y0F71A) - Tienda HP.com Chile",
+              "quote": "Impresora Multifuncional HP Smart Tank 615"
+            },
+            {
+              "url": "https://www.hp.com/co-es/shop/impresora-multifuncional-hp-smart-tank-615-y0f71a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 615 - (Y0F71A) - Tienda HP.com Colombia",
+              "quote": "Impresora Multifuncional HP Smart Tank 615"
+            },
+            {
+              "url": "https://www.hp.com/my-en/shop/hp-smart-tank-615-wireless-all-in-one-y0f71a.html",
+              "title": "HP Smart Tank 615 All-in-One Printer - (Y0F71A) - Shop HP.com Malaysia",
+              "quote": "HP Smart Tank 615"
+            },
+            {
+              "url": "https://www.hp.com/sg-en/shop/hp-smart-tank-615-wireless-all-in-one-y0f71a.html",
+              "title": "HP Smart Tank 615 All-in-One Printer (Y0F71A) - Shop HP.com Singapore",
+              "quote": "HP Smart Tank 615"
+            },
+            {
+              "url": "https://www.hp.com/th-en/shop/hp-smart-tank-615-wireless-all-in-one-y0f71a.html",
+              "title": "HP Smart Tank 615 All-in-One Printer - (Y0F71A) - Shop HP.com Thailand",
+              "quote": "HP Smart Tank 615"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 617",
+          "number": "617",
+          "aliases": [
+            "617",
+            "Smart Tank 617"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695933",
+              "title": "HP Support product data (JSON) for HP Smart Tank 610 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 617 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 618",
+          "number": "618",
+          "aliases": [
+            "618",
+            "Smart Tank 618"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695933",
+              "title": "HP Support product data (JSON) for HP Smart Tank 610 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank 618 Wireless All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 670 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+          "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 670 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 670 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 670",
+          "number": "670",
+          "aliases": [
+            "670",
+            "Smart Tank 670"
+          ],
+          "regions": [
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 670 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-670-imprimir-escaner-copia-wi-fi-escanear-a-pdf-6uu48a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 670, Imprimir, Escaner, Copia, Wi-Fi, Escanear a PDF (6UU48A) - (6UU48A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 670"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 672",
+          "number": "672",
+          "aliases": [
+            "672",
+            "Smart Tank 672"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 672 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 674",
+          "number": "674",
+          "aliases": [
+            "674",
+            "Smart Tank 674"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 674 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 675",
+          "number": "675",
+          "aliases": [
+            "675",
+            "Smart Tank 675"
+          ],
+          "regions": [
+            "IN"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 675 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-675-all-in-one-28c12a-acj",
+              "title": "HP Smart Tank 675 All-in-One | HP Store India",
+              "quote": "HP Smart Tank 675 All-in-One"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 676",
+          "number": "676",
+          "aliases": [
+            "676",
+            "Smart Tank 676"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 676 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 677",
+          "number": "677",
+          "aliases": [
+            "677",
+            "Smart Tank 677"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 677 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 678",
+          "number": "678",
+          "aliases": [
+            "678",
+            "Smart Tank 678"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 678 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 679",
+          "number": "679",
+          "aliases": [
+            "679",
+            "Smart Tank 679"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043636",
+              "title": "HP Support product data (JSON) for HP Smart Tank 670 series",
+              "quote": "\"modelName\":\"HP Smart Tank 679 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 7000 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+          "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 7000 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 7000 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 7001",
+          "number": "7001",
+          "aliases": [
+            "7001",
+            "Smart Tank 7001",
+            "7001e",
+            "Smart Tank 7001e"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7001 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178735",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7001e\""
+            },
+            {
+              "url": "https://www.hp.com/ca-en/shop/media/facets_url/products_url_ca_en.txt",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/products/printers/hp-smart-tank-7001-wireless-multifunction-colour-ink-tank-printer-28b49a-b1h"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-en-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/smart-tank-7001-all-in-one"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-hreflang-pdp-ca-en.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-7001e-all-in-one"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7002",
+          "number": "7002",
+          "aliases": [
+            "7002",
+            "Smart Tank 7002",
+            "7002e",
+            "Smart Tank 7002e"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7002 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178735",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7002e\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7005",
+          "number": "7005",
+          "aliases": [
+            "7005",
+            "Smart Tank 7005"
+          ],
+          "regions": [
+            "AU",
+            "NZ"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7005 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/nz-en/shop/hp-smart-tank-7005-all-in-one-28b54a.html",
+              "title": "HP Smart Tank 7005 All-in-One Printer - (28B54A) - Shop HP.com New Zealand",
+              "quote": "HP Smart Tank 7005"
+            },
+            {
+              "url": "https://www.hp.com/au-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Australia",
+              "quote": "HP Smart Tank 7005"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7006",
+          "number": "7006",
+          "aliases": [
+            "7006",
+            "Smart Tank 7006",
+            "7006e",
+            "Smart Tank 7006e"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7006 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178735",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7006e\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7007",
+          "number": "7007",
+          "aliases": [
+            "7007",
+            "Smart Tank 7007"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7007 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7008",
+          "number": "7008",
+          "aliases": [
+            "7008",
+            "Smart Tank 7008"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178735",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7000 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7008 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 710 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100787841",
+          "title": "HP Support product data (JSON) for HP Smart Tank 710 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 710 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 710 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 712",
+          "number": "712",
+          "aliases": [
+            "712",
+            "Smart Tank 712"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100787841",
+              "title": "HP Support product data (JSON) for HP Smart Tank 710 series",
+              "quote": "\"modelName\":\"HP Smart Tank 712 All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 720 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+          "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 720 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 720 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 720",
+          "number": "720",
+          "aliases": [
+            "720",
+            "Smart Tank 720"
+          ],
+          "regions": [
+            "IN",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+              "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+              "quote": "\"modelName\":\"HP Smart Tank 720 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-720-tinta-continua-color-wi-fi-smart-app-duplex-6uu46a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 720 + HP Poly Earbuds Voyager Free 60 UC - (6UU46A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 720"
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-720-all-in-one-6uu46a-acj",
+              "title": "HP Smart Tank 720 All-in-One | HP Store India",
+              "quote": "HP Smart Tank 720 All-in-One"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 724",
+          "number": "724",
+          "aliases": [
+            "724",
+            "Smart Tank 724"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+              "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+              "quote": "\"modelName\":\"HP Smart Tank 724 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/combo-impressora-multifuncional-hp-smart-tank-724-frasco-de-tinta-hp-gt53-preto-original-2g9q2ab.html",
+              "title": "Combo Impressora Multifuncional HP Smart Tank 724 + Frasco de Tinta HP GT53 Preto Original - (2G9Q2AB) - Loja HP.com Brasil",
+              "quote": "Combo Impressora Multifuncional HP Smart Tank 724"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 725",
+          "number": "725",
+          "aliases": [
+            "725",
+            "Smart Tank 725"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+              "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+              "quote": "\"modelName\":\"HP Smart Tank 725 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 726",
+          "number": "726",
+          "aliases": [
+            "726",
+            "Smart Tank 726"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+              "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+              "quote": "\"modelName\":\"HP Smart Tank 726 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 727",
+          "number": "727",
+          "aliases": [
+            "727",
+            "Smart Tank 727"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+              "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+              "quote": "\"modelName\":\"HP Smart Tank 727 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 728",
+          "number": "728",
+          "aliases": [
+            "728",
+            "Smart Tank 728"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043634",
+              "title": "HP Support product data (JSON) for HP Smart Tank 720 series",
+              "quote": "\"modelName\":\"HP Smart Tank 728 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 7300 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+          "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 7300 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 7300 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 7301",
+          "number": "7301",
+          "aliases": [
+            "7301",
+            "Smart Tank 7301",
+            "7301e",
+            "Smart Tank 7301e"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7301 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178736",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7301e\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-fr-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-fr/shop/products/printers/imprimante-tout-en-un-hp-smart-tank-7301-28b70a-b1h"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-hreflang-pdp-ca-en.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-7301e-all-in-one"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7302",
+          "number": "7302",
+          "aliases": [
+            "7302",
+            "Smart Tank 7302",
+            "7302e",
+            "Smart Tank 7302e"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7302 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178736",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7302e\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7303",
+          "number": "7303",
+          "aliases": [
+            "7303",
+            "Smart Tank 7303"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7303 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-7303-all-in-one-printer"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-fr-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-fr/shop/products/printers/imprimante-tout-en-un-hp-smart-tank-7303-9b5d0a-b1h"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7305",
+          "number": "7305",
+          "aliases": [
+            "7305",
+            "Smart Tank 7305"
+          ],
+          "regions": [
+            "AU",
+            "NZ"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7305 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/nz-en/shop/hp-smart-tank-7305-all-in-one-28b75a.html",
+              "title": "HP Smart Tank 7305 All-in-One Printer - (28B75A) - Shop HP.com New Zealand",
+              "quote": "HP Smart Tank 7305"
+            },
+            {
+              "url": "https://www.hp.com/au-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Australia",
+              "quote": "HP Smart Tank 7305"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7306",
+          "number": "7306",
+          "aliases": [
+            "7306",
+            "Smart Tank 7306"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7306 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7307",
+          "number": "7307",
+          "aliases": [
+            "7307",
+            "Smart Tank 7307"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7307 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7308",
+          "number": "7308",
+          "aliases": [
+            "7308",
+            "Smart Tank 7308"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7308 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7315",
+          "number": "7315",
+          "aliases": [
+            "7315",
+            "Smart Tank 7315"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7300 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7315 All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 750 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043635",
+          "title": "HP Support product data (JSON) for HP Smart Tank 750 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 750 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 750 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 750",
+          "number": "750",
+          "aliases": [
+            "750",
+            "Smart Tank 750"
+          ],
+          "regions": [
+            "IN",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043635",
+              "title": "HP Support product data (JSON) for HP Smart Tank 750 series",
+              "quote": "\"modelName\":\"HP Smart Tank 750 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-750-tinta-continua-color-wi-fi-smart-app-duplex-adf-alimentador-automatico-6uu47a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 750, Tinta Continua, Color, Wi-Fi, Smart App, Dúplex, ADF Alimentador Automático (6UU47A) - (6UU47A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 750"
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-750-all-in-one-6uu47a-acj",
+              "title": "HP Smart Tank 750 All-in-One | HP Store India",
+              "quote": "HP Smart Tank 750 All-in-One"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 754",
+          "number": "754",
+          "aliases": [
+            "754",
+            "Smart Tank 754"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043635",
+              "title": "HP Support product data (JSON) for HP Smart Tank 750 series",
+              "quote": "\"modelName\":\"HP Smart Tank 754 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/combo-impressora-multifuncional-hp-smart-tank-754-frasco-de-tinta-hp-gt53-preto-original-2h0a6ab.html",
+              "title": "Combo Impressora Multifuncional HP Smart Tank 754 + Frasco de Tinta HP GT53 Preto Original - (2H0A6AB) - Loja HP.com Brasil",
+              "quote": "Combo Impressora Multifuncional HP Smart Tank 754"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 755",
+          "number": "755",
+          "aliases": [
+            "755",
+            "Smart Tank 755"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043635",
+              "title": "HP Support product data (JSON) for HP Smart Tank 750 series",
+              "quote": "\"modelName\":\"HP Smart Tank 755 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 758",
+          "number": "758",
+          "aliases": [
+            "758",
+            "Smart Tank 758"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043635",
+              "title": "HP Support product data (JSON) for HP Smart Tank 750 series",
+              "quote": "\"modelName\":\"HP Smart Tank 758 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 759",
+          "number": "759",
+          "aliases": [
+            "759",
+            "Smart Tank 759"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043635",
+              "title": "HP Support product data (JSON) for HP Smart Tank 750 series",
+              "quote": "\"modelName\":\"HP Smart Tank 759 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 7600 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+          "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 7600 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 7600 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 7601",
+          "number": "7601",
+          "aliases": [
+            "7601",
+            "Smart Tank 7601",
+            "7601e",
+            "Smart Tank 7601e"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7601 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178738",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7601e\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7602",
+          "number": "7602",
+          "aliases": [
+            "7602",
+            "Smart Tank 7602",
+            "7602e",
+            "Smart Tank 7602e"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7602 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178738",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7602e\""
+            },
+            {
+              "url": "https://www.hp.com/us-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Official Site",
+              "quote": "HP Smart Tank 7602 All-in-One"
+            },
+            {
+              "url": "https://www.hp.com/ca-en/shop/media/facets_url/products_url_ca_en.txt",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/products/printers/hp-smart-tank-7602-wireless-multifunction-colour-ink-tank-printer-28b98a-b1h"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-en-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/smart-tank-7602-all-in-one"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-hreflang-pdp-ca-en.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-7602-all-in-one"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7603",
+          "number": "7603",
+          "aliases": [
+            "7603",
+            "Smart Tank 7603"
+          ],
+          "regions": [
+            "CA",
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7603 All-in-One Printer\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-7603-all-in-one-printer"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-en-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-en/shop/rc-2026-hp-smart-tank-7603-all-in-one-printer-ca"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-ca-fr-mag.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store CA product page; the product page itself returned an error when opened",
+              "quote": "/ca-fr/shop/rc-2026-hp-smart-tank-7603-all-in-one-printer-ca"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7605",
+          "number": "7605",
+          "aliases": [
+            "7605",
+            "Smart Tank 7605",
+            "7605e",
+            "Smart Tank 7605e"
+          ],
+          "regions": [
+            "AU",
+            "NZ"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7605 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178738",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7605e\""
+            },
+            {
+              "url": "https://www.hp.com/nz-en/shop/hp-smart-tank-7605-all-in-one-28c02a.html",
+              "title": "HP Smart Tank 7605 All-in-One Printer - (28C02A) - Shop HP.com New Zealand",
+              "quote": "HP Smart Tank 7605"
+            },
+            {
+              "url": "https://www.hp.com/au-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Australia",
+              "quote": "HP Smart Tank 7605"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7606",
+          "number": "7606",
+          "aliases": [
+            "7606",
+            "Smart Tank 7606",
+            "7606e",
+            "Smart Tank 7606e"
+          ],
+          "regions": [
+            "GB"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7606 All-in-One\""
+            },
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/br-pt?seriesid=2100178738",
+              "title": "HP Support product data (JSON, br-pt) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"Multifuncional HP Smart Tank 7606e\""
+            },
+            {
+              "url": "https://www.hp.com/uk-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® United Kingdom",
+              "quote": "HP Smart Tank 7606"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 7607",
+          "number": "7607",
+          "aliases": [
+            "7607",
+            "Smart Tank 7607"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178738",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600 series",
+              "quote": "\"modelName\":\"HP Smart Tank 7607 All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 7600r series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102220377",
+          "title": "HP Support product data (JSON) for HP Smart Tank 7600r series",
+          "quote": "\"seriesName\":\"HP Smart Tank 7600r series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 7600r series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 7602r",
+          "number": "7602r",
+          "aliases": [
+            "7602r",
+            "Smart Tank 7602r"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2102220377",
+              "title": "HP Support product data (JSON) for HP Smart Tank 7600r series",
+              "quote": "\"modelName\":\"HP Smart Tank 7602r All-in-One Printer\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank 790 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043637",
+          "title": "HP Support product data (JSON) for HP Smart Tank 790 series",
+          "quote": "\"seriesName\":\"HP Smart Tank 790 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank 790 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank 790",
+          "number": "790",
+          "aliases": [
+            "790",
+            "Smart Tank 790"
+          ],
+          "regions": [
+            "IN",
+            "MX"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043637",
+              "title": "HP Support product data (JSON) for HP Smart Tank 790 series",
+              "quote": "\"modelName\":\"HP Smart Tank 790 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/mx-es/shop/impresora-multifuncional-hp-smart-tank-790-tinta-continua-color-wi-fi-smart-app-duplex-adf-alimentador-automatico-fax-4wf66a.html",
+              "title": "Impresora Multifuncional HP Smart Tank 790, Tinta Continua, Color, Wi-Fi, Smart App, Dúplex, ADF Alimentador Automático, Fax (4WF66A) - (4WF66A) - Tienda HP.com México",
+              "quote": "Impresora Multifuncional HP Smart Tank 790"
+            },
+            {
+              "url": "https://www.hp.com/in-en/shop/products/printers/hp-smart-tank-790-all-in-one-4wf66a-acj",
+              "title": "HP Smart Tank 790 All-in-One | HP Store India",
+              "quote": "HP Smart Tank 790 All-in-One"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 794",
+          "number": "794",
+          "aliases": [
+            "794",
+            "Smart Tank 794"
+          ],
+          "regions": [
+            "BR"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043637",
+              "title": "HP Support product data (JSON) for HP Smart Tank 790 series",
+              "quote": "\"modelName\":\"HP Smart Tank 794 All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/br-pt/shop/combo-impressora-multifuncional-hp-smart-tank-794-frasco-de-tinta-hp-gt53-preto-original-2g9q9ab.html",
+              "title": "Combo Impressora Multifuncional HP Smart Tank 794 + Frasco de Tinta HP GT53 Preto Original - (2G9Q9AB) - Loja HP.com Brasil",
+              "quote": "Combo Impressora Multifuncional HP Smart Tank 794"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 795",
+          "number": "795",
+          "aliases": [
+            "795",
+            "Smart Tank 795"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043637",
+              "title": "HP Support product data (JSON) for HP Smart Tank 790 series",
+              "quote": "\"modelName\":\"HP Smart Tank 795 All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank 798",
+          "number": "798",
+          "aliases": [
+            "798",
+            "Smart Tank 798"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100043637",
+              "title": "HP Support product data (JSON) for HP Smart Tank 790 series",
+              "quote": "\"modelName\":\"HP Smart Tank 798 All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank Plus 550 Wireless All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695928",
+          "title": "HP Support product data (JSON) for HP Smart Tank Plus 550 Wireless All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank Plus 550 Wireless All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank Plus 550 Wireless All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank Plus 551",
+          "number": "551",
+          "aliases": [
+            "551",
+            "Smart Tank Plus 551"
+          ],
+          "regions": [
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695928",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 550 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 551 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/sitemap-hreflang-pdp-ca-en.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-plus-551-wireless-all-in-one"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 555",
+          "number": "555",
+          "aliases": [
+            "555",
+            "Smart Tank Plus 555"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695928",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 550 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 555 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 558",
+          "number": "558",
+          "aliases": [
+            "558",
+            "Smart Tank Plus 558"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695928",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 550 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 558 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 559",
+          "number": "559",
+          "aliases": [
+            "559",
+            "Smart Tank Plus 559"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695928",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 550 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 559 Wireless All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank Plus 570 Wireless All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342891",
+          "title": "HP Support product data (JSON) for HP Smart Tank Plus 570 Wireless All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank Plus 570 Wireless All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank Plus 570 Wireless All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank Plus 570",
+          "number": "570",
+          "aliases": [
+            "570",
+            "Smart Tank Plus 570"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342891",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 570 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 570 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 571",
+          "number": "571",
+          "aliases": [
+            "571",
+            "Smart Tank Plus 571"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342891",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 570 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 571 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 578",
+          "number": "578",
+          "aliases": [
+            "578",
+            "Smart Tank Plus 578"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=26342891",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 570 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 578 Wireless All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank Plus 650 Wireless All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695943",
+          "title": "HP Support product data (JSON) for HP Smart Tank Plus 650 Wireless All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank Plus 650 Wireless All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank Plus 650 Wireless All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank Plus 651",
+          "number": "651",
+          "aliases": [
+            "651",
+            "Smart Tank Plus 651"
+          ],
+          "regions": [
+            "US"
+          ],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695943",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 650 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 651 Wireless All-in-One\""
+            },
+            {
+              "url": "https://www.hp.com/us-en/printers/smart-tank.html",
+              "title": "HP Smart Tank Printers – Refillable Ink Tank Printers | HP® Official Site",
+              "quote": "HP Smart Tank Plus 651 Wireless"
+            },
+            {
+              "url": "https://www.hp.com/sitemap-us-en-pdp.xml",
+              "title": "HP Store sitemap (XML/text) listing an HP Store US product page; the product page itself returned an error when opened",
+              "quote": "/us-en/shop/pdp/hp-smart-tank-plus-651-wireless-all-in-one"
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 655",
+          "number": "655",
+          "aliases": [
+            "655",
+            "Smart Tank Plus 655"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695943",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 650 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 655 Wireless All-in-One\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Plus 658",
+          "number": "658",
+          "aliases": [
+            "658",
+            "Smart Tank Plus 658"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18695943",
+              "title": "HP Support product data (JSON) for HP Smart Tank Plus 650 Wireless All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Plus 658 Wireless All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank Pro 9100r All-in-One series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2103778466",
+          "title": "HP Support product data (JSON) for HP Smart Tank Pro 9100r All-in-One series",
+          "quote": "\"seriesName\":\"HP Smart Tank Pro 9100r All-in-One series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank Pro 9100r All-in-One series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank Pro 9125r",
+          "number": "9125r",
+          "aliases": [
+            "9125r",
+            "Smart Tank Pro 9125r"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2103778466",
+              "title": "HP Support product data (JSON) for HP Smart Tank Pro 9100r All-in-One series",
+              "quote": "\"modelName\":\"HP Smart Tank Pro 9125r All-in-One\""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HP Smart Tank Wireless 450 series",
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180959",
+          "title": "HP Support product data (JSON) for HP Smart Tank Wireless 450 series",
+          "quote": "\"seriesName\":\"HP Smart Tank Wireless 450 series\""
+        },
+        {
+          "url": "https://support.hp.com/wcc-services/searchresult/us-en?q=smart%20tank&context=pdp&navigation=true",
+          "title": "HP Support product search (JSON) for \"smart tank\", category HP Smart Tank Printers",
+          "quote": "\"productName\":\"HP Smart Tank Wireless 450 series\""
+        }
+      ],
+      "models": [
+        {
+          "name": "HP Smart Tank Wireless 450",
+          "number": "450",
+          "aliases": [
+            "450",
+            "Smart Tank Wireless 450"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180959",
+              "title": "HP Support product data (JSON) for HP Smart Tank Wireless 450 series",
+              "quote": "\"modelName\":\"HP Smart Tank Wireless 450\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Wireless 455",
+          "number": "455",
+          "aliases": [
+            "455",
+            "Smart Tank Wireless 455"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180959",
+              "title": "HP Support product data (JSON) for HP Smart Tank Wireless 450 series",
+              "quote": "\"modelName\":\"HP Smart Tank Wireless 455\""
+            }
+          ]
+        },
+        {
+          "name": "HP Smart Tank Wireless 457",
+          "number": "457",
+          "aliases": [
+            "457",
+            "Smart Tank Wireless 457"
+          ],
+          "regions": [],
+          "retailerExclusive": null,
+          "discontinued": false,
+          "sources": [
+            {
+              "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180959",
+              "title": "HP Support product data (JSON) for HP Smart Tank Wireless 450 series",
+              "quote": "\"modelName\":\"HP Smart Tank Wireless 457\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "inkTank": [
+    {
+      "name": "HP Ink Tank 115",
+      "number": "115",
+      "regions": [
+        "AR",
+        "CL",
+        "CO",
+        "MX"
+      ],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18165165",
+          "title": "HP Support product data (JSON) for HP Ink Tank 110 series",
+          "quote": "\"modelName\":\"HP Ink Tank 115\""
+        },
+        {
+          "url": "https://www.hp.com/ar-es/shop/impresora-hp-ink-tank-115-2lb19a.html",
+          "title": "Impresora HP Ink Tank 115 - (2LB19A) - Tienda HP.com Argentina",
+          "quote": "Impresora HP Ink Tank 115"
+        },
+        {
+          "url": "https://www.hp.com/cl-es/shop/impresora-hp-ink-tank-115-2lb19a.html",
+          "title": "Impresora HP Ink Tank 115 - (2LB19A) - Tienda HP.com Chile",
+          "quote": "Impresora HP Ink Tank 115"
+        },
+        {
+          "url": "https://www.hp.com/co-es/shop/impresora-hp-ink-tank-115-2lb19a.html",
+          "title": "Impresora HP Ink Tank 115 - (2LB19A) - Tienda HP.com Colombia",
+          "quote": "Impresora HP Ink Tank 115"
+        },
+        {
+          "url": "https://www.hp.com/mx-es/shop/impresora-hp-ink-tank-115-2lb19a.html",
+          "title": "Impresora HP Ink Tank 115 Tinta Continua Color (2LB19A) - (2LB19A) - Tienda HP.com México",
+          "quote": "Impresora HP Ink Tank 115"
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 116",
+      "number": "116",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18165165",
+          "title": "HP Support product data (JSON) for HP Ink Tank 110 series",
+          "quote": "\"modelName\":\"HP Ink Tank 116\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 118",
+      "number": "118",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18165165",
+          "title": "HP Support product data (JSON) for HP Ink Tank 110 series",
+          "quote": "\"modelName\":\"HP Ink Tank 118\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 119",
+      "number": "119",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=18165165",
+          "title": "HP Support product data (JSON) for HP Ink Tank 110 series",
+          "quote": "\"modelName\":\"HP Ink Tank 119\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 310",
+      "number": "310",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180943",
+          "title": "HP Support product data (JSON) for HP Ink Tank 310 series",
+          "quote": "\"modelName\":\"HP Ink Tank 310\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 311",
+      "number": "311",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180943",
+          "title": "HP Support product data (JSON) for HP Ink Tank 310 series",
+          "quote": "\"modelName\":\"HP Ink Tank 311\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 315",
+      "number": "315",
+      "regions": [
+        "CL",
+        "MX",
+        "PE"
+      ],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180943",
+          "title": "HP Support product data (JSON) for HP Ink Tank 310 series",
+          "quote": "\"modelName\":\"HP Ink Tank 315\""
+        },
+        {
+          "url": "https://www.hp.com/cl-es/shop/impresora-hp-ink-tank-315-z4b04a.html",
+          "title": "Impresora HP Ink Tank 315 - (Z4B04A) - Tienda HP.com Chile",
+          "quote": "Impresora HP Ink Tank 315"
+        },
+        {
+          "url": "https://www.hp.com/mx-es/shop/impresora-hp-ink-tank-315-z4b04a.html",
+          "title": "Impresora Multifuncional HP Ink Tank 315 Tinta Continua Color (Z4B04A) - (Z4B04A) - Tienda HP.com México",
+          "quote": "Impresora Multifuncional HP Ink Tank 315"
+        },
+        {
+          "url": "https://www.hp.com/pe-es/shop/impresora-hp-ink-tank-315-z4b04a.html",
+          "title": "Impresora HP Ink Tank 315 - (Z4B04A) - Tienda HP.com Perú",
+          "quote": "Impresora HP Ink Tank 315"
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 316",
+      "number": "316",
+      "regions": [
+        "BR"
+      ],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180943",
+          "title": "HP Support product data (JSON) for HP Ink Tank 310 series",
+          "quote": "\"modelName\":\"HP Ink Tank 316\""
+        },
+        {
+          "url": "https://www.hp.com/br-pt/shop/impressora-multifuncional-hp-ink-tank-316-4qa85a.html",
+          "title": "Impressora Multifuncional HP Ink Tank 316 - (4QA85A) - Loja HP.com Brasil",
+          "quote": "Impressora Multifuncional HP Ink Tank 316"
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 318",
+      "number": "318",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180943",
+          "title": "HP Support product data (JSON) for HP Ink Tank 310 series",
+          "quote": "\"modelName\":\"HP Ink Tank 318\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank 319",
+      "number": "319",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180943",
+          "title": "HP Support product data (JSON) for HP Ink Tank 310 series",
+          "quote": "\"modelName\":\"HP Ink Tank 319\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 410",
+      "number": "410",
+      "regions": [
+        "CO"
+      ],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 410\""
+        },
+        {
+          "url": "https://www.hp.com/co-es/shop/impresora-hp-ink-tank-wireless-410-z6z95a.html",
+          "title": "Impresora HP Ink Tank Wireless 410 - (Z6Z95A) - Tienda HP.com Colombia",
+          "quote": "Impresora HP Ink Tank Wireless 410"
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 411",
+      "number": "411",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 411\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 412",
+      "number": "412",
+      "regions": [
+        "BR"
+      ],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 412\""
+        },
+        {
+          "url": "https://www.hp.com/br-pt/shop/impressora-hp-ink-tank-412-z6z99a.html",
+          "title": "Impressora HP Ink Tank 412 - (Z6Z99A) - Loja HP.com Brasil",
+          "quote": "Impressora HP Ink Tank 412"
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 415",
+      "number": "415",
+      "regions": [
+        "AR",
+        "CL",
+        "MX",
+        "PE"
+      ],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 415\""
+        },
+        {
+          "url": "https://www.hp.com/ar-es/shop/hp-ink-tank-wireless-415-z4b53a.html",
+          "title": "Impresora HP Ink Tank Wireless 415 - (Z4B53A) - Tienda HP.com Argentina",
+          "quote": "Impresora HP Ink Tank Wireless 415"
+        },
+        {
+          "url": "https://www.hp.com/cl-es/shop/impresora-hp-ink-tank-wireless-415-z4b53a.html",
+          "title": "Impresora HP Ink Tank Wireless 415 - (Z4B53A) - Tienda HP.com Chile",
+          "quote": "Impresora HP Ink Tank Wireless 415"
+        },
+        {
+          "url": "https://www.hp.com/mx-es/shop/impresora-hp-ink-tank-wireless-415-z4b53a.html",
+          "title": "Impresora HP Ink Tank Wireless 415 - (Z4B53A) - Tienda HP.com México",
+          "quote": "Impresora HP Ink Tank Wireless 415"
+        },
+        {
+          "url": "https://www.hp.com/pe-es/shop/impresora-hp-ink-tank-wireless-415-z4b53a.html",
+          "title": "Impresora HP Ink Tank Wireless 415 - (Z4B53A) - Tienda HP.com Perú",
+          "quote": "Impresora HP Ink Tank Wireless 415"
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 416",
+      "number": "416",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 416\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 418",
+      "number": "418",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 418\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 419",
+      "number": "419",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=16180953",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 410 series",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 419\""
+        }
+      ]
+    },
+    {
+      "name": "HP Ink Tank Wireless 415 All-in-One Mirror Printer",
+      "number": "415",
+      "regions": [],
+      "sources": [
+        {
+          "url": "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2101007022",
+          "title": "HP Support product data (JSON) for HP Ink Tank Wireless 415 All-in-One Mirror Printers",
+          "quote": "\"modelName\":\"HP Ink Tank Wireless 415 All-in-One Mirror Printer\""
+        }
+      ]
+    }
+  ],
+  "sharedNumbers": [],
+  "unverified": [
+    {
+      "name": "HP Smart Tank 700",
+      "reason": "Appears only as a product-line label on https://www.hp.com/br-pt/printers/smart-tank.html (\"linha HP Smart Tank 700\"). HP support has no series or model with this name, so it is not a model."
+    },
+    {
+      "name": "HP Smart Tank 580/5000/5100 Series",
+      "reason": "Marketing grouping on the hp.com us-en/ca-en/uk-en Smart Tank pages, not an HP support series. Its models are listed under the 580 All-in-One Printer and 5100 All-in-One Printer Series entries."
+    },
+    {
+      "name": "HP Smart Tank 670/6000 Series",
+      "reason": "Marketing grouping on hp.com regional Smart Tank pages, not an HP support series. Its models are listed under the 670 series and 6000 series entries."
+    },
+    {
+      "name": "HP Smart Tank 790/7600 Series",
+      "reason": "Marketing grouping on hp.com regional Smart Tank pages, not an HP support series. Its models are listed under the 790 series and 7600 series entries."
+    },
+    {
+      "name": "HP Smart Tank 720/7000 and 750/7300",
+      "reason": "Marketing groupings on https://www.hp.com/mx-es/printers/smart-tank.html, not HP support series. Their models are listed under the 720, 7000, 750 and 7300 series entries."
+    },
+    {
+      "name": "Retailer-exclusive status (any model)",
+      "reason": "Could not check. Amazon returned HTTP 503, Walmart showed a bot check, Best Buy would not load results, and Staples returned 403. retailerExclusive is null for every model because nothing was confirmed, not because a model is known to be non-exclusive."
+    }
+  ],
+  "notes": "HOW THIS WAS BUILT (checked 2026-09-25)\n- Series and models come from HP's own support data. support.hp.com pages are JavaScript apps, so WebFetch got HTTP 503 or an empty page. The data those pages load was fetched directly from HP's JSON endpoints on support.hp.com: /wcc-services/searchresult (series search) and /wcc-services/productdata/version/<locale>?seriesid=<id> (the model list the support site shows for a series). A WebFetch of one of these URLs (7300 series) returned the same names. HP's robots.txt disallows /wcc-services for crawlers. This was a one-off, rate-limited lookup of about 150 requests, not a crawl.\n- The series list is complete for HP support: HP's published sitemap (https://support.hp.com/sitemap/contextual/pdp-product-specs-0.xml, all 88 buckets) has exactly the same 27 HP Smart Tank series as the search. Each series appears in every support locale (about 70), so support-locale presence says nothing about where a model is sold. It was not used for regions.\n- Series names are HP's exact support names, e.g. \"HP Smart Tank 7300 series\", not \"... All-in-One Printer series\". HP names the 580 group \"HP Smart Tank 580 All-in-One Printer\".\n- Model name = HP's model name without the \"All-in-One\", \"Wireless All-in-One\" or \"Printer\" suffix. The prefixes Plus, Pro and Wireless are kept because HP uses them in the name (e.g. \"HP Smart Tank Wireless 455\", \"HP Smart Tank Pro 9125r\").\n- \"HP Smart Tank 5000\": HP support lists this model as \"HP Smart Tank 5000/5100 All-in-One Printer\" (SKU 5D1B6A). The same SKU is sold on the HP Canada store as \"hp-smart-tank-5000-...-5d1b6a\", and hp.com/us-en names \"HP Smart Tank 5000 All-in-One\". It is recorded as number 5000. The separate \"HP Smart Tank 5100 All-in-One Printer\" model (SKU 9B2D5A) is its own entry.\n- \"e\" aliases (7001e, 7002e, 7006e, 7301e, 7302e, 7601e, 7602e, 7605e, 7606e): HP's br-pt, mx-es and cn-zh support data give these same model IDs names ending in \"e\" (HP+ variants), and the US HP Store sitemap uses 7001e and 7301e. They are aliases of the base model, not separate models.\n- The \"r\" models (4905r, 6001r, 7602r, Pro 9125r) are separate HP series and models. Their base number without \"r\" is not an alias.\n- Excluded: \"HP DesignJet Smart Tank T858 / T908 / T918\". HP support lists these under HP DesignJet Printers (a large-format line), not HP Smart Tank Printers.\n\nREGIONS (strict: a region is recorded only when an hp.com page for that country names the model)\n- Evidence used, in order of strength: (1) an HP Store product page I opened whose title names the model: BR, MX, AR, CL, CO, PE, MY, SG, TH and NZ with curl, IN with WebFetch; (2) the hp.com/<country>/printers/smart-tank.html page naming the exact model: US, GB, AU, BR; (3) for US and CA only, an HP Store sitemap listing the model's product page. The US and CA store product pages themselves failed (HTTP/2 reset, 503, or redirect to the home page), so those regions rely on HP's sitemap entries and may include recently delisted items.\n- Store pages that redirected to a listing or home page (e.g. Smart Tank 519 in CO/PE, 500 in CL/TH/ID) were NOT counted.\n- An empty regions array means no hp.com country page confirming sale was found. It does not mean the model is not sold anywhere. Many regional models (e.g. the 510/590/670 families, sold mainly in Asia, Africa and EMEA) have no online HP Store listing.\n- Smart Tank Wireless 455/457 appear on the HP Mexico store only as supply-compatibility filters, so MX was not recorded for them.\n\nDISCONTINUED: No HP page opened marks any Smart Tank model as discontinued. HP support still lists every model here, including old ones (350, Wireless 450, 500 and 510 series). discontinued=false means \"not marked discontinued\", not \"confirmed current\".\n\nINK TANK: The 4 HP Ink Tank series and 18 models come from the same HP support data (110, 310, Wireless 410, and \"Wireless 415 All-in-One Mirror Printers\"). Regions come only from opened HP Store product pages. hpstore.cn (China) lists Ink Tank 319/410/419 in HP's sitemap, but those pages did not open, so CN was not recorded. No number is used by both lines: Ink Tank uses 115-119, 310-319 and 410-419, and Smart Tank has none of these.\n\nBLOCKED OR FAILED DOMAINS: support.hp.com HTML pages (503 or empty JS shell over WebFetch; JSON endpoints worked); www.hp.com/us-en/shop (HTTP/2 reset, WebFetch 503); www.hp.com/ca-en/shop and ca-fr/shop product pages (redirect to home, WebFetch 503); hpstore.cn (connection failed); amazon.com (503); walmart.com (bot check); bestbuy.com (results would not load); staples.com (403). target.com and costco.com were not tried because no candidate pages were found. A headless browser was not usable: the sandbox proxy certificate is not trusted by Chromium."
+}
