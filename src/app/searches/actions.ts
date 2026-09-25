@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { advance, progress, startCollection, type Progress } from "@/lib/collect";
 import { paidWorkBlockedReason, recordCost } from "@/lib/cost";
-import { planFromForm } from "@/lib/plan-form";
+import type { Plan } from "@/lib/plan";
+import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
 import { createSearch, resumeWaiting, savePlanVersion } from "@/lib/searches";
 
@@ -58,15 +59,18 @@ export async function createSearchAction(_prev: ActionState | null, form: FormDa
   redirect(`/searches/${id}`);
 }
 
-export async function savePlanAction(searchId: number, _prev: ActionState | null, form: FormData): Promise<ActionState> {
+export type SavePlanResult = { ok: true; message: string; version: number; plan: Plan } | { ok: false; message: string };
+
+/** Saves an edited plan as a new version. The plan comes from the browser, so it is validated and limited here. */
+export async function savePlanAction(searchId: number, candidate: unknown): Promise<SavePlanResult> {
   const denied = await authed();
-  if (denied) return denied;
-  const parsed = planFromForm(form);
+  if (denied) return { ok: false, message: denied.message };
+  const parsed = validatePlan(candidate);
   if (!parsed.ok) return { ok: false, message: parsed.error };
   try {
     const version = await savePlanVersion(searchId, parsed.plan);
     revalidatePath(`/searches/${searchId}`);
-    return { ok: true, message: `Saved as plan version ${version}. Limits were applied where needed.` };
+    return { ok: true, message: `Saved as plan version ${version}.`, version, plan: parsed.plan };
   } catch (err) {
     return { ok: false, message: `Couldn't save the plan: ${errorText(err)}` };
   }

@@ -18,7 +18,7 @@
 | D12 | First search: **HP Smart Tank printers** (a product family) | Your choice, 2026-09-24 |
 | D13 | Product catalog (category → family → series → model → SKU, plus services) is a first-class filter | Families span many models and regional SKUs |
 | D14 | Regions: North America, China, LATAM, India | Your choice |
-| D15 | Claude Opus 5 for planning, codebook, catalog and narrative | Your choice. ~$0.5–1 per search at this volume |
+| D15 | Claude for planning, codebook, catalog and narrative: Sonnet 5 while testing (`PULSE_CLAUDE_MODEL=anthropic/claude-sonnet-5`), stepping up to Opus 5 only where quality needs it. Jev does the per-post work | Your choice (updated): cheaper models for testing. Per-task model settings come with steps 5 and 8 |
 | D16 | Vercel Hobby. Pipeline built as small resumable steps. Upgrade to Pro only if needed | Your choice |
 | D17 | Phase 1 scope: Smart Tank, North America only (Amazon.com, YouTube, Reddit) | Your choice. Other regions in Phase 2 |
 | D18 | Audience-type searches wait until the product search passes Phase 1 | Your choice |
@@ -30,6 +30,7 @@
 | D24 | Database changes ship as paste-ready SQL for Neon's SQL Editor (`drizzle/editor/`) | The command-line migration needs a local setup; the editor path is what worked |
 | D25 | The search box accepts a topic or a question. Questions become a focused, time-bounded collection; the answer card (step 8) gives numbers from SQL and cites posts, and says when evidence is thin | Your request. "How many users" means "how many people posted publicly on the sources read" |
 | D26 | Collection is driven by the open search page calling small steps (no background worker yet); closing the page pauses safely | Fits Vercel Hobby without Pro or extra services. Daily refresh of saved searches (cron) comes in Phase 2 |
+| D27 | The search page shows a one-line summary with one-click period, depth (Quick ~100 / Standard ~300 / Deep ~1,000 posts) and source choices; searches are removable chips; everything else sits under "More options". Run saves edits, and exclusions that would drop a search's own results are flagged | Less typing and fewer decisions per search |
 
 ## Open questions
 

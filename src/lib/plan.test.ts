@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { tokenCostUsd } from "./ai";
 import { estimatePlan, inWindow, isExcluded, isRealDate, normalizePlan, redditTimeframe, type Plan } from "./plan";
-import { planFromForm } from "./plan-form";
+import { activeDepth, activePeriod, applyDepth, applyPeriod, planSummary, planWarnings, validatePlan } from "./plan-edit";
 
 const base: Plan = {
   intent: "question",
@@ -58,7 +58,7 @@ describe("estimatePlan", () => {
 });
 
 describe("time window", () => {
-  const today = new Date("2026-09-25T12:00:00Z");
+  const today = new Date(2026, 8, 25, 12); // local noon
   it("picks the smallest Reddit timeframe that covers the window", () => {
     // "Last 7 days" ending today starts 6 days back; one day more no longer fits Reddit's "week".
     expect(redditTimeframe({ ...base, timeWindow: { from: "2026-09-19", to: null, label: "" } }, today)).toBe("week");
@@ -72,53 +72,6 @@ describe("time window", () => {
     expect(inWindow(base, new Date("2026-09-17T23:59:59Z"))).toBe(false);
     expect(inWindow(base, new Date("2026-09-26T00:00:01Z"))).toBe(false);
     expect(inWindow(base, null)).toBe(true);
-  });
-});
-
-describe("planFromForm", () => {
-  const form = (entries: Record<string, string>) => {
-    const f = new FormData();
-    for (const [k, v] of Object.entries(entries)) f.set(k, v);
-    return f;
-  };
-  const good = {
-    intent: "topic",
-    subject: "HP Smart Tank printers",
-    kind: "family",
-    question: "",
-    focus: "setup, ink",
-    from: "",
-    to: "",
-    label: "all time",
-    aliases: "Smart Tank 5101\nSmart Tank 7301",
-    yt_enabled: "on",
-    yt_queries: "HP Smart Tank review\n\nSmart Tank 7301",
-    yt_videos: "5",
-    yt_comments: "50",
-    rd_queries: "HP Smart Tank",
-    rd_threads: "3",
-    exclusions: "",
-    postCap: "300",
-    notes: "",
-  };
-  it("parses lines, commas and checkboxes (unchecked = off)", () => {
-    const r = planFromForm(form(good));
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.plan.focus).toEqual(["setup", "ink"]);
-    expect(r.plan.youtube.queries).toEqual(["HP Smart Tank review", "Smart Tank 7301"]);
-    expect(r.plan.youtube.enabled).toBe(true);
-    expect(r.plan.reddit.enabled).toBe(false);
-    expect(r.plan.question).toBeNull();
-  });
-  it("rejects empty number fields and impossible dates instead of guessing", () => {
-    expect(planFromForm(form({ ...good, rd_threads: "" }))).toEqual({ ok: false, error: '"Comment threads read per query" needs a number.' });
-    expect(planFromForm(form({ ...good, postCap: "lots" }))).toMatchObject({ ok: false });
-    expect(planFromForm(form({ ...good, from: "2026-02-31" }))).toEqual({ ok: false, error: '"From" must be a real date as YYYY-MM-DD.' });
-  });
-  it("rejects an invalid kind or empty subject with a readable message", () => {
-    expect(planFromForm(form({ ...good, kind: "planet" }))).toMatchObject({ ok: false });
-    expect(planFromForm(form({ ...good, subject: "  " }))).toEqual({ ok: false, error: "Subject can't be empty." });
   });
 });
 
@@ -148,5 +101,52 @@ describe("isRealDate", () => {
   });
   it("normalizePlan drops impossible dates from Claude too", () => {
     expect(normalizePlan({ ...base, timeWindow: { from: "2026-02-31", to: null, label: "x" } }).timeWindow.from).toBeNull();
+  });
+});
+
+describe("plan editing helpers", () => {
+  const today = new Date(2026, 8, 25, 12); // local noon
+  it("validatePlan rejects bad numbers, dates, empty subjects and no sources, and applies limits", () => {
+    expect(validatePlan({ ...base, postCap: Number.NaN })).toMatchObject({ ok: false, error: '"postCap" needs a number.' });
+    expect(validatePlan({ ...base, postCap: "300" })).toMatchObject({ ok: false });
+    expect(validatePlan({ ...base, timeWindow: { ...base.timeWindow, from: "2026-02-31" } })).toEqual({ ok: false, error: '"From" must be a real date.' });
+    expect(validatePlan({ ...base, subject: " " })).toEqual({ ok: false, error: "Subject can't be empty." });
+    expect(validatePlan({ ...base, youtube: { ...base.youtube, enabled: false }, reddit: { ...base.reddit, enabled: false } })).toEqual({
+      ok: false,
+      error: "Turn on at least one source.",
+    });
+    expect(validatePlan("nope")).toMatchObject({ ok: false });
+    const r = validatePlan({ ...base, postCap: 99999 });
+    expect(r.ok && r.plan.postCap).toBe(1000);
+  });
+  it("applies period presets ending today and recognises them again", () => {
+    const week = applyPeriod(base, "7d", today);
+    expect(week.timeWindow).toEqual({ from: "2026-09-19", to: "2026-09-25", label: "last 7 days" });
+    expect(activePeriod(week, today)).toBe("7d");
+    expect(activePeriod(week, new Date(2026, 9, 20))).toBe("custom");
+    expect(applyPeriod(base, "7d", new Date(2026, 8, 25, 23, 30)).timeWindow.to).toBe("2026-09-25");
+    expect(activePeriod(applyPeriod(base, "all", today))).toBe("all");
+    expect(activePeriod({ ...base, timeWindow: { from: "2026-08-01", to: "2026-08-31", label: "last month" } })).toBe("custom");
+  });
+  it("applies depth presets and reports custom numbers as custom", () => {
+    const quick = applyDepth(base, "quick");
+    expect(quick.postCap).toBe(100);
+    expect(activeDepth(quick)).toBe("quick");
+    expect(activeDepth(base)).toBe("standard");
+    expect(activeDepth({ ...base, postCap: 250 })).toBe("custom");
+  });
+  it("warns when an exclusion would drop a query's own results", () => {
+    const p = { ...base, youtube: { ...base.youtube, queries: ["HP Smart Tank vs EcoTank"] }, exclusions: ["Epson EcoTank", "EcoTank", "fish tank"] };
+    expect(planWarnings(p)).toEqual([
+      "Dropping posts that mention “Epson EcoTank” would throw away results from the search “HP Smart Tank vs EcoTank”.",
+      "Dropping posts that mention “EcoTank” would throw away results from the search “HP Smart Tank vs EcoTank”.",
+    ]);
+    expect(planWarnings({ ...p, exclusions: ["Smart Tank"] })).toHaveLength(1);
+    expect(planWarnings({ ...base, reddit: { ...base.reddit, queries: [] } })).toEqual(["Reddit is on but has no searches."]);
+  });
+  it("summarises a plan in one sentence", () => {
+    expect(planSummary(base, { maxPosts: 300, usd: 0.008, redditCredits: 4, youtubeQuotaUnits: 210 })).toBe(
+      "Up to 300 posts from YouTube and Reddit about HP Smart Tank 5000 series, last 7 days. Cost: up to $0.008.",
+    );
   });
 });

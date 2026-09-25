@@ -10,7 +10,15 @@ import { advanceAction, resumeAction, startCollectionAction, type ActionState } 
 const isProgress = (r: Progress | ActionState): r is Progress => "jobs" in r;
 const SOURCE_LABELS: Record<string, string> = { youtube: "YouTube", reddit: "Reddit", amazon_us: "Amazon" };
 
-export function CollectionPanel({ searchId, initial }: { searchId: number; initial: Progress }) {
+interface Props {
+  searchId: number;
+  initial: Progress;
+  /** Runs before a new collection starts (e.g. saving plan edits); returns an error message to stop, or null. */
+  beforeStart?: () => Promise<string | null>;
+  onRunningChange?: (running: boolean) => void;
+}
+
+export function CollectionPanel({ searchId, initial, beforeStart, onRunningChange }: Props) {
   const router = useRouter();
   const [p, setP] = useState(initial);
   const [running, setRunning] = useState(false);
@@ -18,6 +26,7 @@ export function CollectionPanel({ searchId, initial }: { searchId: number; initi
   const stop = useRef(false);
 
   useEffect(() => () => void (stop.current = true), []);
+  useEffect(() => onRunningChange?.(running), [running, onRunningChange]);
 
   async function loop() {
     setRunning(true);
@@ -44,8 +53,17 @@ export function CollectionPanel({ searchId, initial }: { searchId: number; initi
 
   async function start() {
     setMessage(null);
+    setRunning(true);
+    const blocked = beforeStart ? await beforeStart().catch(() => "Couldn't save the plan. Try again.") : null;
+    if (blocked) {
+      setRunning(false);
+      return setMessage(blocked);
+    }
     const r = await startCollectionAction(searchId);
-    if (!r.ok) return setMessage(r.message);
+    if (!r.ok) {
+      setRunning(false);
+      return setMessage(r.message);
+    }
     await loop();
   }
 
