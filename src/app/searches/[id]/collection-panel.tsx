@@ -8,6 +8,8 @@ import type { Progress } from "@/lib/collect";
 import { advanceAction, resumeAction, startCollectionAction, type ActionState } from "../actions";
 
 const isProgress = (r: Progress | ActionState): r is Progress => "jobs" in r;
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+const MAX_RETRIES = 3;
 const SOURCE_LABELS: Record<string, string> = { youtube: "YouTube", reddit: "Reddit", amazon_us: "Amazon" };
 
 interface Props {
@@ -24,16 +26,40 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const stop = useRef(false);
+  const looping = useRef(false);
 
-  useEffect(() => () => void (stop.current = true), []);
+  // An unfinished run (page reloaded or reopened mid-collection) carries on by itself. Paused steps are never
+  // picked up by the loop, so they still wait for Resume.
+  // The ref guard keeps a remount (e.g. React Strict Mode) from starting a second loop.
+  useEffect(() => {
+    stop.current = false;
+    if (!initial.finished) void loop();
+    return () => void (stop.current = true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
   useEffect(() => onRunningChange?.(running), [running, onRunningChange]);
 
   async function loop() {
+    if (looping.current) return;
+    looping.current = true;
     setRunning(true);
     stop.current = false;
+    let failures = 0;
     try {
       while (!stop.current) {
-        const r = await advanceAction(searchId);
+        let r: Progress | ActionState;
+        try {
+          r = await advanceAction(searchId);
+          failures = 0;
+        } catch (err) {
+          // A dropped connection or a restarted server: retry a few times before giving up.
+          if (++failures > MAX_RETRIES) {
+            setMessage(`${err instanceof Error ? err.message : "Connection lost"}. Press Continue to resume.`);
+            break;
+          }
+          await sleep(3000 * failures);
+          continue;
+        }
         if (!isProgress(r)) {
           setMessage(r.message);
           break;
@@ -41,11 +67,10 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
         setP(r);
         if (r.finished) break;
         // Jobs waiting on a retry delay: pause briefly instead of hammering the server.
-        if (r.jobs.running === 0) await new Promise((res) => setTimeout(res, 3000));
+        if (r.jobs.running === 0) await sleep(3000);
       }
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Connection lost. Press Continue to resume.");
     } finally {
+      looping.current = false;
       setRunning(false);
       router.refresh();
     }
@@ -156,7 +181,7 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
         )}
       </div>
       <p className="text-xs text-muted">
-        Collection runs while this page is open; closing it pauses safely. Each run adds up to {p.postCap} new posts per channel and skips ones already collected.
+        Collection runs while this page is open; closing it pauses safely and reopening the page carries on. Each run adds up to {p.postCap} new posts per channel and skips ones already collected.
       </p>
     </section>
   );

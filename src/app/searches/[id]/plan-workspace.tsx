@@ -35,8 +35,9 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // A newer version from the server (another tab, or our own save) replaces the saved copy; untouched drafts follow it.
-  if (version !== saved.version) {
+  // A newer version from the server (another tab) replaces the saved copy; untouched drafts follow it. Only newer:
+  // right after our own save the server's props can still be the older version for a moment.
+  if (version > saved.version) {
     if (JSON.stringify(draft) === JSON.stringify(saved.plan)) setDraft(plan);
     setSaved({ plan, version });
   }
