@@ -9,6 +9,8 @@ import { recordCost } from "@/lib/cost";
 import type { Plan } from "@/lib/plan";
 import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
+import { scopeFor, type Scope } from "@/lib/catalog";
+import { getCatalog } from "@/lib/catalogs";
 import { createSearch, hideSearches, resumeWaiting, savePlanVersion } from "@/lib/searches";
 
 export type { ActionState };
@@ -17,12 +19,25 @@ export async function createSearchAction(_prev: ActionState | null, form: FormDa
   const denied = (await authed()) ?? (await budgetBlock());
   if (denied) return denied;
   const q = String(form.get("q") ?? "").trim();
-  if (q.length < 3) return { ok: false, message: "Type at least 3 characters." };
   if (q.length > 300) return { ok: false, message: "Keep it under 300 characters." };
+
+  // A family/series/model picked from the catalog, or free text ("Anything else").
+  const catalogId = Number(form.get("catalogId") ?? 0);
+  let scope: Scope | null = null;
+  if (catalogId) {
+    const rawNode = String(form.get("nodeId") ?? "");
+    const found = await getCatalog(catalogId).catch(() => null);
+    scope = found ? scopeFor(catalogId, found.tree, rawNode ? Number(rawNode) : null) : null;
+    if (!scope) return { ok: false, message: "That product isn't in the catalog any more. Reload the page and pick again." };
+  } else if (q.length < 3) {
+    return { ok: false, message: "Type at least 3 characters." };
+  }
+  const input = q || `General overview of ${scope!.label}`;
+  const query = scope ? `${scope.label}${q ? ` · ${q}` : ""}` : q;
 
   let drafted;
   try {
-    drafted = await draftPlan(q);
+    drafted = await draftPlan(input, new Date(), scope ?? undefined);
   } catch (err) {
     if (err instanceof PlannerError && err.cost) await recordCost({ ...err.cost }).catch(() => undefined);
     return { ok: false, message: `Couldn't draft a plan: ${errorText(err)}` };
@@ -30,7 +45,8 @@ export async function createSearchAction(_prev: ActionState | null, form: FormDa
   const { plan, cost } = drafted;
   let id: number | undefined;
   try {
-    id = await createSearch(q, plan);
+    // A picked product's search uses its family's catalog straight away (saved in the same statement).
+    id = await createSearch(query, plan, scope?.catalogId ?? null);
   } catch (err) {
     return { ok: false, message: `Couldn't save the search: ${errorText(err)}` };
   } finally {

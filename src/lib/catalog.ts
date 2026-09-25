@@ -433,3 +433,35 @@ export function snippet(text: string, mention: string, radius = 70): string | nu
   const end = Math.min(t.length, m.index + m[0].length + radius);
   return `${start > 0 ? "…" : ""}${t.slice(start, end).trim()}${end < t.length ? "…" : ""}`;
 }
+
+// ---- Home page picks -------------------------------------------------------------------------------------------
+
+/** A family, series or model picked on the home page, as the planner needs it. */
+export interface Scope {
+  catalogId: number;
+  /** Null when the whole family is picked. */
+  nodeId: number | null;
+  level: "family" | "series" | "model";
+  label: string;
+  /** Full names a search string must use (never a bare number: "7301 wifi" would find unrelated posts). */
+  searchNames: string[];
+  /** For a series: its model numbers, as context for the planner (matching already knows them from the catalog). */
+  modelNumbers: string[];
+}
+
+/** The scope for a pick, or null when the picked node isn't an active part of this catalog. */
+export function scopeFor(catalogId: number, root: TreeNode, nodeId: number | null): Scope | null {
+  const brandless = (n: string) => n.replace(/^HP\s+/i, "");
+  const full = (names: string[]) => [...new Set(names.map(brandless).filter((n) => /\p{L}/u.test(n)))].slice(0, 6);
+  if (nodeId === null) return { catalogId, nodeId: null, level: "family", label: root.name, searchNames: full([root.name, ...root.aliases]), modelNumbers: [] };
+  for (const s of root.children) {
+    if (s.retired) continue;
+    if (s.id === nodeId) {
+      const numbers = s.children.filter((m) => !m.retired).map((m) => modelNumber(m)).filter((n): n is string => !!n);
+      return { catalogId, nodeId, level: "series", label: s.name, searchNames: full([s.name, ...s.aliases]), modelNumbers: [...new Set(numbers)] };
+    }
+    const m = s.children.find((x) => x.id === nodeId && !x.retired);
+    if (m) return { catalogId, nodeId, level: "model", label: m.name, searchNames: full([m.name, ...m.aliases]), modelNumbers: [] };
+  }
+  return null;
+}

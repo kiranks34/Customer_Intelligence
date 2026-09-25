@@ -5,7 +5,8 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 import type { CallCost } from "@/connectors/types";
 
 import { claudeModel, tokenCostUsd } from "./ai";
-import { normalizePlan, PlanSchema, type Plan } from "./plan";
+import type { Scope } from "./catalog";
+import { DraftPlanSchema, normalizePlan, type Plan } from "./plan";
 
 const SYSTEM = `You plan data collection for Pulse, a customer-intelligence tool that reads public posts (YouTube comments and Reddit posts/comments) about products.
 
@@ -48,20 +49,49 @@ function costOf(model: string, inputTokens = 0, outputTokens = 0): CallCost & { 
   return { provider: "anthropic", operation: "plan", usd: tokenCostUsd(model, inputTokens, outputTokens), units: { inputTokens, outputTokens } };
 }
 
-export async function draftPlan(input: string, today = new Date()): Promise<PlannerResult> {
+/**
+ * Drafts a plan for a typed input. With a scope (a family, series or model picked from the catalog), the plan is
+ * about exactly that product: its subject, kind and names come from the catalog, and searches must name it.
+ */
+export async function draftPlan(input: string, today = new Date(), scope?: Scope): Promise<PlannerResult> {
   if (!process.env.AI_GATEWAY_API_KEY) throw new Error("AI_GATEWAY_API_KEY is not set");
   const model = claudeModel();
   try {
     const result = await generateText({
       model,
       system: SYSTEM,
-      prompt: `Today's date: ${today.toISOString().slice(0, 10)}\nRegion: North America (English)\n\nUser input: ${input}`,
-      output: Output.object({ schema: PlanSchema }),
+      prompt: [
+        `Today's date: ${today.toISOString().slice(0, 10)}`,
+        "Region: North America (English)",
+        scope
+          ? [
+              `The user picked this product from the catalog: ${scope.label} (${scope.level}). Plan for exactly it.`,
+              `Every search string must contain one of these full names: ${scope.searchNames.join(", ")}. Never a bare model number on its own.`,
+              scope.modelNumbers.length ? `Its models: ${scope.modelNumbers.join(", ")} (you may name one with the family, e.g. "Smart Tank ${scope.modelNumbers[0]}").` : "",
+            ].join(" ")
+          : null,
+        `User input: ${input}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      output: Output.object({ schema: DraftPlanSchema }),
       maxOutputTokens: 8000,
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(90_000),
     });
-    return { plan: normalizePlan(result.output), cost: costOf(model, result.usage.inputTokens, result.usage.outputTokens) };
+    const drafted = normalizePlan(result.output);
+    // The pick decides what the search is about, whatever the model wrote.
+    const plan = scope
+      ? normalizePlan({
+          ...drafted,
+          subject: scope.label,
+          kind: scope.level === "model" ? "product" : "family",
+          // The pick's names first, then Claude's (misspellings, regional names); the catalog already matches numbers.
+          aliases: [...scope.searchNames.slice(0, 4), ...drafted.aliases],
+          target: { catalogId: scope.catalogId, nodeId: scope.nodeId, label: scope.label },
+        })
+      : drafted;
+    return { plan, cost: costOf(model, result.usage.inputTokens, result.usage.outputTokens) };
   } catch (err) {
     // Output that didn't fit the schema was still generated and billed.
     const usage = NoObjectGeneratedError.isInstance(err) ? err.usage : undefined;

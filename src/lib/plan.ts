@@ -32,9 +32,16 @@ export const PlanSchema = z.object({
   exclusions: z.array(z.string()).describe("Terms that signal off-topic results, e.g. other brands' 'Smart Tank' products"),
   postCap: z.number().describe("Posts to collect per channel per run (each channel gets its own cap)"),
   notes: z.string().describe("One or two sentences explaining the plan and any caveats about the question"),
+  /** What was picked on the home page (family, series or model in a catalog); absent for free-text searches. */
+  target: z
+    .object({ catalogId: z.number().int().positive(), nodeId: z.number().int().positive().nullable(), label: z.string() })
+    .nullable()
+    .optional(),
 });
 
 export type Plan = z.infer<typeof PlanSchema>;
+/** The part of a plan Claude drafts (the target comes from your pick, never from the model). */
+export const DraftPlanSchema = PlanSchema.omit({ target: true });
 
 const clampInt = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : lo)));
 const cleanList = (xs: string[], max: number) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))].slice(0, max);

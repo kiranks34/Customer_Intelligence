@@ -8,10 +8,10 @@ import { jobs, plans, posts, searches } from "@/db/schema";
 import type { Plan } from "./plan";
 
 /** Creates the search and its first plan in one statement, so a search can never exist without a plan. */
-export async function createSearch(query: string, plan: Plan): Promise<number> {
+export async function createSearch(query: string, plan: Plan, catalogId: number | null = null): Promise<number> {
   const res = await requireDb().execute(sql`
     with s as (
-      insert into searches (query, kind, regions) values (${query}, ${plan.kind}, ${"{NA}"}) returning id
+      insert into searches (query, kind, regions, catalog_id) values (${query}, ${plan.kind}, ${"{NA}"}, ${catalogId}) returning id
     )
     insert into plans (search_id, version, plan) select id, 1, ${JSON.stringify(plan)}::jsonb from s
     returning search_id`);

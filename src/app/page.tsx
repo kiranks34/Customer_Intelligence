@@ -1,16 +1,18 @@
 import Link from "next/link";
 
 import { monthToDate } from "@/lib/cost";
+import { getCatalog, listFamilies } from "@/lib/catalogs";
 import { recentSearches } from "@/lib/searches";
 
 import { RecentSearches } from "./recent-searches";
-import { SearchForm } from "./search-form";
+import { HomeSearch, type PickerFamily } from "./home-search";
 import { SpendMeter } from "./spend-meter";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const spend = await monthToDate();
+  const families = spend.state === "ok" ? await pickerFamilies().catch(() => []) : [];
   let recent: Awaited<ReturnType<typeof recentSearches>> = [];
   let recentError: string | null = null;
   if (spend.state === "ok") {
@@ -36,7 +38,7 @@ export default async function Home() {
         <h2 id="search-heading" className="sr-only">
           New search
         </h2>
-        <SearchForm />
+        <HomeSearch families={families} />
       </section>
 
       <nav aria-label="Tools" className="text-sm">
@@ -54,4 +56,19 @@ export default async function Home() {
       )}
     </main>
   );
+}
+
+/** Every family with its active (not retired) series and models, for the home page pickers. */
+async function pickerFamilies(): Promise<PickerFamily[]> {
+  const families = await listFamilies();
+  const trees = await Promise.all(families.map((f) => getCatalog(f.id)));
+  return trees
+    .filter((t) => t !== null)
+    .map(({ catalog, tree }) => ({
+      id: catalog.id,
+      name: catalog.name,
+      series: tree.children
+        .filter((s) => !s.retired && s.id !== null)
+        .map((s) => ({ id: s.id!, name: s.name, models: s.children.filter((m) => !m.retired && m.id !== null).map((m) => ({ id: m.id!, name: m.name })) })),
+    }));
 }

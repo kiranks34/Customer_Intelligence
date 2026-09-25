@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, automaticVariants, guessSeries, isCovered, looseFamilyKey, mergeModel, nameConflict, treeLimitError, modelFromMention, normalize, snippet, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
+import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, automaticVariants, guessSeries, isCovered, looseFamilyKey, mergeModel, nameConflict, treeLimitError, modelFromMention, normalize, scopeFor, snippet, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
 
 describe("familyKey and familyTerms", () => {
   it("gives searches of one family the same key", () => {
@@ -219,5 +219,17 @@ describe("proposals", () => {
     expect(snippet("nothing here", "smart tank 7315")).toBeNull();
     expect(snippet("my Smart Tank 5801 is fine", "smart tank 580")).toBeNull();
     expect(snippet("Great… really. SmartTank 580 “works”", "smart tank 580", 8)).toBe("…really. SmartTank 580 “works”");
+  });
+});
+
+describe("scopeFor (home page picks)", () => {
+  it("describes a family, series or model for the planner, and refuses retired or foreign nodes", () => {
+    expect(scopeFor(9, tree, null)).toMatchObject({ level: "family", label: "HP Smart Tank", searchNames: ["Smart Tank", "SmartTank"] });
+    expect(scopeFor(9, tree, 2)).toMatchObject({ level: "series", searchNames: ["Smart Tank 7000 series", "7000 series"], modelNumbers: ["7301", "7602"] });
+    // A model's bare number is never a search name on its own.
+    expect(scopeFor(9, tree, 3)).toMatchObject({ level: "model", nodeId: 3, searchNames: ["Smart Tank 7301"] });
+    const retired = { ...tree, children: [{ ...tree.children[0], retired: true }, tree.children[1]] };
+    expect(scopeFor(9, retired, 2)).toBeNull();
+    expect(scopeFor(9, tree, 999)).toBeNull();
   });
 });
