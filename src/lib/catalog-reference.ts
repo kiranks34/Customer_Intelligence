@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 
-import { cleanTree, normalize, type TreeNode } from "./catalog";
+import { cleanTree, normalize, squashName, type TreeNode } from "./catalog";
 
 /** Only pages from the maker or major retailers count as proof. */
 export const SOURCE_DOMAINS = ["hp.com", "amazon.com", "bestbuy.com", "walmart.com", "staples.com", "costco.com", "target.com"];
@@ -62,6 +62,15 @@ export const ReferenceSchema = z
 export type Reference = z.infer<typeof ReferenceSchema>;
 
 /** Where each verified node's proof is: normalized node name → sources. Used to show links on the review screen. */
+/** Every name in the verified list (series, models, model numbers, other names), squashed for comparison. */
+export function listedNames(ref: Reference): Set<string> {
+  const names = ref.series.flatMap((s) => [s.name, ...s.models.flatMap((m) => [m.name, m.number, ...m.aliases])]);
+  return new Set(names.map(squashName));
+}
+
+/** Whether a catalog product is in the verified list, by its name or any of its names. */
+export const isListed = (listed: Set<string>, name: string, aliases: string[] = []) => [name, ...aliases].some((n) => listed.has(squashName(n)));
+
 export function sourcesByName(ref: Reference): Record<string, (Source & { page: string | null })[]> {
   const out: Record<string, (Source & { page: string | null })[]> = {};
   const withPages = (srcs: Source[], series: string) => srcs.map((src) => ({ ...src, page: readablePage(src, series) }));

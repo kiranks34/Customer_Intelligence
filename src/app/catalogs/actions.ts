@@ -2,14 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
-import { CATALOG_LIMITS, familyKey, familyTerms, findMentions, nameConflict, normalize, treeFromDraft, type TreeNode } from "@/lib/catalog";
-import { applyReference, treeFromReference } from "@/lib/catalog-reference";
+import { authed, errorText, type ActionState } from "@/lib/action-guards";
+import { CATALOG_LIMITS, familyKey, nameConflict, normalize, type TreeNode } from "@/lib/catalog";
 import { referenceFor } from "@/lib/catalog-references";
-import { CatalogDraftError, draftCatalog } from "@/lib/catalog-drafter";
 import {
   addNode,
-  approveCatalog,
   approveProposal,
   catalogByKey,
   catalogNode,
@@ -17,81 +14,15 @@ import {
   findProposals,
   getCatalog,
   listProposals,
-  linkSearch,
+  markVerified,
   matchCatalog,
-  matchSearch,
-  postTexts,
   proposalNode,
   rejectProposal,
-  saveTree,
   setAliases,
   setRetired,
+  unverifiedNodes,
   type Proposal,
 } from "@/lib/catalogs";
-import { loadPlan } from "@/lib/collect";
-import { recordCost } from "@/lib/cost";
-
-export type BuildResult = (ActionState & { ok: true; catalogId: number }) | (ActionState & { ok: false });
-
-/**
- * Gives a search its product catalog. Searches of the same family share one: if it exists, the search is linked
- * to it and no AI call is made. Otherwise Claude drafts one from the model mentions in this search's posts.
- */
-export async function buildCatalogAction(searchId: number): Promise<BuildResult> {
-  const denied = await authed();
-  if (denied) return { ok: false, message: denied.message };
-  try {
-    const latest = await loadPlan(searchId);
-    if (!latest) return { ok: false, message: "Search not found." };
-    const { plan } = latest;
-    const subjectKey = familyKey(plan.subject);
-    if (!subjectKey) return { ok: false, message: "The plan's subject is empty." };
-    // A family with a verified reference always uses the reference's key, so "Smart Tank" and "HP SmartTank"
-    // searches share one catalog.
-    const reference = referenceFor(subjectKey);
-    const key = reference?.key ?? subjectKey;
-
-    const existing = await catalogByKey(key);
-    if (existing) {
-      await linkSearch(searchId, existing.id);
-      await matchSearch(searchId, existing.id);
-      revalidatePath(`/searches/${searchId}`);
-      return { ok: true, catalogId: existing.id, message: `Using the existing ${existing.name} catalog.` };
-    }
-
-    // A verified reference (researched from the maker's own pages) replaces the AI draft: no AI call, no guesses.
-    if (reference) {
-      const catalogId = await createOrReuse(key, treeFromReference(reference));
-      await linkSearch(searchId, catalogId);
-      await matchSearch(searchId, catalogId);
-      revalidatePath(`/searches/${searchId}`);
-      return { ok: true, catalogId, message: `Built from HP's verified list (checked ${reference.checkedAt}).` };
-    }
-
-    const blocked = await budgetBlock();
-    if (blocked) return { ok: false, message: blocked.message };
-    const texts = await postTexts({ searchId });
-    if (texts.length === 0) return { ok: false, message: "Collect some posts first: the catalog is drafted from what people mention." };
-
-    const mentions = findMentions(texts, familyTerms([plan.subject, ...plan.aliases.filter((a) => !/\d/.test(a))]));
-    let drafted;
-    try {
-      drafted = await draftCatalog({ family: plan.subject, knownNames: plan.aliases, mentions, postCount: texts.length });
-    } catch (err) {
-      if (err instanceof CatalogDraftError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
-      return { ok: false, message: `Couldn't draft the catalog: ${errorText(err)}` };
-    }
-    await recordCost({ searchId, ...drafted.cost }).catch(() => undefined);
-
-    const catalogId = await createOrReuse(key, treeFromDraft(drafted.draft));
-    await linkSearch(searchId, catalogId);
-    await matchSearch(searchId, catalogId);
-    revalidatePath(`/searches/${searchId}`);
-    return { ok: true, catalogId, message: "Catalog drafted. Review it, then approve." };
-  } catch (err) {
-    return { ok: false, message: `Couldn't build the catalog: ${errorText(err)}` };
-  }
-}
 
 /** Creates the family's catalog, or uses the one another tab created a moment ago (the key is unique). */
 async function createOrReuse(key: string, tree: TreeNode): Promise<number> {
@@ -103,31 +34,6 @@ async function createOrReuse(key: string, tree: TreeNode): Promise<number> {
     return raced.id;
   }
 }
-
-/**
- * Replaces the catalog with its family's verified reference, keeping ids of the same products so post links
- * survive. Nodes the reference doesn't contain are removed (they couldn't be verified) and named in the message.
- */
-export async function applyReferenceAction(catalogId: number): Promise<ActionState> {
-  const denied = await authed();
-  if (denied) return denied;
-  try {
-    const found = await getCatalog(catalogId);
-    if (!found) return { ok: false, message: "Catalog not found." };
-    const reference = referenceFor(found.catalog.key);
-    if (!reference) return { ok: false, message: "There is no verified list for this family yet." };
-    const { tree, removed } = applyReference(found.tree, reference);
-    await saveTree(catalogId, tree);
-    await matchCatalog(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
-    const models = tree.children.reduce((n, s) => n + s.children.length, 0);
-    const gone = removed.length ? ` Removed ${removed.length} that couldn't be verified: ${removed.slice(0, 8).join(", ")}${removed.length > 8 ? "…" : ""}.` : "";
-    return { ok: true, message: `Updated from HP's verified list: ${tree.children.length} series, ${models} models.${gone}` };
-  } catch (err) {
-    return { ok: false, message: `Couldn't update the catalog: ${errorText(err)}` };
-  }
-}
-
 
 const NAME_MAX = 80;
 
@@ -193,22 +99,9 @@ export async function setRetiredAction(catalogId: number, nodeId: number, retire
   }
 }
 
-export async function approveCatalogAction(catalogId: number): Promise<ActionState> {
-  const denied = await authed();
-  if (denied) return denied;
-  try {
-    if (!(await getCatalog(catalogId))) return { ok: false, message: "Catalog not found." };
-    await approveCatalog(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
-    return { ok: true, message: "Catalog approved." };
-  } catch (err) {
-    return { ok: false, message: `Couldn't approve: ${errorText(err)}` };
-  }
-}
+// ---- Check for new models (proposals) and manual additions ---------------------------------------------------
 
-// ---- Update product catalog (proposals) and manual additions ---------------------------------------------------
-
-/** "Update product catalog": proposes what's missing, from the verified list and from collected posts. */
+/** "Check for new models": suggests what's missing, from the verified list and from collected posts. */
 export async function updateCatalogAction(catalogId: number): Promise<ActionState> {
   const denied = await authed();
   if (denied) return denied;
@@ -216,17 +109,17 @@ export async function updateCatalogAction(catalogId: number): Promise<ActionStat
     const { reference, posts } = await findProposals(catalogId);
     revalidatePath(`/catalogs/${catalogId}`);
     const total = reference + posts;
-    if (total === 0) return { ok: true, message: "Nothing new found. The catalog covers the verified list and every model named in 2+ posts." };
-    const parts = [reference ? `${reference} from HP's verified list` : null, posts ? `${posts} named in your posts` : null].filter(Boolean).join(" and ");
-    return { ok: true, message: `Found ${total} to review: ${parts}.` };
+    if (total === 0) return { ok: true, message: "No new models. The catalog has everything in HP's list and every model named in 2+ of your posts." };
+    const parts = [reference ? `${reference} from HP's list` : null, posts ? `${posts} from your posts` : null].filter(Boolean).join(" and ");
+    return { ok: true, message: `Found ${total} new: ${parts}. Add or skip each one above.` };
   } catch (err) {
-    return { ok: false, message: `Couldn't update the catalog: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't check for new models: ${errorText(err)}` };
   }
 }
 
 const cleanInput = (s: string) => String(s ?? "").trim().replace(/\s+/g, " ");
 
-/** Approves a proposal with the name (and, for a model, the series) you chose. */
+/** Adds a suggested product with the name (and, for a model, the series) you chose. */
 export async function approveProposalAction(catalogId: number, nodeId: number, name: string, seriesId: number | null): Promise<ActionState> {
   const denied = await authed();
   if (denied) return denied;
@@ -238,7 +131,7 @@ export async function approveProposalAction(catalogId: number, nodeId: number, n
     let parentId = found.tree.id;
     if (node.level === "model") {
       const series = found.tree.children.find((s) => s.id === seriesId && !s.retired);
-      if (!series) return { ok: false, message: "Pick the series it belongs to (approve a proposed series first)." };
+      if (!series) return { ok: false, message: "Pick the series it belongs to (add a new series first)." };
       parentId = series.id!;
     }
     const clash = nameConflict(found.tree, nodeId, clean);
@@ -256,10 +149,10 @@ export async function approveProposalAction(catalogId: number, nodeId: number, n
     await matchCatalog(catalogId);
     revalidatePath(`/catalogs/${catalogId}`);
     const models = childIds.length ? ` with ${childIds.length} models` : "";
-    const kept = held.length ? ` ${held.join(", ")} stayed in To review because another product already has that name.` : "";
+    const kept = held.length ? ` ${held.join(", ")} stay in the review list because another product already has that name.` : "";
     return { ok: true, message: `Added ${clean}${models}. Posts were re-linked.${kept}` };
   } catch (err) {
-    return { ok: false, message: `Couldn't approve: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't add: ${errorText(err)}` };
   }
 }
 
@@ -271,9 +164,9 @@ export async function rejectProposalAction(catalogId: number, nodeId: number): P
     if (!node) return { ok: false, message: "That proposal is no longer waiting." };
     await rejectProposal(catalogId, nodeId);
     revalidatePath(`/catalogs/${catalogId}`);
-    return { ok: true, message: `Rejected ${node.name}. It won't be proposed again.` };
+    return { ok: true, message: `Skipped ${node.name}. It won't be suggested again.` };
   } catch (err) {
-    return { ok: false, message: `Couldn't reject: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't skip: ${errorText(err)}` };
   }
 }
 
@@ -323,5 +216,34 @@ export async function addFamilyAction(name: string): Promise<AddFamilyResult> {
     return { ok: true, catalogId, message: `Added the ${clean} family.` };
   } catch (err) {
     return { ok: false, message: `Couldn't add the family: ${errorText(err)}` };
+  }
+}
+
+/** "Keep": you confirm a product that isn't in the verified list (e.g. from an old AI draft). */
+export async function keepAction(catalogId: number, nodeId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const node = await catalogNode(catalogId, nodeId);
+    if (!node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
+    await markVerified(catalogId, nodeId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: `Kept ${node.name}.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't update: ${errorText(err)}` };
+  }
+}
+
+/** "Remove": retires a product that isn't in the verified list. A series holding verified models stays. */
+export async function removeUnlistedAction(catalogId: number, nodeId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const target = (await unverifiedNodes(catalogId)).find((n) => n.id === nodeId);
+    if (!target) return { ok: false, message: "That product is no longer waiting for review." };
+    if (target.holdsListed) return { ok: false, message: `${target.name} holds models from HP's verified list, so it stays. Use Keep.` };
+    return await setRetiredAction(catalogId, nodeId, true);
+  } catch (err) {
+    return { ok: false, message: `Couldn't remove: ${errorText(err)}` };
   }
 }

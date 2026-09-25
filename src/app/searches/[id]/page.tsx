@@ -2,12 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { usdPerCredit } from "@/connectors/reddit";
-import { flatten } from "@/lib/catalog";
-import { catalogStats, getCatalog } from "@/lib/catalogs";
+import { referenceFor } from "@/lib/catalog-references";
+import { catalogStats, ensureCatalogForSearch, getCatalog, waitingCount } from "@/lib/catalogs";
 import { loadPlan, progress } from "@/lib/collect";
 import { getSearch } from "@/lib/searches";
 
-import { CatalogCard, type CatalogSummary } from "./catalog-card";
 import { PlanWorkspace } from "./plan-workspace";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +24,9 @@ export default async function SearchPage({ params }: PageProps<"/searches/[id]">
   const prog = await progress(id);
   // Paused steps belong to the current run and keep its plan, so edits wait until they are resumed and finished.
   const locked = !prog.finished || prog.jobs.waiting > 0;
-  const catalog = search.catalogId ? await catalogSummary(search.catalogId, id) : null;
+  // Older searches get linked to their family's catalog the first time they're opened (no AI, no cost).
+  const catalogId = search.catalogId ?? (await ensureCatalogForSearch(id, plan.subject).catch(() => null));
+  const catalog = catalogId ? await catalogLine(catalogId, id) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-10">
@@ -42,21 +43,39 @@ export default async function SearchPage({ params }: PageProps<"/searches/[id]">
       </header>
 
       <PlanWorkspace searchId={id} plan={plan} version={version} usdPerCredit={usdPerCredit()} initialProgress={prog} locked={locked} />
-      <CatalogCard searchId={id} catalog={catalog} postCount={prog.totalPosts} />
+      {catalog && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border bg-surface px-5 py-3 text-sm">
+          <span className="text-muted">Products:</span>
+          <Link href={`/catalogs/${catalog.id}`} className="font-medium underline hover:text-accent">
+            {catalog.name} catalog
+          </Link>
+          <span className="text-muted">
+            · {catalog.models} models{catalog.checkedAt && ` (checked against HP on ${catalog.checkedAt})`} · {catalog.named} of {catalog.posts} posts here name a
+            model
+          </span>
+          {catalog.waiting > 0 && (
+            <Link href={`/catalogs/${catalog.id}`} className="rounded-full bg-warning/20 px-2.5 py-0.5 font-medium hover:bg-warning/30">
+              {catalog.waiting} new {catalog.waiting === 1 ? "model" : "models"} found → Review
+            </Link>
+          )}
+        </p>
+      )}
     </main>
   );
 }
 
-/** The search's catalog with this search's counts (from SQL) and its three most mentioned models. */
-async function catalogSummary(catalogId: number, searchId: number): Promise<CatalogSummary | null> {
-  const found = await getCatalog(catalogId);
+/** One line about the search's product catalog: size, how many of these posts name a model, and anything to review. */
+async function catalogLine(catalogId: number, searchId: number) {
+  const [found, stats, waiting] = await Promise.all([getCatalog(catalogId), catalogStats(catalogId, searchId), waitingCount(catalogId)]);
   if (!found) return null;
-  const stats = await catalogStats(catalogId, searchId);
-  const top = flatten(found.tree)
-    .filter((n) => n.level === "model")
-    .map((n) => ({ name: n.name, posts: stats.byNode[n.id] ?? 0 }))
-    .filter((m) => m.posts > 0)
-    .sort((a, b) => b.posts - a.posts)
-    .slice(0, 3);
-  return { id: catalogId, name: found.catalog.name, status: found.catalog.status, posts: stats.posts, postsNamingProduct: stats.postsNamingProduct, top };
+  const models = found.tree.children.filter((s) => !s.retired).reduce((n, s) => n + s.children.filter((m) => !m.retired).length, 0);
+  return {
+    id: catalogId,
+    name: found.catalog.name.replace(/^HP\s+/i, ""),
+    models,
+    checkedAt: referenceFor(found.catalog.key)?.checkedAt ?? null,
+    posts: stats.posts,
+    named: stats.postsNamingProduct,
+    waiting,
+  };
 }
