@@ -6,8 +6,9 @@ import * as reddit from "@/connectors/reddit";
 import { ConnectorError, type CallCost, type RawPost } from "@/connectors/types";
 import * as youtube from "@/connectors/youtube";
 import { requireDb } from "@/db/client";
-import { costEvents, jobs, plans, posts } from "@/db/schema";
+import { costEvents, jobs, plans, posts, searches } from "@/db/schema";
 
+import { matchSearch } from "./catalogs";
 import { paidWorkBlockedReason, recordCost } from "./cost";
 import { toPostRow } from "./ingest";
 import { inWindow, isExcluded, redditTimeframe, roomFor, type Plan } from "./plan";
@@ -301,5 +302,17 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
     }
     counts = await postCounts(searchId);
   }
-  return progress(searchId);
+  const prog = await progress(searchId);
+  if (prog.finished) await linkToCatalog(searchId);
+  return prog;
+}
+
+/** When a run is done, link its posts to the search's product catalog (if it has one). Never fails the run. */
+async function linkToCatalog(searchId: number) {
+  try {
+    const [s] = await requireDb().select({ catalogId: searches.catalogId }).from(searches).where(eq(searches.id, searchId));
+    if (s?.catalogId) await matchSearch(searchId, s.catalogId);
+  } catch {
+    // The catalog page's Save re-links everything; a failure here only delays the counts.
+  }
 }

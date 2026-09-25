@@ -94,19 +94,27 @@ stops at the per-search cap. One source failing never fails the search.
 ## 6. Product catalog
 
 ```
-catalog_node(id, search_id, level[category|family|series|model|sku|service],
-             parent_id, name, aliases[], region, retailer_ids[])
-post_product(post_id, node_id, method[listing|jev|review], confidence)
+catalog(id, key unique, name, status[draft|approved], approved_at)     -- one per family, shared by searches
+catalog_node(id, catalog_id, level[category|family|series|model|sku|service],
+             parent_id, name, aliases[], verified, sort, region, retailer_ids[])
+search.catalog_id -> catalog                                           -- set null if the catalog is removed
+post_product(post_id, node_id, method[listing|jev|review|alias], confidence)
 price_observation(node_id, retailer, country, currency, list_price,
                   current_price, observed_at)
-price_tier(node_id, country, tier[entry|mid|premium], computed_at)
+price_tier(node_id, country, tier[entry|mid|premium], computed_at)    -- Phase 2
 ```
 
-- Built by Claude from retailer listings + a sample of posts. You edit it.
-- Retail review → model/SKU via its listing (method `listing`).
-- Social post → model via Jev with the catalog as options (method `jev`).
-- Regional names for the same model are aliases of one node, so
-  cross-region comparison works.
+- Key: the normalized subject (`familyKey`, e.g. "HP Smart Tank printers" → "hp smart tank"). A search of a family
+  that already has a catalog links to it; no AI call.
+- Drafting: code counts model-like mentions ("Smart Tank 7301") in the search's posts; Claude turns them plus
+  its knowledge into family → series → model with aliases, marking unsure nodes unverified. You review on
+  `/catalogs/[id]`: rename, merge duplicates, add models from mentions the catalog doesn't cover, approve.
+- Social post → series/model by whole-word name/alias match (method `alias`, `src/lib/catalog.ts`), keeping only
+  the most specific hit. Short numbers ("580") and years only count right after a family word. Re-linked when
+  the catalog is saved and when a collection run finishes. Counts are SQL over `post_product`.
+- Step 5: Jev maps ambiguous posts with the catalog as options (method `jev`).
+- Retail review → model/SKU via its listing (method `listing`) once Apify is on.
+- Regional names for the same model are aliases of one node, so cross-region comparison works.
 
 ## 7. Running on Vercel Hobby
 

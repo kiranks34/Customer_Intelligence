@@ -3,34 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requireSession } from "@/lib/auth";
+import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
 import { advance, progress, startCollection, type Progress } from "@/lib/collect";
-import { paidWorkBlockedReason, recordCost } from "@/lib/cost";
+import { recordCost } from "@/lib/cost";
 import type { Plan } from "@/lib/plan";
 import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
 import { createSearch, hideSearches, resumeWaiting, savePlanVersion } from "@/lib/searches";
 
-export interface ActionState {
-  ok: boolean;
-  message: string;
-}
-
-async function authed(): Promise<ActionState | null> {
-  try {
-    await requireSession();
-    return null;
-  } catch {
-    return { ok: false, message: "Your session has expired. Reload the page and sign in again." };
-  }
-}
-
-async function budgetBlock(): Promise<ActionState | null> {
-  const reason = await paidWorkBlockedReason();
-  return reason ? { ok: false, message: `Blocked: ${reason}.` } : null;
-}
-
-const errorText = (err: unknown) => (err instanceof Error ? err.message.slice(0, 300) : "unknown error");
+export type { ActionState };
 
 export async function createSearchAction(_prev: ActionState | null, form: FormData): Promise<ActionState> {
   const denied = (await authed()) ?? (await budgetBlock());

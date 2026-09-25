@@ -15,7 +15,7 @@ Rough web app, not polished. Proposed scope: **HP Smart Tank, North America**.
 1. ✅ Project setup: Next.js on Vercel Hobby, Postgres schema, passcode, env vars, cost meter, CI
 2. ✅ Connectors: YouTube (free) + Reddit via ScrapeCreators, with a test page. Amazon via Apify once credits are topped up (D23)
 3. ✅ Search planner (Claude via AI Gateway): topic **or question** → editable plan (time window, focus, queries, caps) with cost estimate; collection from YouTube + Reddit with live progress
-4. Product catalog: Claude proposes it from post titles and known model names (you edit); Amazon listings and price observations join when Apify is on
+4. ✅ Product catalog: one per family, Claude drafts it from the model mentions in the posts, you review and approve it; posts are linked to the models they name (D29). Amazon listings and price observations join when Apify is on
 5. Relevance gate + codebook discovery + classification (Jev), incl. model mapping
 6. Test Jev on a few Spanish/Portuguese/Hindi posts (cheap check for Phase 2)
 7. Review queue + 20-post spot-check screen
