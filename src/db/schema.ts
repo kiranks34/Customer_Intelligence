@@ -22,7 +22,8 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 
 export const searchKind = pgEnum("search_kind", ["product", "family", "category", "audience"]);
 export const catalogLevel = pgEnum("catalog_level", ["category", "family", "series", "model", "sku", "service"]);
-export const mappingMethod = pgEnum("mapping_method", ["listing", "jev", "review"]);
+export const mappingMethod = pgEnum("mapping_method", ["listing", "jev", "review", "alias"]);
+export const catalogStatus = pgEnum("catalog_status", ["draft", "approved"]);
 export const jobStatus = pgEnum("job_status", ["queued", "running", "waiting", "done", "failed"]);
 
 export const searches = pgTable("searches", {
@@ -33,6 +34,8 @@ export const searches = pgTable("searches", {
   saved: boolean("saved").notNull().default(false),
   /** Set when the search is cleared from the Recent list. Nothing is deleted; an archive view can show it again. */
   hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  /** The shared product catalog for this search's family (docs/DECISIONS.md D29). */
+  catalogId: integer("catalog_id").references((): AnyPgColumn => catalogs.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
 
@@ -95,20 +98,40 @@ export const codebooks = pgTable(
   (t) => [uniqueIndex("codebooks_search_version").on(t.searchId, t.version)],
 );
 
+/**
+ * One product catalog per family (e.g. "hp smart tank"), shared by every search of that family, so clearing or
+ * deleting a search never touches it. Claude drafts it; you review and approve it (docs/DECISIONS.md D29).
+ */
+export const catalogs = pgTable("catalogs", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(), // normalized family name, see familyKey()
+  name: text("name").notNull(),
+  status: catalogStatus("status").notNull().default("draft"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 export const catalogNodes = pgTable(
   "catalog_nodes",
   {
     id: serial("id").primaryKey(),
-    searchId: integer("search_id").notNull().references(() => searches.id, { onDelete: "cascade" }),
+    catalogId: integer("catalog_id").notNull().references(() => catalogs.id, { onDelete: "cascade" }),
     level: catalogLevel("level").notNull(),
     parentId: integer("parent_id").references((): AnyPgColumn => catalogNodes.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     aliases: text("aliases").array().notNull().default([]),
     region: text("region"),
     retailerIds: text("retailer_ids").array().notNull().default([]), // ASINs etc.
+    /** False when Claude proposed it but wasn't sure it is a real product; shown as "unverified" until you approve. */
+    verified: boolean("verified").notNull().default(false),
+    sort: integer("sort").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("catalog_search_level").on(t.searchId, t.level)],
+  (t) => [index("catalog_nodes_catalog").on(t.catalogId, t.level)],
 );
 
 export const postProducts = pgTable(
@@ -119,7 +142,7 @@ export const postProducts = pgTable(
     method: mappingMethod("method").notNull(),
     confidence: doublePrecision("confidence"),
   },
-  (t) => [uniqueIndex("post_products_unique").on(t.postId, t.nodeId)],
+  (t) => [uniqueIndex("post_products_unique").on(t.postId, t.nodeId), index("post_products_node").on(t.nodeId)],
 );
 
 export const priceObservations = pgTable("price_observations", {

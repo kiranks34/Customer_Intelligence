@@ -15,6 +15,13 @@
       "when": 1790315626847,
       "tag": "0001_numerous_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790315890036,
+      "tag": "0002_catalogs",
+      "breakpoints": true
     }
   ]
 }
