@@ -128,6 +128,7 @@ export const TreeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
     name: z.string(),
     aliases: z.array(z.string()),
     verified: z.boolean(),
+    retired: z.boolean().optional(),
     children: z.array(TreeNodeSchema),
   }),
 );
@@ -139,6 +140,8 @@ export interface TreeNode {
   name: string;
   aliases: string[];
   verified: boolean;
+  /** Retired (sunset): kept for history, hidden from pickers and new reports. */
+  retired?: boolean;
   children: TreeNode[];
 }
 
@@ -344,4 +347,89 @@ const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, sp: string, c:
 export function modelFromMention(mention: string): TreeNode {
   const num = mention.match(/(\d{3,4}[a-z]{0,2})$/)?.[1];
   return { id: null, level: "model", name: titleCase(mention), aliases: num ? [num] : [], verified: false, children: [] };
+}
+
+// ---- Names: what's recognised automatically, and conflicts ----------------------------------------------------
+
+/** Compared ignoring case, spaces, dashes and doubled letters ("Smart-Tank 7301" = "smarttank7301" = "smartank 7301"). */
+export const squashName = (s: string) => normalize(s).replace(/\s+/g, "").replace(/(\p{L})\1+/gu, "$1");
+const squash = squashName;
+
+/**
+ * Examples of how a model's number is recognised without anyone typing them in (shown on the catalog page), e.g.
+ * for 7301: "SmartTank 7301", "Smartank 7301", "tank 7301", "ink tank 7301", "inktank 7301". Case never matters.
+ */
+export function automaticVariants(model: TreeNode, family: TreeNode, limit = 8): string[] {
+  const numbers = [model.name, ...model.aliases].map((a) => a.match(/(\d{3,4}[a-z]{0,2})\s*$/i)?.[1]).filter((n): n is string => !!n);
+  const n = numbers[0];
+  if (!n) return [];
+  // The family's words ("smart tank"); single-word forms like "SmartTank" are covered by the spelling rules.
+  const words = familyTerms([family.name, ...family.aliases]).find((t) => t.includes(" "))?.split(" ");
+  if (!words) return [];
+  const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
+  const joined = words.map(cap).join("");
+  const last = words.at(-1)!;
+  const forms = new Set([joined, joined.replace(/(\p{L})\1+/giu, "$1"), last, `ink ${last}`, `ink${last}`]);
+  const taken = new Set([model.name, ...model.aliases].map(normalize));
+  return [...forms].map((f) => `${f} ${n}`).filter((v) => !taken.has(normalize(v))).slice(0, limit);
+}
+
+/**
+ * The other node a new name would clash with, if any: the same name or other name (ignoring case, spaces and doubled
+ * letters) already belongs to another series or model, so adding it would merge two products by mistake.
+ */
+export function nameConflict(root: TreeNode, nodeId: number, name: string): string | null {
+  const key = squash(name);
+  if (!key) return null;
+  const walk = (n: TreeNode): string | null => {
+    // The family's own names count too: a model called "smart tank" would claim every general family post.
+    const names = n.level === "family" ? [n.name, ...n.aliases, ...familyTerms([n.name, ...n.aliases])] : [n.name, ...n.aliases];
+    if (n.id !== nodeId && names.some((a) => squash(a) === key)) return n.level === "family" ? `the whole ${n.name} family` : n.name;
+    for (const c of n.children) {
+      const hit = walk(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return walk(root);
+}
+
+// ---- Proposals: new models found in posts ---------------------------------------------------------------------
+
+const modelNumber = (n: TreeNode) => [n.name, ...n.aliases].map((a) => a.match(/(\d{3,4})[a-z]{0,2}\s*$/i)?.[1]).find((x) => x !== undefined);
+
+/**
+ * The series a new model number most likely belongs to: the one whose models share the longest leading digits
+ * with it and the same number of digits (7315 → the 7300 series), nearest number breaking ties. Null when no
+ * series has a model with the same number of digits; then you pick the series.
+ */
+export function guessSeries(root: TreeNode, number: string): number | null {
+  let best: { id: number; prefix: number; distance: number } | null = null;
+  for (const s of root.children) {
+    if (s.id === null) continue;
+    for (const m of s.children) {
+      const n = modelNumber(m);
+      if (!n || n.length !== number.length) continue;
+      let prefix = 0;
+      while (prefix < n.length && n[prefix] === number[prefix]) prefix++;
+      const distance = Math.abs(Number(n) - Number(number));
+      if (prefix > 0 && (!best || prefix > best.prefix || (prefix === best.prefix && distance < best.distance))) best = { id: s.id, prefix, distance };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/** A short piece of a post around a mention, for showing why something was proposed. */
+export function snippet(text: string, mention: string, radius = 70): string | null {
+  const t = text.replace(/\s+/g, " ").trim();
+  const words = normalize(mention).split(" ");
+  // Matched on the original text (spaces, dashes or nothing between words), whole words only: "580" never
+  // shows a post about the 5801.
+  const body = words.map((w, i) => (i === 0 ? escape(w) : `[\\s\\-_/]*${escape(w)}`)).join("");
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, "iu");
+  const m = re.exec(t);
+  if (!m) return null;
+  const start = Math.max(0, m.index - radius);
+  const end = Math.min(t.length, m.index + m[0].length + radius);
+  return `${start > 0 ? "…" : ""}${t.slice(start, end).trim()}${end < t.length ? "…" : ""}`;
 }

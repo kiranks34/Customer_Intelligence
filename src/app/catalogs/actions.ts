@@ -3,11 +3,31 @@
 import { revalidatePath } from "next/cache";
 
 import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
-import { familyKey, familyTerms, findMentions, treeFromDraft, treeLimitError, TreeNodeSchema, type TreeNode } from "@/lib/catalog";
+import { CATALOG_LIMITS, familyKey, familyTerms, findMentions, nameConflict, normalize, treeFromDraft, type TreeNode } from "@/lib/catalog";
 import { applyReference, treeFromReference } from "@/lib/catalog-reference";
 import { referenceFor } from "@/lib/catalog-references";
 import { CatalogDraftError, draftCatalog } from "@/lib/catalog-drafter";
-import { approveCatalog, catalogByKey, createCatalog, getCatalog, linkSearch, matchCatalog, matchSearch, postTexts, saveTree } from "@/lib/catalogs";
+import {
+  addNode,
+  approveCatalog,
+  approveProposal,
+  catalogByKey,
+  catalogNode,
+  createCatalog,
+  findProposals,
+  getCatalog,
+  listProposals,
+  linkSearch,
+  matchCatalog,
+  matchSearch,
+  postTexts,
+  proposalNode,
+  rejectProposal,
+  saveTree,
+  setAliases,
+  setRetired,
+  type Proposal,
+} from "@/lib/catalogs";
 import { loadPlan } from "@/lib/collect";
 import { recordCost } from "@/lib/cost";
 
@@ -108,22 +128,200 @@ export async function applyReferenceAction(catalogId: number): Promise<ActionSta
   }
 }
 
-/** Saves an edited catalog (and approves it when asked), then re-links every linked search's posts. */
-export async function saveCatalogAction(catalogId: number, tree: unknown, approve: boolean): Promise<ActionState> {
+
+const NAME_MAX = 80;
+
+/**
+ * Adds a name people use for a series or model. Refused when another product already has it, so two products are
+ * never merged by accident. Posts are re-linked so the new name counts straight away.
+ */
+export async function addNameAction(catalogId: number, nodeId: number, name: string): Promise<ActionState> {
   const denied = await authed();
   if (denied) return denied;
-  const parsed = TreeNodeSchema.safeParse(tree);
-  if (!parsed.success || parsed.data.level !== "family") return { ok: false, message: "The catalog couldn't be read. Reload and try again." };
-  const tooBig = treeLimitError(parsed.data);
-  if (tooBig) return { ok: false, message: tooBig };
+  const clean = String(name ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) return { ok: false, message: "Type a name first." };
+  if (clean.length > NAME_MAX) return { ok: false, message: `Keep names under ${NAME_MAX} characters.` };
   try {
-    if (!(await getCatalog(catalogId))) return { ok: false, message: "Catalog not found." };
-    await saveTree(catalogId, parsed.data);
-    if (approve) await approveCatalog(catalogId);
+    const [found, node] = await Promise.all([getCatalog(catalogId), catalogNode(catalogId, nodeId)]);
+    if (!found || !node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
+    if ([node.name, ...node.aliases].some((a) => normalize(a) === normalize(clean))) return { ok: true, message: `“${clean}” is already recognised.` };
+    const clash = nameConflict(found.tree, nodeId, clean);
+    if (clash) return { ok: false, message: `“${clean}” already means ${clash}. Use a name that only fits ${node.name}.` };
+    if (node.aliases.length >= CATALOG_LIMITS.aliases) {
+      return { ok: false, message: `${node.name} already has ${CATALOG_LIMITS.aliases} names. Remove one before adding another.` };
+    }
+    await setAliases(nodeId, [...node.aliases, clean]);
     await matchCatalog(catalogId);
     revalidatePath(`/catalogs/${catalogId}`);
-    return { ok: true, message: approve ? "Approved. Posts were re-linked to the models." : "Saved. Posts were re-linked to the models." };
+    return { ok: true, message: `Added “${clean}”. Posts were re-linked.` };
   } catch (err) {
-    return { ok: false, message: `Couldn't save the catalog: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't add the name: ${errorText(err)}` };
+  }
+}
+
+export async function removeNameAction(catalogId: number, nodeId: number, name: string): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const node = await catalogNode(catalogId, nodeId);
+    if (!node) return { ok: false, message: "That product isn't in this catalog." };
+    await setAliases(
+      nodeId,
+      node.aliases.filter((a) => a !== name),
+    );
+    await matchCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: `Removed “${name}”. Posts were re-linked.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't remove the name: ${errorText(err)}` };
+  }
+}
+
+/** Retires (sunset) or restores a series or model. Retired products leave the pickers; past post links stay. */
+export async function setRetiredAction(catalogId: number, nodeId: number, retired: boolean): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const node = await catalogNode(catalogId, nodeId);
+    if (!node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
+    await setRetired(catalogId, nodeId, retired);
+    revalidatePath(`/catalogs/${catalogId}`);
+    const what = node.level === "series" ? `${node.name} and its models` : node.name;
+    return { ok: true, message: retired ? `Retired ${what}. Past posts stay linked.` : `Restored ${what}.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't update: ${errorText(err)}` };
+  }
+}
+
+export async function approveCatalogAction(catalogId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    if (!(await getCatalog(catalogId))) return { ok: false, message: "Catalog not found." };
+    await approveCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: "Catalog approved." };
+  } catch (err) {
+    return { ok: false, message: `Couldn't approve: ${errorText(err)}` };
+  }
+}
+
+// ---- Update product catalog (proposals) and manual additions ---------------------------------------------------
+
+/** "Update product catalog": proposes what's missing, from the verified list and from collected posts. */
+export async function updateCatalogAction(catalogId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const { reference, posts } = await findProposals(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    const total = reference + posts;
+    if (total === 0) return { ok: true, message: "Nothing new found. The catalog covers the verified list and every model named in 2+ posts." };
+    const parts = [reference ? `${reference} from HP's verified list` : null, posts ? `${posts} named in your posts` : null].filter(Boolean).join(" and ");
+    return { ok: true, message: `Found ${total} to review: ${parts}.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't update the catalog: ${errorText(err)}` };
+  }
+}
+
+const cleanInput = (s: string) => String(s ?? "").trim().replace(/\s+/g, " ");
+
+/** Approves a proposal with the name (and, for a model, the series) you chose. */
+export async function approveProposalAction(catalogId: number, nodeId: number, name: string, seriesId: number | null): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  const clean = cleanInput(name);
+  if (!clean || clean.length > NAME_MAX) return { ok: false, message: "Give it a name (up to 80 characters)." };
+  try {
+    const [found, node] = await Promise.all([getCatalog(catalogId), proposalNode(catalogId, nodeId)]);
+    if (!found || !node || found.tree.id === null) return { ok: false, message: "That proposal is no longer waiting." };
+    let parentId = found.tree.id;
+    if (node.level === "model") {
+      const series = found.tree.children.find((s) => s.id === seriesId && !s.retired);
+      if (!series) return { ok: false, message: "Pick the series it belongs to (approve a proposed series first)." };
+      parentId = series.id!;
+    }
+    const clash = nameConflict(found.tree, nodeId, clean);
+    if (clash) return { ok: false, message: `“${clean}” already means ${clash}.` };
+    // A series brings its waiting models along, except any whose name or number another product already has.
+    let childIds: number[] = [];
+    let held: string[] = [];
+    if (node.level === "series") {
+      const children = (await listProposals(catalogId)).filter((p) => p.parentId === nodeId);
+      const clashes = (p: Proposal) => [p.name, ...p.aliases].some((n) => nameConflict(found.tree, p.id, n));
+      childIds = children.filter((p) => !clashes(p)).map((p) => p.id);
+      held = children.filter(clashes).map((p) => p.name);
+    }
+    await approveProposal(catalogId, nodeId, clean, parentId, childIds);
+    await matchCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    const models = childIds.length ? ` with ${childIds.length} models` : "";
+    const kept = held.length ? ` ${held.join(", ")} stayed in To review because another product already has that name.` : "";
+    return { ok: true, message: `Added ${clean}${models}. Posts were re-linked.${kept}` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't approve: ${errorText(err)}` };
+  }
+}
+
+export async function rejectProposalAction(catalogId: number, nodeId: number): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  try {
+    const node = await proposalNode(catalogId, nodeId);
+    if (!node) return { ok: false, message: "That proposal is no longer waiting." };
+    await rejectProposal(catalogId, nodeId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: `Rejected ${node.name}. It won't be proposed again.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't reject: ${errorText(err)}` };
+  }
+}
+
+/** Adds a series (under the family) or a model (under a series) that you typed. A model's number becomes a name too. */
+export async function addProductAction(catalogId: number, level: "series" | "model", name: string, seriesId: number | null, number: string): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  const clean = cleanInput(name);
+  const num = cleanInput(number).toLowerCase();
+  if (!clean || clean.length > NAME_MAX) return { ok: false, message: "Give it a name (up to 80 characters)." };
+  if (num && !/^\d{3,4}[a-z]{0,2}$/.test(num)) return { ok: false, message: "A model number is 3–4 digits, optionally with letters, e.g. 7301 or 9125r." };
+  try {
+    const found = await getCatalog(catalogId);
+    if (!found || found.tree.id === null) return { ok: false, message: "Catalog not found." };
+    let parentId = found.tree.id;
+    if (level === "model") {
+      const series = found.tree.children.find((s) => s.id === seriesId && !s.retired);
+      if (!series) return { ok: false, message: "Pick a series first." };
+      parentId = series.id!;
+    }
+    for (const n of [clean, num].filter(Boolean)) {
+      const clash = nameConflict(found.tree, -1, n);
+      if (clash) return { ok: false, message: `“${n}” already means ${clash}.` };
+    }
+    await addNode(catalogId, parentId, level, clean, num ? [num] : []);
+    await matchCatalog(catalogId);
+    revalidatePath(`/catalogs/${catalogId}`);
+    return { ok: true, message: `Added ${clean}.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't add: ${errorText(err)}` };
+  }
+}
+
+export type AddFamilyResult = (ActionState & { ok: true; catalogId: number }) | (ActionState & { ok: false });
+
+/** Adds a new product family (its own catalog), e.g. "HP DeskJet" for cartridge printers. */
+export async function addFamilyAction(name: string): Promise<AddFamilyResult> {
+  const denied = await authed();
+  if (denied) return { ok: false, message: denied.message };
+  const clean = cleanInput(name);
+  const key = familyKey(clean);
+  if (!clean || !key || clean.length > NAME_MAX) return { ok: false, message: "Give the family a name (up to 80 characters)." };
+  try {
+    const existing = (await catalogByKey(referenceFor(key)?.key ?? key)) ?? null;
+    if (existing) return { ok: false, message: `${existing.name} already exists.` };
+    const catalogId = await createOrReuse(referenceFor(key)?.key ?? key, { id: null, level: "family", name: clean, aliases: [], verified: false, children: [] });
+    return { ok: true, catalogId, message: `Added the ${clean} family.` };
+  } catch (err) {
+    return { ok: false, message: `Couldn't add the family: ${errorText(err)}` };
   }
 }
