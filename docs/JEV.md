@@ -34,8 +34,22 @@ Jev answers every per-post question. Claude never labels individual posts.
 | Themes present | codebook themes (one yes/no question per theme, or multi-select if supported) |
 | Touchpoints | codebook touchpoints |
 
-Claude writes the questions and option definitions once per search, when it
-proposes the codebook. You approve them. They are versioned.
+Claude drafts the codebook (stages, segments, themes) once per search from a
+sample of up to 60 posts. It is used straight away, with no approval step; you
+can edit it on the search page, and every edit is a new version
+(docs/DECISIONS.md D37). Touchpoints come later with the journey map.
+
+### How it's called (confirmed from the AI SDK, `experimental_evaluate`)
+
+- **One call per post carries every question**: relevance (yes/no), sentiment
+  (choice), stage and segment (choice, plus "not stated"), and one yes/no per
+  theme, so a post can have several themes. Code: `src/lib/codebook.ts`.
+- A yes/no answer returns P(yes). We store "yes"/"no" with confidence
+  max(p, 1 − p). A choice returns the chosen option and, when available, the
+  probability of each option; we store the chosen option's probability (0.5
+  if none is given, so it's never counted as sure).
+- Posts are cut at 3,000 characters. A post Jev rejects as bad input is stored
+  as "skipped" and never counted.
 
 ## Confidence policy
 
@@ -45,12 +59,17 @@ proposes the codebook. You approve them. They are versioned.
 | 0.5 – 0.8 | Counted in an "uncertain" band, shown separately in charts |
 | < 0.5 | Review queue. Not counted until you read it |
 
+**Relevance is stricter** (D37): a yes/no confidence is never below 0.5, so a
+post is counted only when Jev is sure (≥ 0.8) it is about the subject, or you
+kept it. Less sure posts go to the optional "Needs a look" list (Keep / Drop)
+and are not counted meanwhile. The bands above apply to the other answers,
+within counted posts.
+
 Thresholds are settings. We check them per new category with a spot-check
 (EVALUATION.md), because the 92–100% figure comes from one category.
 
-## To confirm in Phase 1
+## Still to confirm
 
-- Can one Jev call carry several questions? (That affects cost and speed.)
-- Is multi-select supported, or one yes/no question per theme?
-- Maximum input length per call (long Reddit threads, video transcripts).
+- The real cost per 100 posts on a live run (the first run is the measurement).
+- Maximum input length per call (we cut at 3,000 characters meanwhile).
 - Reuse the question-wording lessons from the `Q_*` dicts in `jev_validate.py`.

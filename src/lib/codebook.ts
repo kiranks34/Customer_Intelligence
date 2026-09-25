@@ -1,0 +1,175 @@
+import { z } from "zod";
+
+import { DEFAULT_THRESHOLDS } from "./confidence";
+
+/**
+ * The codebook: the journey stages, user segments and themes Jev answers about for one search (docs/JEV.md).
+ * Claude drafts it from a sample of posts; you can edit it; every edit is a new version. Pure: no I/O here.
+ */
+
+const KEY = /^[a-z][a-z0-9_]{1,39}$/;
+
+export const CodeSchema = z.object({
+  key: z.string().regex(KEY).describe("snake_case id, e.g. wifi_setup"),
+  label: z.string().min(2).max(60).describe("Short plain name, e.g. 'Wi-Fi setup'"),
+  definition: z.string().min(5).max(240).describe("One sentence: what a post must say to count"),
+});
+
+export const ThemeSchema = CodeSchema.extend({
+  kind: z.enum(["pain", "delight", "need", "topic"]).describe("pain = problem or complaint; delight = praise; need = wish or unmet need; topic = neutral subject"),
+});
+
+export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12 } as const;
+
+export const CodebookSchema = z.object({
+  stages: z.array(CodeSchema).min(2).max(CODEBOOK_LIMITS.stages).describe("Customer journey stages, in order"),
+  segments: z.array(CodeSchema).max(CODEBOOK_LIMITS.segments).describe("Who people say they are / what they use it for"),
+  themes: z.array(ThemeSchema).min(3).max(CODEBOOK_LIMITS.themes).describe("Pains, delights, needs and topics people raise"),
+});
+
+export type Code = z.infer<typeof CodeSchema>;
+export type Theme = z.infer<typeof ThemeSchema>;
+export type Codebook = z.infer<typeof CodebookSchema>;
+
+/** Reserved answer for stage and segment when the post doesn't say. */
+export const NOT_STATED = "not_stated";
+
+/** Checks a codebook (from Claude or from your edits): valid shape, unique keys, no reserved key. */
+export function validateCodebook(candidate: unknown): { ok: true; codebook: Codebook } | { ok: false; error: string } {
+  const parsed = CodebookSchema.safeParse(candidate);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid codebook" };
+  for (const list of ["stages", "segments", "themes"] as const) {
+    const keys = parsed.data[list].map((c) => c.key);
+    if (new Set(keys).size !== keys.length) return { ok: false, error: `Two ${list} have the same key.` };
+    if (keys.includes(NOT_STATED)) return { ok: false, error: `"${NOT_STATED}" is reserved.` };
+    const labels = parsed.data[list].map((c) => c.label.trim().toLowerCase());
+    if (new Set(labels).size !== labels.length) return { ok: false, error: `Two ${list} have the same name.` };
+  }
+  return { ok: true, codebook: parsed.data };
+}
+
+/** A key for a new item from its label, unique within its list: "Wi-Fi setup" → "wi_fi_setup". */
+export function keyFor(label: string, taken: string[]): string {
+  const base =
+    label
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .replace(/^(\d)/, "n$1")
+      .slice(0, 36) || "item";
+  const start = /^[a-z]/.test(base) ? base : `x_${base}`;
+  let key = start.length >= 2 ? start : `${start}_x`;
+  for (let i = 2; taken.includes(key) || key === NOT_STATED; i++) key = `${start.slice(0, 36)}_${i}`;
+  return key;
+}
+
+// ---- Jev questions ------------------------------------------------------------------------------------------
+
+export const Q = { relevant: "relevant", sentiment: "sentiment", stage: "stage", segment: "segment" } as const;
+export const themeQuestion = (key: string) => `theme:${key}`;
+
+type Question =
+  | { type: "boolean"; instructions: string; criteria?: { true?: string; false?: string } }
+  | { type: "choice"; instructions: string; criteria: Record<string, string> };
+
+/**
+ * The typed questions Jev answers for every post, all in one call: relevance, sentiment, journey stage, segment,
+ * and one yes/no per theme (a post can have several themes).
+ */
+export function questionsFor(codebook: Codebook, subject: string): Record<string, Question> {
+  const questions: Record<string, Question> = {
+    [Q.relevant]: {
+      type: "boolean",
+      instructions: `Is this post really about ${subject}: owning, buying, setting up, using, comparing or asking about it?`,
+      criteria: {
+        true: `The post talks about ${subject} itself or the person's experience with it.`,
+        false: "Spam, off-topic, a different product that only shares a word, or no real content about it.",
+      },
+    },
+    [Q.sentiment]: {
+      type: "choice",
+      instructions: `Overall, how does the writer feel about ${subject}?`,
+      criteria: {
+        positive: "Mostly favourable: praise, satisfaction, recommending it.",
+        negative: "Mostly unfavourable: complaints, frustration, regret, warning others.",
+        neutral: "No clear feeling: a plain question, fact or instruction.",
+        mixed: "Clearly both good and bad points.",
+      },
+    },
+    [Q.stage]: {
+      type: "choice",
+      instructions: `Where is the writer in their journey with ${subject}?`,
+      criteria: { ...Object.fromEntries(codebook.stages.map((s) => [s.key, s.definition])), [NOT_STATED]: "The post doesn't show where they are." },
+    },
+  };
+  if (codebook.segments.length > 0) {
+    questions[Q.segment] = {
+      type: "choice",
+      instructions: "Which description fits the writer, from what they say about themselves or how they use it?",
+      criteria: { ...Object.fromEntries(codebook.segments.map((s) => [s.key, s.definition])), [NOT_STATED]: "The post doesn't say." },
+    };
+  }
+  for (const t of codebook.themes) {
+    questions[themeQuestion(t.key)] = { type: "boolean", instructions: `Does the post talk about “${t.label}”? ${t.definition}` };
+  }
+  return questions;
+}
+
+/** What Jev reads for one post: its channel and text (long posts are cut, so no call runs away in size). */
+export const MAX_POST_CHARS = 3000;
+export function stateFor(post: { source: string; title: string; text: string }): { channel: string; title?: string; post: string } {
+  const channel = post.source === "youtube" ? "YouTube comment" : post.source === "reddit" ? "Reddit post or comment" : post.source;
+  const text = post.text.length > MAX_POST_CHARS ? `${post.text.slice(0, MAX_POST_CHARS)}…` : post.text;
+  return post.title ? { channel, title: post.title, post: text } : { channel, post: text };
+}
+
+type Answer = { type: "boolean"; probability: number } | { type: "choice"; choice: string; probabilities?: Record<string, number> } | { type: "score"; score: number };
+
+export interface DecisionRow {
+  question: string;
+  answer: string;
+  confidence: number;
+}
+
+/**
+ * One stored row per answer. A yes/no answer becomes "yes"/"no" with confidence max(p, 1 − p); a choice keeps
+ * the probability of the chosen option (0.5, "uncertain", when Jev gives no distribution, so it's never counted
+ * as sure without evidence).
+ */
+export function readAnswers(answers: Record<string, Answer>): DecisionRow[] {
+  const rows: DecisionRow[] = [];
+  for (const [question, a] of Object.entries(answers)) {
+    if (a.type === "boolean") {
+      const p = clamp(a.probability);
+      rows.push({ question, answer: p >= 0.5 ? "yes" : "no", confidence: Math.max(p, 1 - p) });
+    } else if (a.type === "choice") {
+      const p = a.probabilities?.[a.choice];
+      rows.push({ question, answer: a.choice, confidence: p === undefined ? 0.5 : clamp(p) });
+    }
+  }
+  return rows;
+}
+const clamp = (x: number) => (Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0.5);
+
+// ---- Cost -----------------------------------------------------------------------------------------------------
+
+/** Jev list price (docs/JEV.md): USD per million input tokens. */
+export const JEV_USD_PER_MILLION_INPUT = 0.042;
+const CHARS_PER_TOKEN = 4;
+
+/** Rough tokens for one post's call: the post plus every question's wording. Errs high. */
+export function estimateTokens(postChars: number, codebook: Codebook, subject: string): number {
+  const questionChars = JSON.stringify(questionsFor(codebook, subject)).length;
+  return Math.ceil((Math.min(postChars, MAX_POST_CHARS) + questionChars + 200) / CHARS_PER_TOKEN);
+}
+
+export const jevUsd = (inputTokens: number) => (inputTokens * JEV_USD_PER_MILLION_INPUT) / 1_000_000;
+
+// ---- Confidence bands (docs/JEV.md) ---------------------------------------------------------------------------
+
+export const COUNTED = DEFAULT_THRESHOLDS.counted;
+export const UNCERTAIN = DEFAULT_THRESHOLDS.review;
+
+/** Stage order for display, with "not stated" last. */
+export const orderOf = (codes: Code[]) => new Map([...codes.map((c, i) => [c.key, i] as const), [NOT_STATED, codes.length]]);
