@@ -19,6 +19,8 @@ Produce:
   parents/students, small business, heavy printing). Only segments you see in the sample.
 - themes: 6-12 pains, delights, needs and topics that actually appear in the sample, specific enough to act on
   (e.g. "Wi-Fi setup and connection drops", not "problems"). Always include one value-for-money theme.
+- competitors: up to 8 other brands or product lines people in the sample compare with, own, recommend or switch to
+  (e.g. "Epson EcoTank", "Canon MegaTank"). Only ones that appear in the sample.
 Labels are short and plain. Definitions are one sentence saying what a post must mention to count.
 Never invent people, numbers or quotes. Keys are snake_case.`;
 

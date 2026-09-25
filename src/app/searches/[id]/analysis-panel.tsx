@@ -154,7 +154,7 @@ export function AnalysisPanel({ searchId, subject, initial, summary, look, codeb
               : s.version === null
                 ? "Claude drafts the themes, journey stages and user types from a sample (a few cents), then Jev checks every post: is it about the product, how the writer feels, where they are in their journey, which themes it mentions."
                 : s.improved
-                  ? `Removes duplicate posts, then reads every post with its video or thread title and sorts it into: about ${subject}, other brands, chat, or unclear.`
+                  ? `Removes duplicate posts, then reads every post with its video or thread title and sorts it into: about ${subject}, competitors, chat, off-topic, or unclear.`
                   : summary && summary.version !== s.version
                   ? `Applies your edited themes (version ${s.version}). Results below stay on version ${summary.version} until it's done.`
                   : "Jev reads only the posts it hasn't read with the current themes."}
@@ -189,13 +189,13 @@ function Results({ summary, subject, totalPosts }: { summary: AnalysisSummary; s
   const r = summary.relevance;
   const parts = [
     { key: "about", label: `About ${subject}`, n: r.counted, color: TALLY_COLORS.about },
-    { key: "other", label: "Other brands", n: r.otherBrands, color: TALLY_COLORS.other },
+    { key: "other", label: "Competitors", n: r.competitors, color: TALLY_COLORS.other },
     { key: "chat", label: "Chat (thanks, jokes)", n: r.chat, color: TALLY_COLORS.chat },
-    { key: "not", label: "Not about it", n: r.notRelevant, color: TALLY_COLORS.not },
+    { key: "not", label: "Off-topic", n: r.notRelevant, color: TALLY_COLORS.not },
     { key: "look", label: "Unsure (Needs a look)", n: r.needsLook, color: TALLY_COLORS.look },
     { key: "skipped", label: "Skipped", n: r.skipped, color: TALLY_COLORS.skipped },
   ].filter((p) => p.n > 0);
-  const analyzed = r.counted + r.otherBrands + r.chat + r.notRelevant + r.needsLook + r.skipped;
+  const analyzed = r.counted + r.competitors + r.chat + r.notRelevant + r.needsLook + r.skipped;
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-2">
@@ -216,15 +216,51 @@ function Results({ summary, subject, totalPosts }: { summary: AnalysisSummary; s
         <Themes items={summary.themes} total={r.counted} />
         <Bars title="Journey stage" note="One stage per post; adds up to the posts about it." items={summary.stages} />
       </div>
-      {summary.segments.length > 0 && (
-        <div className="grid gap-7 sm:grid-cols-2">
-          <Bars title="Who is posting" note="From what people say about themselves." items={summary.segments} />
-        </div>
-      )}
+      <div className="grid gap-7 sm:grid-cols-2">
+        {summary.segments.length > 0 && <Bars title="Who is posting" note="From what people say about themselves." items={summary.segments} />}
+        <Competitors items={summary.competitors} hasList={(summary.codebook.competitors ?? []).length > 0} />
+      </div>
       <p className="text-xs text-muted">
         “Sure” means Jev was at least 80% confident. “Not sure” is everything below that, so every chart adds up. All numbers are counted from the
         stored answers, not written by AI.
       </p>
+    </div>
+  );
+}
+
+/** Other brands people talk about (in competitor posts and in posts comparing with the product), and how they feel. */
+function Competitors({ items, hasList }: { items: AnalysisSummary["competitors"]; hasList: boolean }) {
+  const max = Math.max(1, ...items.map((c) => c.posts));
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h3 className="text-sm font-medium">Competitors mentioned</h3>
+        <p className="text-xs text-muted">Posts mainly about another brand, and how the writer feels about it.</p>
+      </div>
+      {!hasList ? (
+        <p className="text-sm text-muted">Add competitors in “Themes, stages, user types and competitors” below, then re-analyze.</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted">None found yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {items.map((c) => (
+            <li key={c.key} className="grid grid-cols-[minmax(0,1fr)_5rem_2.5rem] items-center gap-3 text-sm">
+              <span className="truncate" title={c.label}>
+                {c.label}
+                <span className="ml-2 text-xs text-muted">
+                  {c.positive > 0 && `${c.positive} liked`}
+                  {c.positive > 0 && c.negative > 0 && " · "}
+                  {c.negative > 0 && `${c.negative} disliked`}
+                </span>
+              </span>
+              <span className="h-1.5 rounded-full bg-border/50" aria-hidden>
+                <span className="block h-1.5 rounded-full bg-[#8f7cc9]" style={{ width: `${(c.posts / max) * 100}%` }} />
+              </span>
+              <span className="text-right tabular-nums">{c.posts}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -349,7 +385,7 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
       <summary className="cursor-pointer text-sm font-medium">
         Needs a look ({total}){" "}
         <span className="font-normal text-muted">
-          · optional{total > posts.length ? `, showing ${posts.length} at a time` : ""}. Jev couldn&apos;t tell if these are feedback on the product, so
+          · optional{total > posts.length ? `, showing the first ${posts.length}` : ""}. Jev couldn&apos;t tell if these are feedback on the product, so
           they aren&apos;t counted unless you keep them.
         </span>
       </summary>

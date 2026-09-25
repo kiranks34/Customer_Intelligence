@@ -13,8 +13,11 @@ import {
   estimateTokens,
   jevUsd,
   NOT_STATED,
+  NO_BRAND,
   NOT_PRODUCT,
   NOT_SURE,
+  OTHER_BRAND,
+  QUESTION_SET,
   orderOf,
   Q,
   questionsFor,
@@ -70,7 +73,8 @@ export async function saveCodebook(searchId: number, codebook: Codebook): Promis
 /** Posts of the search that have no answers yet for this codebook version. */
 const pendingWhere = (searchId: number, version: number) =>
   sql`${posts.searchId} = ${searchId} and not exists (
-    select 1 from ${decisions} d where d.post_id = ${posts.id} and d.codebook_version = ${version} and d.question = ${Q.about})`;
+    select 1 from ${decisions} d where d.post_id = ${posts.id} and d.codebook_version = ${version}
+      and d.question = ${Q.aboutProduct} and d.answer = ${QUESTION_SET})`;
 
 async function pendingStats(searchId: number, version: number): Promise<{ n: number; chars: number }> {
   const [row] = await requireDb()
@@ -94,7 +98,7 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   if (total === 0) return { started: false, reason: "Collect some posts first." };
   await prepare(searchId);
   let current = await latestCodebook(searchId);
-  if (current && (await pendingStats(searchId, current.version)).n === 0) {
+  if (current && current.codebook.competitors !== undefined && (await pendingStats(searchId, current.version)).n === 0) {
     return { started: false, reason: "Every post is already analyzed with this codebook." };
   }
 
@@ -104,20 +108,27 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   let drafted = false;
   try {
     if (!current) {
-      const sample = await db
-        .select({ source: posts.source, text: posts.text })
-        .from(posts)
-        .where(eq(posts.searchId, searchId))
-        .orderBy(sql`random()`)
-        .limit(SAMPLE_SIZE);
       try {
-        const { codebook, cost } = await draftCodebook(plan.plan, sample);
+        const { codebook, cost } = await draftCodebook(plan.plan, await sampleOf(searchId));
         await recordCost({ searchId, ...cost });
         current = { version: await saveCodebook(searchId, codebook), codebook };
         drafted = true;
       } catch (err) {
         if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
         throw err;
+      }
+    } else if (current.codebook.competitors === undefined) {
+      // Drafted before competitors existed: add Claude's list from a sample, keep everything else as it is.
+      try {
+        const { codebook, cost } = await draftCodebook(plan.plan, await sampleOf(searchId));
+        await recordCost({ searchId, ...cost });
+        const merged = { ...current.codebook, competitors: codebook.competitors ?? [] };
+        current = { version: await saveCodebook(searchId, merged), codebook: merged };
+      } catch (err) {
+        if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
+        // Without a list the analysis still runs; competitor posts are grouped, just not by brand.
+        const merged = { ...current.codebook, competitors: [] };
+        current = { version: await saveCodebook(searchId, merged), codebook: merged };
       }
     }
     await db
@@ -129,6 +140,16 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
     throw err;
   }
   return { started: true, drafted };
+}
+
+/** A random sample of the search's posts for Claude to draft from. */
+async function sampleOf(searchId: number): Promise<{ source: string; text: string }[]> {
+  return requireDb()
+    .select({ source: posts.source, text: posts.text })
+    .from(posts)
+    .where(eq(posts.searchId, searchId))
+    .orderBy(sql`random()`)
+    .limit(SAMPLE_SIZE);
 }
 
 /**
@@ -186,7 +207,8 @@ async function pendingBatch(searchId: number, version: number): Promise<(PostFor
     from ${posts} p
     left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
     where p.search_id = ${searchId} and not exists (
-      select 1 from ${decisions} d where d.post_id = p.id and d.codebook_version = ${version} and d.question = ${Q.about})
+      select 1 from ${decisions} d where d.post_id = p.id and d.codebook_version = ${version}
+        and d.question = ${Q.aboutProduct} and d.answer = ${QUESTION_SET})
     order by p.id limit ${BATCH}`);
   return (res.rows as unknown as (PostForJev & { id: number })[]).map((r) => ({ ...r, id: Number(r.id) }));
 }
@@ -258,6 +280,15 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
     await finish(job.id, "failed", "Codebook or plan not found.");
     return analysisState(searchId);
   }
+  if ((cb.codebook as Codebook).competitors === undefined) {
+    // A run queued or resumed on a codebook from before competitors: reading now would miss the competitor questions
+    // and cost a second full read later. Analyze adds the list first (like an interrupted draft: back to "Analyze").
+    await requireDb()
+      .update(jobs)
+      .set({ status: "failed", lastError: "The questions were updated. Press Analyze to continue.", cursor: { codebookVersion: 0 } satisfies Cursor })
+      .where(eq(jobs.id, job.id));
+    return analysisState(searchId);
+  }
   const questions = questionsFor(cb.codebook as Codebook, plan.plan.subject);
 
   // Failures in a row; a batch that works resets it, so a long run isn't failed by scattered hiccups.
@@ -287,6 +318,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
                 if (!rejectedPost(err)) throw err;
                 // Stored so the post isn't retried; it never counts and is listed as skipped.
                 rows.push({ postId: post.id, codebookVersion: version, model: JEV_MODEL, question: Q.about, answer: "skipped", confidence: 0 });
+                rows.push({ postId: post.id, codebookVersion: version, model: JEV_MODEL, question: Q.aboutProduct, answer: QUESTION_SET, confidence: 0 });
               }
             }),
           );
@@ -385,7 +417,13 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
   const running = open && jobVersion > 0;
   const version = running ? jobVersion : current.version;
   const pending = await pendingStats(searchId, version);
-  const estimateUsd = jevUsd(pending.chars / 4 + estimateTokens(0, current.codebook, "") * pending.n);
+  // A codebook from before competitors gets a list drafted first (one Claude call) and two more questions per post.
+  const upgrading = current.codebook.competitors === undefined && !running;
+  const planned: Codebook = upgrading
+    ? { ...current.codebook, competitors: Array.from({ length: 5 }, (_, i) => ({ key: `brand_${i}`, label: "Brand name", definition: "Printers of this brand." })) }
+    : current.codebook;
+  const estimateUsd =
+    jevUsd(pending.chars / 4 + estimateTokens(0, planned, "") * pending.n) + (upgrading ? tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output) : 0);
   const status = open
     ? "running"
     : lastJob?.status === "waiting"
@@ -401,7 +439,13 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
     .select({ n: count() })
     .from(decisions)
     .innerJoin(posts, eq(posts.id, decisions.postId))
-    .where(and(eq(posts.searchId, searchId), eq(decisions.codebookVersion, version), eq(decisions.question, Q.relevant)));
+    .where(
+      and(
+        eq(posts.searchId, searchId),
+        eq(decisions.codebookVersion, version),
+        sql`(${decisions.question} = ${Q.relevant} or (${decisions.question} = ${Q.aboutProduct} and ${decisions.answer} <> ${QUESTION_SET}))`,
+      ),
+    );
   return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved: (legacy?.n ?? 0) > 0 };
 }
 
@@ -434,7 +478,9 @@ export interface AnalysisSummary {
   version: number;
   codebook: Codebook;
   /** Every analyzed post falls in exactly one of these, so they add up to the posts collected. */
-  relevance: { counted: number; otherBrands: number; chat: number; notRelevant: number; needsLook: number; skipped: number };
+  relevance: { counted: number; competitors: number; chat: number; notRelevant: number; needsLook: number; skipped: number };
+  /** Other brands the posts mainly talk about (competitor posts and product posts), with how writers feel about them. */
+  competitors: { key: string; label: string; posts: number; positive: number; negative: number }[];
   sentiment: Tally[];
   stages: Tally[];
   segments: Tally[];
@@ -442,10 +488,11 @@ export interface AnalysisSummary {
 }
 
 /**
- * The group of every analyzed post for one codebook version (docs/DECISIONS.md D38):
- * - "product": Jev is ≥ 0.8 sure it's feedback about the subject, or you kept it. Only these are analysed further.
- * - "other_brands" / "chat" / "not": Jev is ≥ 0.8 sure it is not product feedback; grouped by what Jev says it is.
- * - "look": anything in between, or "unclear": waits in "Needs a look". "skipped": Jev couldn't read it.
+ * The group of every analyzed post for one codebook version (docs/DECISIONS.md D38, D39):
+ * - "product": Jev is ≥ 0.8 sure it's feedback about the subject, or you kept it. Only these get the journey.
+ * - "competitor" / "chat" / "not": Jev picked that kind and leans away from product feedback (kind ≥ 0.5 and
+ *   product < 0.5), or is ≥ 0.8 sure it isn't product feedback.
+ * - "look": anything else, or "unclear": waits in "Needs a look". "skipped": Jev couldn't read it.
  * Your Keep/Drop wins (relevance doesn't depend on the codebook, so it applies to every version). Answers stored with
  * the older yes/no question are read the same way until the post is read again.
  */
@@ -461,8 +508,8 @@ const relevanceCte = (searchId: number, version: number) => sql`
                when d.answer = 'no' and d.confidence >= ${COUNTED} then 'not' else 'look' end
         when d.answer = ${ABOUT.unclear} then 'look'
         when pp.confidence >= ${COUNTED} then 'product'
-        when pp.confidence <= ${NOT_PRODUCT} then
-          case d.answer when ${ABOUT.otherBrands} then 'other_brands' when ${ABOUT.chat} then 'chat' else 'not' end
+        when d.answer <> ${ABOUT.product} and (pp.confidence <= ${NOT_PRODUCT} or (d.confidence >= 0.5 and pp.confidence < 0.5)) then
+          case d.answer when ${ABOUT.competitor} then 'competitor' when ${ABOUT.otherBrands} then 'competitor' when ${ABOUT.chat} then 'chat' else 'not' end
         else 'look'
       end as grp
     from ${decisions} d
@@ -490,11 +537,11 @@ export async function analysisSummary(searchId: number, version: number): Promis
   const [cb] = await db.select().from(codebooks).where(and(eq(codebooks.searchId, searchId), eq(codebooks.version, version)));
   if (!cb) return null;
   const codebook = cb.codebook as Codebook;
-  const [relRes, ansRes] = await Promise.all([
+  const [relRes, ansRes, compRes] = await Promise.all([
     db.execute(sql`with ${relevanceCte(searchId, version)}
       select
         count(*) filter (where grp = 'product')::int as counted,
-        count(*) filter (where grp = 'other_brands')::int as "otherBrands",
+        count(*) filter (where grp = 'competitor')::int as competitors,
         count(*) filter (where grp = 'chat')::int as chat,
         count(*) filter (where grp = 'not')::int as "notRelevant",
         count(*) filter (where grp = 'look')::int as "needsLook",
@@ -507,8 +554,18 @@ export async function analysisSummary(searchId: number, version: number): Promis
         count(*) filter (where d.confidence >= ${UNCERTAIN} and d.confidence < ${COUNTED})::int as uncertain
       from ${decisions} d
       join rel on rel.post_id = d.post_id and rel.grp = 'product'
-      where d.codebook_version = ${version} and d.question not in (${Q.relevant}, ${Q.about}, ${Q.aboutProduct})
+      where d.codebook_version = ${version} and d.question not in (${Q.relevant}, ${Q.about}, ${Q.aboutProduct}, ${Q.competitor}, ${Q.competitorFeeling})
       group by d.question, d.answer`),
+    // Brands, from competitor posts and Smart Tank posts that compare; Jev sure (≥ 0.8) of the brand.
+    db.execute(sql`with ${relevanceCte(searchId, version)}
+      select b.answer as key, count(*)::int as posts,
+        count(*) filter (where f.answer = 'positive' and f.confidence >= ${COUNTED})::int as positive,
+        count(*) filter (where f.answer = 'negative' and f.confidence >= ${COUNTED})::int as negative
+      from rel
+      join ${decisions} b on b.post_id = rel.post_id and b.codebook_version = ${version} and b.question = ${Q.competitor} and b.confidence >= ${COUNTED}
+      left join ${decisions} f on f.post_id = rel.post_id and f.codebook_version = ${version} and f.question = ${Q.competitorFeeling}
+      where rel.grp in ('competitor', 'product') and b.answer <> ${NO_BRAND}
+      group by b.answer`),
   ]);
   const relevance = relRes.rows[0] as AnalysisSummary["relevance"];
   const answers = ansRes.rows as { question: string; answer: string; counted: number; uncertain: number }[];
@@ -523,6 +580,11 @@ export async function analysisSummary(searchId: number, version: number): Promis
     return [...rows, { key: NOT_SURE, label: "Not sure", counted: Math.max(0, relevance.counted - sure), uncertain: 0 }];
   };
 
+  const brandLabel = new Map([...(codebook.competitors ?? []).map((c) => [c.key, c.label] as const), [OTHER_BRAND, "Other brands"]]);
+  const competitors = (compRes.rows as { key: string; posts: number; positive: number; negative: number }[])
+    .filter((r) => brandLabel.has(r.key))
+    .map((r) => ({ ...r, label: brandLabel.get(r.key)! }))
+    .sort((a, b) => b.posts - a.posts);
   const stageOrder = orderOf(codebook.stages);
   const notStated = { key: NOT_STATED, label: "Not stated" };
   const hasSegments = codebook.segments.length > 0;
@@ -530,6 +592,7 @@ export async function analysisSummary(searchId: number, version: number): Promis
     version,
     codebook,
     relevance,
+    competitors,
     sentiment: oneOf(Q.sentiment, SENTIMENTS),
     stages: oneOf(Q.stage, [...codebook.stages, notStated]).sort((a, b) => (stageOrder.get(a.key) ?? 99) - (stageOrder.get(b.key) ?? 99)),
     segments: hasSegments ? oneOf(Q.segment, [...[...codebook.segments].sort((a, b) => tally(Q.segment, b.key).counted - tally(Q.segment, a.key).counted), notStated]) : [],
@@ -553,7 +616,7 @@ export interface LookPost {
 }
 
 /** Posts Jev couldn't place (unclear, or 20–80% likely to be product feedback) that you haven't decided yet. */
-export async function needsLook(searchId: number, version: number, limit = 20): Promise<LookPost[]> {
+export async function needsLook(searchId: number, version: number, limit = 200): Promise<LookPost[]> {
   const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version)}
     select * from (
       -- The same author's same text (a repost or cross-post) is listed once; Keep/Drop applies to every copy.
