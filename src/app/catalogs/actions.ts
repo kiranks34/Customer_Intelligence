@@ -127,7 +127,10 @@ export async function addNameAction(catalogId: number, nodeId: number, name: str
     if ([node.name, ...node.aliases].some((a) => normalize(a) === normalize(clean))) return { ok: true, message: `“${clean}” is already recognised.` };
     const clash = nameConflict(found.tree, nodeId, clean);
     if (clash) return { ok: false, message: `“${clean}” already means ${clash}. Use a name that only fits ${node.name}.` };
-    await setAliases(nodeId, [...node.aliases, clean].slice(0, CATALOG_LIMITS.aliases));
+    if (node.aliases.length >= CATALOG_LIMITS.aliases) {
+      return { ok: false, message: `${node.name} already has ${CATALOG_LIMITS.aliases} names. Remove one before adding another.` };
+    }
+    await setAliases(nodeId, [...node.aliases, clean]);
     await matchCatalog(catalogId);
     revalidatePath(`/catalogs/${catalogId}`);
     return { ok: true, message: `Added “${clean}”. Posts were re-linked.` };

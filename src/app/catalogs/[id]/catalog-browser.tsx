@@ -50,10 +50,11 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
   const [seriesId, setSeriesId] = useState<number | null>(activeSeries[0]?.id ?? null);
   const [modelId, setModelId] = useState<number | "all">("all");
 
-  const series = tree.children.find((s) => s.id === seriesId) ?? activeSeries[0] ?? null;
+  // A retired series or model drops out of the pickers, so the selection falls back to what's still active.
+  const series = activeSeries.find((s) => s.id === seriesId) ?? activeSeries[0] ?? null;
   const models = (series?.children ?? []).filter((m) => !m.retired).sort((a, b) => numberOf(a) - numberOf(b) || a.name.localeCompare(b.name));
   const retiredModels = (series?.children ?? []).filter((m) => m.retired);
-  const model = modelId === "all" ? null : (series?.children.find((m) => m.id === modelId) ?? null);
+  const model = modelId === "all" ? null : (models.find((m) => m.id === modelId) ?? null);
   const maxModel = Math.max(1, ...models.map((m) => byNode[m.id!] ?? 0));
 
   function run(action: () => Promise<{ ok: boolean; message: string }>) {
@@ -127,7 +128,7 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Model
-          <select className={select} value={modelId} onChange={(e) => setModelId(e.target.value === "all" ? "all" : Number(e.target.value))}>
+          <select className={select} value={model?.id ?? "all"} onChange={(e) => setModelId(e.target.value === "all" ? "all" : Number(e.target.value))}>
             <option value="all">All models ({models.length})</option>
             {models.map((m) => (
               <option key={m.id} value={m.id!}>

@@ -15,11 +15,21 @@ function idempotent(sql) {
     .map((st) => {
       const s = st.trim();
       if (!s) return "";
-      if (/^CREATE TYPE /i.test(s) || /ADD CONSTRAINT /i.test(s)) return `DO $$ BEGIN ${s} EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
+      // Types and constraints have no IF NOT EXISTS: skip them if they exist (a UNIQUE constraint's index raises
+      // duplicate_table). Renames are skipped when already done (the old name is gone or the new one exists).
+      if (/^CREATE TYPE /i.test(s) || /ADD CONSTRAINT /i.test(s)) {
+        return `DO $$ BEGIN ${s} EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;`;
+      }
+      if (/ RENAME /i.test(s)) {
+        return `DO $$ BEGIN ${s} EXCEPTION WHEN undefined_column OR undefined_table OR undefined_object OR duplicate_column OR duplicate_table OR duplicate_object THEN NULL; END $$;`;
+      }
       return s
         .replace(/^CREATE TABLE "/i, 'CREATE TABLE IF NOT EXISTS "')
         .replace(/^CREATE (UNIQUE )?INDEX "/i, (_, u) => `CREATE ${u ?? ""}INDEX IF NOT EXISTS "`)
         .replace(/^DROP INDEX "/i, 'DROP INDEX IF EXISTS "')
+        .replace(/^DROP TABLE "/i, 'DROP TABLE IF EXISTS "')
+        .replace(/^DROP TYPE "/i, 'DROP TYPE IF EXISTS "')
+        .replace(/DROP CONSTRAINT "/gi, 'DROP CONSTRAINT IF EXISTS "')
         .replace(/ADD COLUMN "/gi, 'ADD COLUMN IF NOT EXISTS "')
         .replace(/DROP COLUMN "/gi, 'DROP COLUMN IF EXISTS "')
         .replace(/ADD VALUE '/gi, "ADD VALUE IF NOT EXISTS '");

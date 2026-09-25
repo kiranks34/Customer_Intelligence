@@ -381,7 +381,9 @@ export function nameConflict(root: TreeNode, nodeId: number, name: string): stri
   const key = squash(name);
   if (!key) return null;
   const walk = (n: TreeNode): string | null => {
-    if (n.id !== nodeId && n.level !== "family" && [n.name, ...n.aliases].some((a) => squash(a) === key)) return n.name;
+    // The family's own names count too: a model called "smart tank" would claim every general family post.
+    const names = n.level === "family" ? [n.name, ...n.aliases, ...familyTerms([n.name, ...n.aliases])] : [n.name, ...n.aliases];
+    if (n.id !== nodeId && names.some((a) => squash(a) === key)) return n.level === "family" ? `the whole ${n.name} family` : n.name;
     for (const c of n.children) {
       const hit = walk(c);
       if (hit) return hit;

@@ -238,13 +238,25 @@ export async function setAliases(nodeId: number, aliases: string[]): Promise<voi
   await requireDb().update(catalogNodes).set({ aliases }).where(eq(catalogNodes.id, nodeId));
 }
 
-/** Retires (or restores) a node and everything under it: a retired series takes its models with it. */
+/**
+ * Retires (or restores) a node. Retiring a series takes its active models with it, stamped with the same time;
+ * restoring the series brings back only those, so a model retired on its own stays retired.
+ */
 export async function setRetired(catalogId: number, nodeId: number, retired: boolean): Promise<void> {
   const db = requireDb();
-  const children = await db.select({ id: catalogNodes.id }).from(catalogNodes).where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.parentId, nodeId)));
-  const ids = [nodeId, ...children.map((c) => c.id)];
-  await db
-    .update(catalogNodes)
-    .set({ retiredAt: retired ? sql`now()` : null })
-    .where(and(eq(catalogNodes.catalogId, catalogId), inArray(catalogNodes.id, ids)));
+  const inCatalog = eq(catalogNodes.catalogId, catalogId);
+  if (retired) {
+    const at = new Date();
+    await db.batch([
+      db.update(catalogNodes).set({ retiredAt: at }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
+      db.update(catalogNodes).set({ retiredAt: at }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), isNull(catalogNodes.retiredAt))),
+    ]);
+    return;
+  }
+  const [node] = await db.select({ retiredAt: catalogNodes.retiredAt }).from(catalogNodes).where(and(inCatalog, eq(catalogNodes.id, nodeId)));
+  if (!node?.retiredAt) return;
+  await db.batch([
+    db.update(catalogNodes).set({ retiredAt: null }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), eq(catalogNodes.retiredAt, node.retiredAt))),
+    db.update(catalogNodes).set({ retiredAt: null }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
+  ]);
 }

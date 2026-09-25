@@ -203,5 +203,6 @@ describe("names on the catalog page", () => {
     expect(nameConflict(tree, 4, "7301")).toBe("Smart Tank 7301");
     expect(nameConflict(tree, 3, "7301")).toBeNull(); // its own name
     expect(nameConflict(tree, 4, "ST 7602 Pro")).toBeNull();
+    expect(nameConflict(tree, 4, "Smart-Tank")).toBe("the whole HP Smart Tank family");
   });
 });
