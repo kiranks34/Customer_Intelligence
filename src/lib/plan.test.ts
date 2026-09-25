@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { tokenCostUsd } from "./ai";
 import { estimatePlan, inWindow, isExcluded, isRealDate, normalizePlan, redditTimeframe, type Plan } from "./plan";
-import { activeDepth, activePeriod, applyDepth, applyPeriod, planSummary, planWarnings, validatePlan } from "./plan-edit";
+import { activeDepth, activePeriod, addAsSearch, applyDepth, applyPeriod, isSearched, planSummary, planWarnings, validatePlan } from "./plan-edit";
 
 const base: Plan = {
   intent: "question",
@@ -148,5 +148,18 @@ describe("plan editing helpers", () => {
     expect(planSummary(base, { maxPosts: 300, usd: 0.008, redditCredits: 4, youtubeQuotaUnits: 210 })).toBe(
       "Up to 300 posts from YouTube and Reddit about HP Smart Tank 5000 series, last 7 days. Cost: up to $0.008.",
     );
+  });
+});
+
+describe("addAsSearch", () => {
+  it("adds a model name to each source that is on, skipping duplicates and full lists", () => {
+    const p = addAsSearch({ ...base, reddit: { ...base.reddit, queries: ["a", "b", "c", "d", "e"] } }, " Smart Tank 7301 ");
+    expect(p.youtube.queries).toEqual(["HP Smart Tank wifi", "Smart Tank 5101 review", "Smart Tank 7301"]);
+    expect(p.reddit.queries).toHaveLength(5);
+    expect(isSearched(p, "smart tank 7301")).toBe(true);
+    expect(addAsSearch(p, "SMART TANK 7301").youtube.queries).toHaveLength(3);
+    expect(isSearched(base, "Smart Tank 7301")).toBe(false);
+    const ytOff = { ...base, youtube: { ...base.youtube, enabled: false } };
+    expect(addAsSearch(ytOff, "Smart Tank 7301").youtube.queries).toEqual(base.youtube.queries);
   });
 });
