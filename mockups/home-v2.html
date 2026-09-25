@@ -76,6 +76,16 @@
   .status { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #eef7ee; color: #2d6a2d; align-self: start; }
   .status.wait { background: #f1f1ef; color: var(--muted); }
 
+  .finder { display: flex; align-items: center; gap: 12px; padding: 12px 18px 0; }
+  .finder .filter { max-width: 420px; margin: 0; }
+  .count { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 99px; background: #f1f1ef; color: var(--muted); font-size: 12px; font-weight: 600; vertical-align: 2px; }
+  .cols-head { display: grid; grid-template-columns: 18px minmax(0,1fr) 128px; gap: 10px; padding: 0 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .cols-head span:last-child { text-align: right; }
+  .scroll { height: 236px; overflow-y: scroll; padding-right: 4px; scrollbar-width: thin; }
+  .scroll .row { flex-shrink: 0; }
+  .step-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .rt { display: flex; align-items: center; gap: 8px; }
+  .x { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
   .note { border: 1px dashed #c9c8c3; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--muted); background: #fff; }
 
   @media (max-width: 720px) {
@@ -86,12 +96,14 @@
     .go { padding: 13px; }
     .row { grid-template-columns: 18px minmax(0,1fr) 60px 34px; }
     .hide-m { display: none; }
+    .cols-head { grid-template-columns: 18px minmax(0,1fr) 100px; }
+    .finder { flex-direction: column; align-items: stretch; gap: 4px; }
   }
 </style>
 </head>
 <body>
 <main>
-  <p class="note">Mock, not the real app. The numbers are sample data, just to show the layout.</p>
+  <p class="note">Mock, not the real app. The numbers and the DeskJet/OfficeJet tabs are sample data, just to show the layout.</p>
 
   <header>
     <div>
@@ -108,33 +120,45 @@
       <div class="prod-head">
         <div class="tabs">
           <span class="tab on">HP Smart Tank</span>
+          <span class="tab">HP DeskJet</span>
+          <span class="tab">HP OfficeJet</span>
           <span class="tab add">+ Family</span>
         </div>
         <div class="prod-meta">
-          <span class="muted">27 series · 130 models · checked against HP on 25 Sep</span>
           <a class="pill" href="#">2 new models to review</a>
           <a class="manage" href="#">Manage catalog →</a>
         </div>
       </div>
 
+      <div class="finder">
+        <input class="filter" placeholder="Find a series or model, e.g. 7301 or 580" />
+        <span class="small muted">Filters both lists as you type</span>
+      </div>
       <div class="prod-body">
         <div class="col">
-          <div class="col-title"><h3>Series</h3><span class="small muted">most discussed first</span></div>
-          <input class="filter" placeholder="Filter series, e.g. 7300 or 580" />
-          <ul class="rows">
+          <div class="col-title"><h3>Series <span class="count">27</span></h3><span class="small muted">most discussed first</span></div>
+          <div class="cols-head"><span></span><span>Name</span><span>Posts collected</span></div>
+          <ul class="rows scroll">
             <li class="row"><span class="radio"></span><span class="name">5100 series</span><span class="bar"><i style="width:100%"></i></span><span class="num">165</span></li>
             <li class="row on"><span class="radio"></span><span class="name">7300 series</span><span class="bar"><i style="width:74%"></i></span><span class="num">122</span></li>
             <li class="row"><span class="radio"></span><span class="name">7600 series</span><span class="bar"><i style="width:52%"></i></span><span class="num">86</span></li>
             <li class="row"><span class="radio"></span><span class="name">750 series</span><span class="bar"><i style="width:31%"></i></span><span class="num">51</span></li>
             <li class="row"><span class="radio"></span><span class="name">580 series</span><span class="bar"><i style="width:12%"></i></span><span class="num">19</span></li>
             <li class="row"><span class="radio"></span><span class="name">6000 series</span><span class="none">not collected yet</span></li>
+            <li class="row"><span class="radio"></span><span class="name">210 series</span><span class="none">not collected yet</span></li>
+            <li class="row"><span class="radio"></span><span class="name">670 series</span><span class="none">not collected yet</span></li>
+            <li class="row"><span class="radio"></span><span class="name">5000 series</span><span class="none">not collected yet</span></li>
+            <li class="row"><span class="radio"></span><span class="name">6000 Plus series</span><span class="none">not collected yet</span></li>
+            <li class="row"><span class="radio"></span><span class="name">7000 series</span><span class="none">not collected yet</span></li>
+            <li class="row"><span class="radio"></span><span class="name">790 series</span><span class="none">not collected yet</span></li>
           </ul>
-          <div class="more">+ 21 more series (filter to find one)</div>
+          <div class="more">Scroll for all 27 series</div>
         </div>
 
         <div class="col">
-          <div class="col-title"><h3>Model <span class="small muted">in 7300 series</span></h3><span class="small muted">optional</span></div>
-          <ul class="rows">
+          <div class="col-title"><h3>Models in 7300 series <span class="count">4</span></h3><span class="small muted">optional</span></div>
+          <div class="cols-head"><span></span><span>Name</span><span>Posts collected</span></div>
+          <ul class="rows scroll">
             <li class="row on"><span class="radio"></span><span class="name">All 4 models</span><span class="bar"><i style="width:100%"></i></span><span class="num">122</span></li>
             <li class="row"><span class="radio"></span><span class="name">7301</span><span class="bar"><i style="width:60%"></i></span><span class="num">73</span></li>
             <li class="row"><span class="radio"></span><span class="name">7305</span><span class="bar"><i style="width:26%"></i></span><span class="num">32</span></li>
@@ -145,7 +169,7 @@
       </div>
 
       <div class="legend">
-        <span>Bars = posts already collected across all your searches. They show where you have evidence, not how popular a model is.</span>
+        <span>Posts collected = posts and comments gathered by all your searches so far. They show where you already have evidence, not how popular a model is.</span>
         <span>“Not collected yet” = no search has covered it yet.</span>
       </div>
     </div>
@@ -167,12 +191,12 @@
 
   <!-- 3. RECENT -->
   <section>
-    <p class="step"><b>3</b> Or continue a recent search</p>
+    <div class="step-row"><p class="step"><b>3</b> Or continue a recent search</p><a href="#" class="small muted">Clear list</a></div>
     <div class="card">
       <ul class="recent">
-        <li><span class="q">HP Smart Tank 7301 · connectivity issues</span><span class="status">200 posts</span><span class="small muted">Today 10:42 · YouTube 100 · Reddit 100</span></li>
-        <li><span class="q">HP Smart Tank printers</span><span class="status">300 posts</span><span class="small muted">Yesterday 18:05 · YouTube 150 · Reddit 150</span></li>
-        <li><span class="q">Smart Tank 5100 series · ink cost</span><span class="status wait">Plan ready</span><span class="small muted">23 Sep 09:12 · not run yet</span></li>
+        <li><span class="q">HP Smart Tank 7301 · connectivity issues</span><span class="rt"><span class="status">200 posts</span><button class="x" aria-label="Remove">×</button></span><span class="small muted">Today 10:42 · YouTube 100 · Reddit 100</span></li>
+        <li><span class="q">HP Smart Tank printers</span><span class="rt"><span class="status">300 posts</span><button class="x" aria-label="Remove">×</button></span><span class="small muted">Yesterday 18:05 · YouTube 150 · Reddit 150</span></li>
+        <li><span class="q">Smart Tank 5100 series · ink cost</span><span class="rt"><span class="status wait">Plan ready</span><button class="x" aria-label="Remove">×</button></span><span class="small muted">23 Sep 09:12 · not run yet</span></li>
       </ul>
     </div>
   </section>
