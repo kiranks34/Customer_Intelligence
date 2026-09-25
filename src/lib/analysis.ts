@@ -29,7 +29,7 @@ import {
   type PostForJev,
 } from "./codebook";
 import { claudeModel, tokenCostUsd } from "./ai";
-import { CodebookError, draftCodebook } from "./codebook-drafter";
+import { CodebookError, draftCodebook, type Mistake } from "./codebook-drafter";
 import { loadPlan } from "./collect";
 import { paidWorkBlockedReason, recordCost } from "./cost";
 import { removeDuplicatePosts } from "./posts";
@@ -649,4 +649,173 @@ export async function saveReview(searchId: number, postId: number, version: numb
     db.insert(reviews).values(copies.map((id) => ({ postId: id, codebookVersion: version, question: Q.relevant, humanAnswer: answer, kind: "review_queue" }))),
   ]);
   return true;
+}
+
+// ---- Spot-check: how right is Jev? (docs/EVALUATION.md §1, D40) -------------------------------------------------
+
+export const SPOT_CHECK_SIZE = 20;
+
+export interface CheckAnswer {
+  answer: string;
+  confidence: number;
+}
+
+export interface CheckItem {
+  id: number;
+  source: string;
+  url: string | null;
+  title: string;
+  text: string;
+  thread: string | null;
+  /** Jev's answers: sentiment, stage, segment, and per theme yes/no. */
+  jev: Record<string, CheckAnswer>;
+  /** Your answers when this post has been checked. */
+  person: Record<string, string> | null;
+}
+
+/**
+ * The same 20 posts about the subject every time for a codebook version (a stable random order), with Jev's answers
+ * and yours. Only counted posts: the spot-check measures what the report is built on.
+ */
+export async function spotCheckItems(searchId: number, version: number): Promise<CheckItem[]> {
+  const db = requireDb();
+  const res = await db.execute(sql`with ${relevanceCte(searchId, version)}
+    select p.id, p.source, p.url, p.title, p.text, coalesce(p.engagement->>'thread', parent.title) as thread
+    from rel join ${posts} p on p.id = rel.post_id
+    left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
+    where rel.grp = 'product'
+    order by md5(p.id::text || '-' || ${version}::text)
+    limit ${SPOT_CHECK_SIZE}`);
+  const rows = res.rows as unknown as Omit<CheckItem, "jev" | "person">[];
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => Number(r.id));
+  const [answers, checks] = await Promise.all([
+    db
+      .select({ postId: decisions.postId, question: decisions.question, answer: decisions.answer, confidence: decisions.confidence })
+      .from(decisions)
+      .where(and(inArray(decisions.postId, ids), eq(decisions.codebookVersion, version))),
+    db
+      .select({ postId: reviews.postId, question: reviews.question, answer: reviews.humanAnswer })
+      .from(reviews)
+      .where(and(inArray(reviews.postId, ids), eq(reviews.codebookVersion, version), eq(reviews.kind, "spot_check"))),
+  ]);
+  const checkedQuestions = new Set([Q.sentiment, Q.stage, Q.segment]);
+  return rows.map((r) => {
+    const id = Number(r.id);
+    const jev = Object.fromEntries(
+      answers
+        .filter((a) => a.postId === id && (checkedQuestions.has(a.question as typeof Q.sentiment) || a.question.startsWith("theme:")))
+        .map((a) => [a.question, { answer: a.answer, confidence: a.confidence }]),
+    );
+    const mine = checks.filter((c) => c.postId === id);
+    return { ...r, id, jev, person: mine.length ? Object.fromEntries(mine.map((c) => [c.question, c.answer])) : null };
+  });
+}
+
+/** Saves your answers for one spot-check post (replacing earlier ones). Only questions the codebook asks are kept. */
+export async function saveSpotCheck(searchId: number, version: number, postId: number, answers: Record<string, string>): Promise<boolean> {
+  const db = requireDb();
+  const [[own], [cb]] = await Promise.all([
+    db.select({ id: posts.id }).from(posts).where(and(eq(posts.id, postId), eq(posts.searchId, searchId))),
+    db.select().from(codebooks).where(and(eq(codebooks.searchId, searchId), eq(codebooks.version, version))),
+  ]);
+  if (!own || !cb) return false;
+  const codebook = cb.codebook as Codebook;
+  const allowed: Record<string, string[]> = {
+    [Q.sentiment]: ["positive", "negative", "mixed", "neutral"],
+    [Q.stage]: [...codebook.stages.map((s) => s.key), NOT_STATED],
+    ...(codebook.segments.length ? { [Q.segment]: [...codebook.segments.map((s) => s.key), NOT_STATED] } : {}),
+    ...Object.fromEntries(codebook.themes.map((t) => [themeQuestion(t.key), ["yes", "no"]])),
+  };
+  const rows = Object.entries(answers)
+    .filter(([q, a]) => allowed[q]?.includes(a))
+    .map(([question, humanAnswer]) => ({ postId, codebookVersion: version, question, humanAnswer, kind: "spot_check" }));
+  await db.batch([
+    db.delete(reviews).where(and(eq(reviews.postId, postId), eq(reviews.codebookVersion, version), eq(reviews.kind, "spot_check"))),
+    ...(rows.length ? [db.insert(reviews).values(rows)] : []),
+  ]);
+  return true;
+}
+
+export interface Accuracy {
+  /** Posts you checked. */
+  checked: number;
+  /** Per question: of Jev's sure answers (≥ 0.8) you checked, how many you agreed with; plus the less sure ones. */
+  questions: { key: string; label: string; sure: number; right: number; notSure: number }[];
+}
+
+/** Agreement between Jev's answers and yours, per question (themes pooled: every yes/no call counts). */
+export async function spotCheckAccuracy(searchId: number, version: number): Promise<Accuracy> {
+  const res = await requireDb().execute(sql`
+    select case when r.question like 'theme:%' then 'themes' else r.question end as key,
+      count(*) filter (where d.confidence >= ${COUNTED})::int as sure,
+      count(*) filter (where d.confidence >= ${COUNTED} and d.answer = r.human_answer)::int as "right",
+      count(*) filter (where d.confidence < ${COUNTED})::int as "notSure",
+      count(distinct r.post_id)::int as posts
+    from ${reviews} r
+    join ${posts} p on p.id = r.post_id
+    join ${decisions} d on d.post_id = r.post_id and d.codebook_version = r.codebook_version and d.question = r.question
+    where p.search_id = ${searchId} and r.codebook_version = ${version} and r.kind = 'spot_check'
+    group by 1`);
+  const rows = res.rows as { key: string; sure: number; right: number; notSure: number; posts: number }[];
+  const labels: Record<string, string> = { sentiment: "Sentiment", stage: "Journey stage", segment: "Who is posting", themes: "Themes (each yes/no)" };
+  return {
+    checked: Math.max(0, ...rows.map((r) => r.posts)),
+    questions: ["stage", "sentiment", "themes", "segment"]
+      .map((key) => rows.find((r) => r.key === key))
+      .filter((r) => r !== undefined)
+      .map((r) => ({ key: r.key, label: labels[r.key], sure: r.sure, right: r.right, notSure: r.notSure })),
+  };
+}
+
+/** Where Jev and you disagree, in words, for Claude to improve the definitions. */
+export async function spotCheckMistakes(searchId: number, version: number, codebook: Codebook): Promise<Mistake[]> {
+  const res = await requireDb().execute(sql`
+    select p.text, r.question, d.answer as jev, r.human_answer as person
+    from ${reviews} r
+    join ${posts} p on p.id = r.post_id
+    join ${decisions} d on d.post_id = r.post_id and d.codebook_version = r.codebook_version and d.question = r.question
+    where p.search_id = ${searchId} and r.codebook_version = ${version} and r.kind = 'spot_check' and d.answer <> r.human_answer
+    limit 60`);
+  const name = new Map<string, string>([
+    ...[...codebook.stages, ...codebook.segments, ...codebook.themes].map((c) => [c.key, c.label] as const),
+    [NOT_STATED, "not stated"],
+  ]);
+  const question = (q: string) =>
+    q === Q.stage ? "journey stage" : q === Q.segment ? "who is posting" : q === Q.sentiment ? "sentiment" : `theme “${name.get(q.slice(6)) ?? q.slice(6)}”`;
+  return (res.rows as { text: string; question: string; jev: string; person: string }[]).map((m) => ({
+    post: m.text,
+    question: question(m.question),
+    jev: name.get(m.jev) ?? m.jev,
+    person: name.get(m.person) ?? m.person,
+  }));
+}
+
+/**
+ * Claude's revised codebook: sharper definitions with "counts when / not when" and real examples, drafted from posts
+ * about the subject and fixing the spot-check's mistakes. Returned as a proposal; nothing changes until you save it.
+ */
+export async function proposeCodebook(searchId: number): Promise<{ codebook: Codebook; mistakes: number }> {
+  const db = requireDb();
+  const version = await resultsVersion(searchId);
+  const current = await latestCodebook(searchId);
+  const plan = await loadPlan(searchId);
+  if (!current || !plan) throw new Error("Analyze the posts first.");
+  // Mistakes are named with the codebook they were made with (results may still be on an older version).
+  const [checked] = version ? await db.select().from(codebooks).where(and(eq(codebooks.searchId, searchId), eq(codebooks.version, version))) : [];
+  const mistakes = version && checked ? await spotCheckMistakes(searchId, version, checked.codebook as Codebook) : [];
+  // Posts about the subject when there are enough; otherwise any posts.
+  const about = version
+    ? await db.execute(sql`with ${relevanceCte(searchId, version)}
+        select p.source, p.text from rel join ${posts} p on p.id = rel.post_id where rel.grp = 'product' order by random() limit ${SAMPLE_SIZE}`)
+    : null;
+  const sample = about && about.rows.length >= 20 ? (about.rows as { source: string; text: string }[]) : await sampleOf(searchId);
+  try {
+    const { codebook, cost } = await draftCodebook(plan.plan, sample, { current: current.codebook, mistakes });
+    await recordCost({ searchId, ...cost });
+    return { codebook, mistakes: mistakes.length };
+  } catch (err) {
+    if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
+    throw err;
+  }
 }

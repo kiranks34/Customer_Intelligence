@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 
 import { CODEBOOK_LIMITS, keyFor, type Code, type Codebook, type Theme } from "@/lib/codebook";
 
-import { saveCodebookAction } from "../analysis-actions";
+import { proposeCodebookAction, saveCodebookAction } from "../analysis-actions";
 
 type List = "themes" | "stages" | "segments" | "competitors";
 const LISTS: List[] = ["themes", "stages", "segments", "competitors"];
@@ -24,7 +24,25 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
   const [draft, setDraft] = useState<Required<Codebook>>(initial);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
   const changed = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  /** Claude's sharper definitions (from posts about the product and your spot-check corrections) land here unsaved. */
+  function improve() {
+    if (changed && !window.confirm("Replace your unsaved edits with Claude's proposal? (Save them first to keep them.)")) return;
+    setNote(null);
+    setAsking(true);
+    startTransition(async () => {
+      const r = await proposeCodebookAction(searchId);
+      setAsking(false);
+      setNote({ ok: r.ok, text: r.message });
+      if (r.ok) {
+        setDraft({ ...r.codebook, competitors: r.codebook.competitors ?? [] });
+        setOpen(true);
+      }
+    });
+  }
 
   function update<L extends List>(list: L, index: number, patch: Partial<Required<Codebook>[L][number]>) {
     setDraft((d) => ({ ...d, [list]: d[list].map((c, i) => (i === index ? { ...c, ...patch } : c)) }));
@@ -63,16 +81,24 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
   }
 
   return (
-    <details className="rounded-lg border border-border px-4 py-3">
+    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="rounded-lg border border-border px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">
         Themes, stages, user types and competitors <span className="font-normal text-muted">· version {version}, drafted by Claude from a sample. Edit if something is missing or off.</span>
       </summary>
       <div className="mt-4 flex flex-col gap-5">
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2 text-sm">
+          <button type="button" disabled={pending} onClick={improve} className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50">
+            {asking ? "Asking Claude…" : "Improve with Claude"}
+          </button>
+          <span className="text-xs text-muted">
+            Sharper definitions with “counts when / not when” and real examples, fixing any mistakes from “Check accuracy”. A few cents; you review before saving.
+          </span>
+        </div>
         {LISTS.map((list) => (
           <fieldset key={list} className="flex flex-col gap-2">
             <legend className="mb-1 text-sm font-medium">{TITLES[list]}</legend>
             {draft[list].map((c, i) => (
-              <div key={`${list}-${i}`} className="grid gap-2 sm:grid-cols-[12rem_minmax(0,1fr)_auto_auto]">
+              <div key={`${list}-${i}`} className="grid gap-2 border-b border-border/60 pb-2 sm:grid-cols-[12rem_minmax(0,1fr)_auto_auto]">
                 <input value={c.label} onChange={(e) => update(list, i, { label: e.target.value })} aria-label="Name" placeholder="Name" maxLength={60} className={input} />
                 <input
                   value={c.definition}
@@ -96,6 +122,25 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
                 <button type="button" onClick={() => remove(list, i)} aria-label={`Remove ${c.label}`} className="px-2 text-muted hover:text-critical">
                   ×
                 </button>
+                <div className="grid gap-2 sm:col-span-4 sm:grid-cols-2 sm:pl-[12.5rem]">
+                  <input
+                    value={c.counts ?? ""}
+                    onChange={(e) => update(list, i, { counts: e.target.value })}
+                    aria-label="Counts when"
+                    placeholder="Counts when… (optional)"
+                    maxLength={240}
+                    className={`${input} text-xs`}
+                  />
+                  <input
+                    value={c.excludes ?? ""}
+                    onChange={(e) => update(list, i, { excludes: e.target.value })}
+                    aria-label="Not when"
+                    placeholder="Not when… (optional)"
+                    maxLength={240}
+                    className={`${input} text-xs`}
+                  />
+                  {c.example && <p className="text-xs text-muted italic sm:col-span-2">Example from a post: “{c.example}”</p>}
+                </div>
               </div>
             ))}
             {draft[list].length < CODEBOOK_LIMITS[list] && (

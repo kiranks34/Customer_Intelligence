@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import type { AnalysisState, AnalysisSummary, LookPost, Tally } from "@/lib/analysis";
+import type { Accuracy, AnalysisState, AnalysisSummary, CheckItem, LookPost, Tally } from "@/lib/analysis";
 import { NOT_STATED, NOT_SURE } from "@/lib/codebook";
 import type { Codebook } from "@/lib/codebook";
 
 import { advanceAnalysisAction, resumeAnalysisAction, reviewAction, startAnalysisAction } from "../analysis-actions";
 import type { ActionState } from "../actions";
 import { CodebookEditor } from "./codebook-editor";
+import { SpotCheck } from "./spot-check";
 
 const isState = (r: AnalysisState | ActionState): r is AnalysisState => "pending" in r;
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -25,6 +26,8 @@ interface Props {
   look: LookPost[];
   /** The latest codebook (what the editor shows and the next analysis uses); results may still be on an older one. */
   codebook: { version: number; codebook: Codebook } | null;
+  /** The accuracy check for the results shown: 20 counted posts and the score so far. */
+  check: { items: CheckItem[]; accuracy: Accuracy } | null;
   /** Collection is finished, so the set of posts is stable. */
   ready: boolean;
 }
@@ -33,7 +36,7 @@ interface Props {
  * Step 5 on the search page: one button to analyze, a progress bar while Jev reads, then the results (all counted
  * in SQL), the posts Jev wasn't sure about, and the codebook you can edit.
  */
-export function AnalysisPanel({ searchId, subject, initial, summary, look, codebook, ready }: Props) {
+export function AnalysisPanel({ searchId, subject, initial, summary, look, codebook, check, ready }: Props) {
   const router = useRouter();
   const [s, setS] = useState(initial);
   const [message, setMessage] = useState<string | null>(null);
@@ -170,6 +173,9 @@ export function AnalysisPanel({ searchId, subject, initial, summary, look, codeb
 
       {summary && <Results summary={summary} subject={subject} totalPosts={s.totalPosts} />}
       {summary && look.length > 0 && <NeedsLook searchId={searchId} version={summary.version} posts={look} total={summary.relevance.needsLook} />}
+      {summary && check && check.items.length > 0 && (
+        <SpotCheck searchId={searchId} version={summary.version} codebook={summary.codebook} items={check.items} accuracy={check.accuracy} />
+      )}
       {codebook && <CodebookEditor key={codebook.version} searchId={searchId} codebook={codebook.codebook} version={codebook.version} />}
     </section>
   );
