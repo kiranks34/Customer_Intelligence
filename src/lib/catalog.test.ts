@@ -148,3 +148,36 @@ describe("cleanTree duplicates and limits", () => {
     expect(treeLimitError(fam([series("Ok", many.slice(0, 30))]))).toBeNull();
   });
 });
+
+describe("how people type model names", () => {
+  const nodes = flatten({
+    ...tree,
+    children: [...tree.children, { id: 8, level: "series", name: "Smart Tank 700 series", aliases: [], verified: true, children: [{ id: 9, level: "model", name: "Smart Tank 720", aliases: ["720"], verified: true, children: [] }] }],
+  });
+  const match = compileMatcher(nodes);
+  it("ignores case and spaces, and accepts the shared letter once", () => {
+    expect(match("SMART TANK 720 is great")).toEqual([9]);
+    expect(match("my smarttank 720")).toEqual([9]);
+    expect(match("Smartank 720 wifi")).toEqual([9]);
+    expect(match("SmartTank7301 jams")).toEqual([3]);
+    expect(match("I like my Smartank")).toEqual([1]);
+  });
+  it("accepts tank, ink tank and inktank before a model number", () => {
+    expect(match("tank 720 prints fine")).toEqual([9]);
+    expect(match("Ink Tank 720 setup")).toEqual([9]);
+    expect(match("inktank 720")).toEqual([9]);
+    expect(match("hp tank 580 ink")).toEqual([6]);
+  });
+  it("never claims numbers that aren't models in the catalog, or bare short numbers", () => {
+    expect(match("Ink Tank 415 is a different line")).toEqual([]);
+    expect(match("printed 720 pages")).toEqual([]);
+  });
+  it("findMentions keeps other product lines apart from the family", () => {
+    expect(findMentions(["Smartank 720", "ink tank 415", "InkTank 415", "SmartTank 7301"], ["smart tank"])).toEqual([
+      { text: "ink tank 415", posts: 1 },
+      { text: "inktank 415", posts: 1 },
+      { text: "smart tank 720", posts: 1 },
+      { text: "smart tank 7301", posts: 1 },
+    ]);
+  });
+});
