@@ -20,7 +20,8 @@ export default async function SearchPage({ params }: PageProps<"/searches/[id]">
 
   const { plan, version } = latest;
   const prog = await progress(id);
-  const locked = !prog.finished;
+  // Paused steps belong to the current run and keep its plan, so edits wait until they are resumed and finished.
+  const locked = !prog.finished || prog.jobs.waiting > 0;
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-10">

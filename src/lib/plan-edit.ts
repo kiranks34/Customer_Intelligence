@@ -21,8 +21,9 @@ export function validatePlan(candidate: unknown): { ok: true; plan: Plan } | { o
   return { ok: true, plan: normalizePlan(p) };
 }
 
-const day = (d: Date) => d.toISOString().slice(0, 10);
-const daysBefore = (today: Date, n: number) => day(new Date(today.getTime() - n * 86_400_000));
+/** The calendar date in the user's own time zone (not UTC), as YYYY-MM-DD. */
+const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const daysBefore = (today: Date, n: number) => day(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n));
 
 export const PERIODS = [
   { id: "all", label: "All time", days: null },
@@ -43,12 +44,15 @@ export function applyPeriod(p: Plan, id: Exclude<PeriodId, "custom">, today = ne
   return { ...p, timeWindow };
 }
 
-/** Which preset a plan's window matches; anything else (including the planner's "last month") is custom. */
-export function activePeriod(p: Plan): PeriodId {
+/**
+ * Which preset a plan's window matches; anything else (including the planner's "last month") is custom.
+ * A preset only counts while it still ends today: a "last 7 days" saved weeks ago is custom, so the old dates show.
+ */
+export function activePeriod(p: Plan, today = new Date()): PeriodId {
   const { from, to, label } = p.timeWindow;
   if (!from && !to) return "all";
   const match = PERIODS.find((x) => x.days !== null && x.label.toLowerCase() === label.trim().toLowerCase());
-  if (match && from && to) {
+  if (match && from && to === day(today)) {
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
     if (span === match.days) return match.id;
   }

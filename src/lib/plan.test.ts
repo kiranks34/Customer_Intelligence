@@ -58,7 +58,7 @@ describe("estimatePlan", () => {
 });
 
 describe("time window", () => {
-  const today = new Date("2026-09-25T12:00:00Z");
+  const today = new Date(2026, 8, 25, 12); // local noon
   it("picks the smallest Reddit timeframe that covers the window", () => {
     // "Last 7 days" ending today starts 6 days back; one day more no longer fits Reddit's "week".
     expect(redditTimeframe({ ...base, timeWindow: { from: "2026-09-19", to: null, label: "" } }, today)).toBe("week");
@@ -105,7 +105,7 @@ describe("isRealDate", () => {
 });
 
 describe("plan editing helpers", () => {
-  const today = new Date("2026-09-25T12:00:00Z");
+  const today = new Date(2026, 8, 25, 12); // local noon
   it("validatePlan rejects bad numbers, dates, empty subjects and no sources, and applies limits", () => {
     expect(validatePlan({ ...base, postCap: Number.NaN })).toMatchObject({ ok: false, error: '"postCap" needs a number.' });
     expect(validatePlan({ ...base, postCap: "300" })).toMatchObject({ ok: false });
@@ -122,7 +122,9 @@ describe("plan editing helpers", () => {
   it("applies period presets ending today and recognises them again", () => {
     const week = applyPeriod(base, "7d", today);
     expect(week.timeWindow).toEqual({ from: "2026-09-19", to: "2026-09-25", label: "last 7 days" });
-    expect(activePeriod(week)).toBe("7d");
+    expect(activePeriod(week, today)).toBe("7d");
+    expect(activePeriod(week, new Date(2026, 9, 20))).toBe("custom");
+    expect(applyPeriod(base, "7d", new Date(2026, 8, 25, 23, 30)).timeWindow.to).toBe("2026-09-25");
     expect(activePeriod(applyPeriod(base, "all", today))).toBe("all");
     expect(activePeriod({ ...base, timeWindow: { from: "2026-08-01", to: "2026-08-31", label: "last month" } })).toBe("custom");
   });

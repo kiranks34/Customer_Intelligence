@@ -86,7 +86,7 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
           <p className="text-base">{planSummary(draft, est)}</p>
           <p className="text-xs text-muted">
             {est.redditCredits} Reddit credits · {est.youtubeQuotaUnits} YouTube units (free up to 10,000 a day)
-            {dirty && " · unsaved changes are saved when you press Run"}
+            {dirty && " · unsaved changes are saved when you start a run"}
           </p>
         </div>
 
@@ -158,7 +158,7 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
             />
           </div>
         </fieldset>
-        {locked && <p className="text-sm text-muted">The plan is locked until the current collection finishes.</p>}
+        {locked && <p className="text-sm text-muted">The plan is locked until the current collection, including any paused steps, finishes.</p>}
       </section>
 
       <CollectionPanel searchId={searchId} initial={initialProgress} beforeStart={beforeStart} onRunningChange={setRunning} />
