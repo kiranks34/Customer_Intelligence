@@ -438,8 +438,10 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
       .select({ chars: sql<string>`coalesce(sum(least(length(${posts.text}) + length(${posts.title}), 3000)), 0)` })
       .from(posts)
       .where(eq(posts.searchId, searchId));
-    // Questions are unknown until the codebook exists; a typical one adds about 900 tokens per post.
-    const jev = jevUsd(Number(chars) / 4 + 900 * totalPosts);
+    // Questions are unknown until the codebook exists; a typical one adds about 900 tokens per post, plus the
+    // family's official facts, which the first codebook starts with (D44).
+    const facts = productKnowledge({ productFacts: await storedFactsFor(searchId) }).length / 4;
+    const jev = jevUsd(Number(chars) / 4 + (900 + facts) * totalPosts);
     const draft = tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output);
     return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd, improved: false };
   }

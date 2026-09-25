@@ -30,7 +30,8 @@ export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12, competitors
 export const PRODUCT_FACTS_MAX = 20;
 export const ProductFactSchema = z.object({
   text: z.string().min(1).max(300),
-  url: z.string().url().max(500),
+  // Shown as a link: https pages only.
+  url: z.url({ protocol: /^https$/ }).max(500),
   title: z.string().max(200).optional(),
 });
 export type ProductFact = z.infer<typeof ProductFactSchema>;

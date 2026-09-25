@@ -17,8 +17,8 @@ describe("findProductFacts", () => {
   it("searches only the maker's sites and keeps facts its pages confirm", async () => {
     generateText.mockResolvedValue({
       steps: [
-        { toolCalls: [{}], toolResults: [], content: [{ type: "tool-call" }, { type: "tool-result", output: { results: [page] } }] },
-        { toolCalls: [], toolResults: [], content: [] },
+        { toolCalls: [{}], content: [{ type: "tool-call" }, { type: "tool-result", output: { results: [page] } }] },
+        { toolCalls: [], content: [] },
       ],
       totalUsage: { inputTokens: 10_000, outputTokens: 1_000 },
       output: {
@@ -36,6 +36,18 @@ describe("findProductFacts", () => {
     // Sonnet 5: 10k in × $2/M + 1k out × $10/M, plus one search.
     expect(r.cost).toMatchObject({ operation: "facts", units: { searches: 1 } });
     expect(r.cost.usd).toBeCloseTo(0.02 + 0.01 + 0.005);
+  });
+  it("still reports what a failed call spent", async () => {
+    generateText.mockResolvedValue({
+      steps: [{ toolCalls: [{}, {}], content: [] }],
+      totalUsage: { inputTokens: 5_000, outputTokens: 0 },
+      get output() {
+        throw new Error("No output generated.");
+      },
+    });
+    await expect(findProductFacts("HP Smart Tank", ["hp.com"])).rejects.toMatchObject({ name: "FactsError", cost: { units: { searches: 2 } } });
+    generateText.mockRejectedValue(new Error("The operation was aborted due to timeout"));
+    await expect(findProductFacts("HP Smart Tank", ["hp.com"])).rejects.toMatchObject({ cost: { units: { searches: 4 } } });
   });
   it("won't run without the maker's sites", async () => {
     await expect(findProductFacts("Acme", [])).rejects.toThrow("official website");

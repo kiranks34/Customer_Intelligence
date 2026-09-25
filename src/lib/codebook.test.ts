@@ -203,5 +203,6 @@ describe("productKnowledge", () => {
     const base = { stages: [{ key: "setup", label: "Set up", definition: "Setting it up." }, { key: "use", label: "Use", definition: "Using it daily." }], segments: [], themes: [1, 2, 3].map((i) => ({ key: `theme_${i}`, label: `Theme ${i}`, definition: "Mentions it.", kind: "pain" as const })) };
     expect(validateCodebook({ ...base, productFacts: [{ text: "x", url: "https://hp.com/a" }] }).ok).toBe(true);
     expect(validateCodebook({ ...base, productFacts: [{ text: "x", url: "not a url" }] }).ok).toBe(false);
+    for (const url of ["javascript:alert(1)", "data:text/html,x", "http://hp.com/a"]) expect(validateCodebook({ ...base, productFacts: [{ text: "x", url }] }).ok).toBe(false);
   });
 });

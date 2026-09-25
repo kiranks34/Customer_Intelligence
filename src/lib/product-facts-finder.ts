@@ -1,6 +1,6 @@
 import "server-only";
 
-import { gateway, generateText, isStepCount, NoObjectGeneratedError, Output } from "ai";
+import { gateway, generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
 
 import type { CallCost } from "@/connectors/types";
@@ -17,7 +17,10 @@ import { pagesFrom, verifiedFacts } from "./product-facts";
 
 /** Gateway search price per request (Perplexity Search list price, an estimate; the Gateway dashboard is exact). */
 const SEARCH_USD = 0.005;
-/** Searches Claude may run, plus one step for the answer. */
+/**
+ * Searches Claude is asked to stay within. The gateway runs the search loop itself (one step for the SDK), so this is
+ * an instruction, not a hard stop; it is also the estimate charged when a call fails before reporting what it did.
+ */
 const MAX_SEARCHES = 4;
 
 const SYSTEM = `You collect facts about how a product family works, for people who classify customer posts about it.
@@ -27,7 +30,7 @@ connecting, creating an account), everyday use, maintenance and parts that can b
 what it is needed for, ink or supplies, subscriptions, warranty and support channels.
 Rules: every fact comes from a page you found, with its exact address, and a short phrase copied word for word from
 that page's text (quote). Never add facts from memory. Say which models a fact is limited to when the page does.
-One sentence each, at most 20 facts, most useful first.`;
+One sentence each, at most 20 facts, most useful first. Use at most ${MAX_SEARCHES} searches.`;
 
 const FactsSchema = z.object({
   facts: z
@@ -74,19 +77,27 @@ export async function findProductFacts(family: string, domains: string[]): Promi
       tools: {
         search: gateway.tools.perplexitySearch({ searchDomainFilter: domains, maxResults: 8, maxTokensPerPage: 1024, country: "US", searchLanguageFilter: ["en"] }),
       },
-      stopWhen: isStepCount(MAX_SEARCHES + 1),
       output: Output.object({ schema: FactsSchema }),
       maxOutputTokens: 6000,
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(120_000),
     });
+    const searches = result.steps.reduce((n, st) => n + st.toolCalls.length, 0);
+    const cost = costOf(model, result.totalUsage.inputTokens, result.totalUsage.outputTokens, searches);
+    let drafts;
+    try {
+      // Throws when the answer never came (e.g. the call ended on a search); what was spent is still recorded.
+      drafts = result.output.facts;
+    } catch (err) {
+      throw new FactsError(claudeErrorText(err, model), cost);
+    }
+    // The gateway runs the search itself; its results are the step's tool-result parts.
+    const pages = pagesFrom(result.steps.flatMap((st) => st.content.flatMap((c) => (c.type === "tool-result" ? [c.output] : []))));
+    return { facts: verifiedFacts(drafts, pages, domains), cost };
   } catch (err) {
+    if (err instanceof FactsError) throw err;
+    // Nothing reported back (timeout, refusal, bad output): charge what it may have used, erring high.
     const usage = NoObjectGeneratedError.isInstance(err) ? err.usage : undefined;
-    throw new FactsError(claudeErrorText(err, model), usage ? costOf(model, usage.inputTokens, usage.outputTokens, MAX_SEARCHES) : null);
+    throw new FactsError(claudeErrorText(err, model), costOf(model, usage?.inputTokens ?? 0, usage?.outputTokens ?? 0, MAX_SEARCHES));
   }
-  const searches = result.steps.reduce((n, s) => n + s.toolCalls.length, 0);
-  const cost = costOf(model, result.totalUsage.inputTokens, result.totalUsage.outputTokens, searches);
-  // The gateway runs the search itself; its results are in each step's content (and toolResults).
-  const pages = pagesFrom(result.steps.flatMap((s) => [...s.toolResults.map((r) => r.output), ...s.content.flatMap((c) => (c.type === "tool-result" ? [c.output] : []))]));
-  return { facts: verifiedFacts(result.output.facts, pages, domains), cost };
 }

@@ -108,7 +108,8 @@ export function CodebookEditor({
       setFinding(false);
       setNote({ ok: r.ok, text: r.message });
       if (r.ok && r.facts) setDraft((d) => ({ ...d, productFacts: r.facts! }));
-      if (r.ok && fresh) router.refresh();
+      // A lookup updates the family's "last looked" date.
+      if (r.ok) router.refresh();
     });
   }
 

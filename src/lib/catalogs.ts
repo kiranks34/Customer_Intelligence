@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, countDistinct, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 
 import { requireDb } from "@/db/client";
 import { catalogNodes, catalogs, postProducts, posts, searches } from "@/db/schema";
@@ -27,17 +27,20 @@ import {
 
 /** Database side of the product catalog (docs/DECISIONS.md D29). Counts come from SQL over post_products. */
 
-export type CatalogRow = typeof catalogs.$inferSelect;
+/** Everything but the official facts (read only where needed, D44), so pages keep working before migration 0004. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- left out on purpose
+const { productFacts: _facts, ...catalogColumns } = getTableColumns(catalogs);
+export type CatalogRow = Omit<typeof catalogs.$inferSelect, "productFacts">;
 
 export async function getCatalog(id: number): Promise<{ catalog: CatalogRow; tree: TreeNode } | null> {
   const db = requireDb();
-  const [catalog] = await db.select().from(catalogs).where(eq(catalogs.id, id));
+  const [catalog] = await db.select(catalogColumns).from(catalogs).where(eq(catalogs.id, id));
   if (!catalog) return null;
   return { catalog, tree: await loadTree(id, catalog.name) };
 }
 
 export async function catalogByKey(key: string): Promise<CatalogRow | null> {
-  const [c] = await requireDb().select().from(catalogs).where(eq(catalogs.key, key));
+  const [c] = await requireDb().select(catalogColumns).from(catalogs).where(eq(catalogs.key, key));
   return c ?? null;
 }
 
