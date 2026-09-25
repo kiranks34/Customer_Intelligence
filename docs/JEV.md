@@ -68,7 +68,9 @@ can edit it on the search page, and every edit is a new version
   probability of each option; we store the chosen option's probability (0.5
   if none is given, so it's never counted as sure).
 - Each post is sent with its context: channel, the video or Reddit thread title
-  it was posted under, and the catalog products it names (D38).
+  it was posted under, the catalog products it names (D38), and for a reply
+  what it answers: the comment it replies to, or the Reddit post for a
+  top-level comment, cut at 600 characters (D43).
 - Posts are cut at 3,000 characters. A post Jev rejects as bad input is stored
   as "skipped" and never counted.
 

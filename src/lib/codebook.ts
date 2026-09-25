@@ -292,6 +292,8 @@ export interface PostForJev {
   thread?: string | null;
   /** True for a comment or reply (it has a parent video or thread). */
   isComment?: boolean;
+  /** What a comment answers: the comment it replies to, or the Reddit post for a top-level comment (cut short). */
+  replyingTo?: string | null;
   /** Catalog products the post names (from the catalog matcher), e.g. "HP Smart Tank 7301". */
   names?: string | null;
   /** How the product works (codebook product notes), so Jev doesn't guess. */
@@ -304,6 +306,7 @@ export function stateFor(post: PostForJev): Record<string, string> {
   const state: Record<string, string> = { channel };
   if (post.productNotes) state.how_the_product_works = post.productNotes;
   if (post.thread) state.context = post.source === "youtube" ? `Comment on the YouTube video “${post.thread}”` : `Reply in the Reddit thread “${post.thread}”`;
+  if (post.replyingTo) state.replying_to = post.replyingTo;
   if (post.names) state.products_named = post.names;
   if (post.title) state.title = post.title;
   state.post = post.text.length > MAX_POST_CHARS ? `${post.text.slice(0, MAX_POST_CHARS)}…` : post.text;

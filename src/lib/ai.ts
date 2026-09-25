@@ -20,3 +20,19 @@ export function tokenCostUsd(model: string, inputTokens = 0, outputTokens = 0): 
   const p = PRICES[model] ?? FALLBACK;
   return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
 }
+
+/**
+ * A Claude call's failure in plain words. The Gateway's own messages ("GatewayRateLimitError: No access to this
+ * model at this time") don't say what to do.
+ */
+export function claudeErrorText(err: unknown, model: string): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/no access to this model|model.*not (found|available)/i.test(message)) {
+    return `Vercel AI Gateway won't run ${model} right now. Try again in a minute. If it keeps happening, check your Gateway credits and that PULSE_CLAUDE_MODEL names a model your Gateway allows.`;
+  }
+  if (/insufficient|credits?\b.*(exhausted|run out|remaining)|payment required|\b402\b/i.test(message)) {
+    return "Your Vercel AI Gateway credits have run out. Top up in Vercel → AI Gateway, then try again.";
+  }
+  if (/rate.?limit|too many requests|\b429\b/i.test(message)) return "Vercel AI Gateway is busy. Try again in a minute.";
+  return message.slice(0, 300);
+}

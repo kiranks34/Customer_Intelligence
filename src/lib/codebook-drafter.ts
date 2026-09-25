@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import type { CallCost } from "@/connectors/types";
 
-import { claudeModel, tokenCostUsd } from "./ai";
+import { claudeErrorText, claudeModel, tokenCostUsd } from "./ai";
 import { CODEBOOK_LIMITS, CodeSchema, ThemeSchema, validateCodebook, type Codebook } from "./codebook";
 import { exampleFrom } from "./codebook-example";
 import type { Plan } from "./plan";
@@ -41,7 +41,7 @@ people, numbers or quotes. Keys are snake_case.`;
 
 const IMPROVE = `You are revising an existing codebook. Keep every key that still makes sense (answers already given
 are stored under it), and change definitions, counts and excludes to fix the mistakes listed. A mistake means Jev's
-answer differed from the person who checked it; the person is right. Add or split an item only when the mistakes
+answer differed from the checker's (a person, or Claude where no person answered); the checker is right. Add or split an item only when the mistakes
 show it is needed.`;
 
 // Claude points at a sample post for each example; the code copies the words from that post, so examples are real.
@@ -84,7 +84,8 @@ const costOf = (model: string, inputTokens = 0, outputTokens = 0): ClaudeCost =>
   units: { inputTokens, outputTokens },
 });
 
-const SAMPLE_CHARS = 300;
+/** Enough of each sample post to show the writer's situation (how long they've had it, what happened before). */
+const SAMPLE_CHARS = 800;
 
 function fromDraft(draft: z.infer<typeof DraftSchema>, sample: { text: string }[]): unknown {
   const convert = <T extends { example_post: number | null; example_quote: string | null }>({ example_post, example_quote, ...code }: T) => {
@@ -147,7 +148,7 @@ export async function draftCodebook(
   } catch (err) {
     // Output that didn't fit the schema was still generated and billed.
     const usage = NoObjectGeneratedError.isInstance(err) ? err.usage : undefined;
-    throw new CodebookError(err instanceof Error ? err.message.slice(0, 300) : "unknown error", usage ? costOf(model, usage.inputTokens, usage.outputTokens) : null);
+    throw new CodebookError(claudeErrorText(err, model), usage ? costOf(model, usage.inputTokens, usage.outputTokens) : null);
   }
   const cost = costOf(model, result.usage.inputTokens, result.usage.outputTokens);
   const checked = validateCodebook(fromDraft(result.output, sample));

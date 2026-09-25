@@ -4,7 +4,7 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 
 import type { CallCost } from "@/connectors/types";
 
-import { claudeModel, tokenCostUsd } from "./ai";
+import { claudeErrorText, claudeModel, tokenCostUsd } from "./ai";
 import type { Scope } from "./catalog";
 import { DraftPlanSchema, normalizePlan, type Plan } from "./plan";
 
@@ -96,6 +96,6 @@ export async function draftPlan(input: string, today = new Date(), scope?: Scope
     // Output that didn't fit the schema was still generated and billed.
     const usage = NoObjectGeneratedError.isInstance(err) ? err.usage : undefined;
     const cost = usage ? costOf(model, usage.inputTokens, usage.outputTokens) : null;
-    throw new PlannerError(err instanceof Error ? err.message.slice(0, 300) : "unknown error", cost);
+    throw new PlannerError(claudeErrorText(err, model), cost);
   }
 }

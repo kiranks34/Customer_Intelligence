@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useImperativeHandle, useRef, useState, useTransition, type Ref } from "react";
 
 import { CODEBOOK_LIMITS, keyFor, type Code, type Codebook, type Theme } from "@/lib/codebook";
 
@@ -17,13 +17,18 @@ const TITLES: Record<List, string> = {
   competitors: "Competitors (brands people compare with)",
 };
 const KINDS: Theme["kind"][] = ["pain", "delight", "need", "topic"];
+export interface EditorHandle {
+  improve: () => void;
+}
+
 const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
 
 /**
- * The themes, journey stages and user types Jev answers about. Claude drafted them; here you rename, add or
- * remove. Saving makes a new version; posts are re-read with it when you press Analyze (a few cents).
+ * What Jev looks for: the themes, journey stages, touchpoints, user types and competitors Claude drafted. Shown
+ * read-only (nothing is needed from you); "Edit" opens the form. Saving makes a new version; posts are re-read with
+ * it when you press Analyze (a few cents). `handle.improve()` is how the accuracy check asks for Claude's fixes.
  */
-export function CodebookEditor({ searchId, codebook, version }: { searchId: number; codebook: Codebook; version: number }) {
+export function CodebookEditor({ searchId, codebook, version, handle }: { searchId: number; codebook: Codebook; version: number; handle?: Ref<EditorHandle> }) {
   const router = useRouter();
   // Codebooks saved before competitors existed have none.
   const initial = { ...codebook, competitors: codebook.competitors ?? [], touchpoints: codebook.touchpoints ?? [], productNotes: codebook.productNotes ?? "" };
@@ -32,10 +37,22 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const box = useRef<HTMLDetailsElement>(null);
   const changed = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  useImperativeHandle(handle, () => ({
+    improve() {
+      setOpen(true);
+      box.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      improve();
+    },
+  }));
 
   /** Claude's sharper definitions (from posts about the product and your spot-check corrections) land here unsaved. */
   function improve() {
+    // Also reached from the accuracy check's button, which isn't disabled while a call runs: one paid call at a time.
+    if (pending || asking) return;
     if (changed && !window.confirm("Replace your unsaved edits with Claude's proposal? (Save them first to keep them.)")) return;
     setNote(null);
     setAsking(true);
@@ -46,6 +63,7 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
       if (r.ok) {
         setDraft({ ...r.codebook, competitors: r.codebook.competitors ?? [], touchpoints: r.codebook.touchpoints ?? [], productNotes: r.codebook.productNotes ?? "" });
         setOpen(true);
+        setEditing(true);
       }
     });
   }
@@ -89,23 +107,17 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
   }
 
   return (
-    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="rounded-lg border border-border px-4 py-3">
+    <details ref={box} open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="rounded-lg border border-border px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">
-        Themes, stages, user types and competitors <span className="font-normal text-muted">· version {version}, drafted by Claude from a sample. Edit if something is missing or off.</span>
+        What Jev looks for <span className="font-normal text-muted">· drafted by Claude from the posts, nothing needed from you · version {version}</span>
       </summary>
       <div className="mt-4 flex flex-col gap-5">
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2 text-sm">
-          <button type="button" disabled={pending} onClick={improve} className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50">
-            {asking ? "Asking Claude…" : "Improve with Claude"}
-          </button>
-          <span className="text-xs text-muted">
-            Sharper definitions with “counts when / not when” and real examples, fixing any mistakes from “Check accuracy”. A few cents; you review before saving.
-          </span>
-        </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">How the product works</span>
+          <span className="font-medium">Teach Pulse about the product</span>
           <span className="text-xs text-muted">
-            Facts Jev and Claude should know instead of guessing, e.g. “Printheads are installed during setup and can be replaced later if damaged.”
+            The more Pulse knows about how the product works, the more accurately Jev and Claude read posts. Add facts from manuals, setup guides or
+            the support site, e.g. “Printheads are installed during setup and can be replaced later if damaged.” Uploading manuals and video links
+            comes later.
           </span>
           <textarea
             value={draft.productNotes}
@@ -115,73 +127,122 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
             className={`${input} min-h-20`}
           />
         </label>
-        {LISTS.map((list) => (
-          <fieldset key={list} className="flex flex-col gap-2">
-            <legend className="mb-1 text-sm font-medium">{TITLES[list]}</legend>
-            {draft[list].map((c, i) => (
-              <div key={`${list}-${i}`} className="grid gap-2 border-b border-border/60 pb-2 sm:grid-cols-[12rem_minmax(0,1fr)_auto_auto]">
-                <input value={c.label} onChange={(e) => update(list, i, { label: e.target.value })} aria-label="Name" placeholder="Name" maxLength={60} className={input} />
-                <input
-                  value={c.definition}
-                  onChange={(e) => update(list, i, { definition: e.target.value })}
-                  aria-label="What a post must mention"
-                  placeholder="What a post must mention to count"
-                  maxLength={240}
-                  className={input}
-                />
-                {list === "themes" ? (
-                  <select value={(c as Theme).kind} onChange={(e) => update("themes", i, { kind: e.target.value as Theme["kind"] })} aria-label="Kind" className={input}>
-                    {KINDS.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="hidden sm:block" />
+        {editing ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2 text-sm">
+              <button type="button" disabled={pending} onClick={improve} className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50">
+                {asking ? "Asking Claude…" : "Improve with Claude"}
+              </button>
+              <span className="text-xs text-muted">
+                Sharper definitions with “counts when / not when” and real examples, fixing mistakes the accuracy check found. A few cents; you review
+                before saving.
+              </span>
+            </div>
+            {LISTS.map((list) => (
+              <fieldset key={list} className="flex flex-col gap-2">
+                <legend className="mb-1 text-sm font-medium">{TITLES[list]}</legend>
+                {draft[list].map((c, i) => (
+                  <div key={`${list}-${i}`} className="grid gap-2 border-b border-border/60 pb-2 sm:grid-cols-[12rem_minmax(0,1fr)_auto_auto]">
+                    <input value={c.label} onChange={(e) => update(list, i, { label: e.target.value })} aria-label="Name" placeholder="Name" maxLength={60} className={input} />
+                    <input
+                      value={c.definition}
+                      onChange={(e) => update(list, i, { definition: e.target.value })}
+                      aria-label="What a post must mention"
+                      placeholder="What a post must mention to count"
+                      maxLength={240}
+                      className={input}
+                    />
+                    {list === "themes" ? (
+                      <select value={(c as Theme).kind} onChange={(e) => update("themes", i, { kind: e.target.value as Theme["kind"] })} aria-label="Kind" className={input}>
+                        {KINDS.map((k) => (
+                          <option key={k} value={k}>
+                            {k}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="hidden sm:block" />
+                    )}
+                    <button type="button" onClick={() => remove(list, i)} aria-label={`Remove ${c.label}`} className="px-2 text-muted hover:text-critical">
+                      ×
+                    </button>
+                    <div className="grid gap-2 sm:col-span-4 sm:grid-cols-2 sm:pl-[12.5rem]">
+                      <input
+                        value={c.counts ?? ""}
+                        onChange={(e) => update(list, i, { counts: e.target.value })}
+                        aria-label="Counts when"
+                        placeholder="Counts when… (optional)"
+                        maxLength={240}
+                        className={`${input} text-xs`}
+                      />
+                      <input
+                        value={c.excludes ?? ""}
+                        onChange={(e) => update(list, i, { excludes: e.target.value })}
+                        aria-label="Not when"
+                        placeholder="Not when… (optional)"
+                        maxLength={240}
+                        className={`${input} text-xs`}
+                      />
+                      {c.example && <p className="text-xs text-muted italic sm:col-span-2">Example from a post: “{c.example}”</p>}
+                    </div>
+                  </div>
+                ))}
+                {draft[list].length < CODEBOOK_LIMITS[list] && (
+                  <button type="button" onClick={() => add(list)} className="self-start text-sm font-medium text-accent hover:underline">
+                    + Add
+                  </button>
                 )}
-                <button type="button" onClick={() => remove(list, i)} aria-label={`Remove ${c.label}`} className="px-2 text-muted hover:text-critical">
-                  ×
-                </button>
-                <div className="grid gap-2 sm:col-span-4 sm:grid-cols-2 sm:pl-[12.5rem]">
-                  <input
-                    value={c.counts ?? ""}
-                    onChange={(e) => update(list, i, { counts: e.target.value })}
-                    aria-label="Counts when"
-                    placeholder="Counts when… (optional)"
-                    maxLength={240}
-                    className={`${input} text-xs`}
-                  />
-                  <input
-                    value={c.excludes ?? ""}
-                    onChange={(e) => update(list, i, { excludes: e.target.value })}
-                    aria-label="Not when"
-                    placeholder="Not when… (optional)"
-                    maxLength={240}
-                    className={`${input} text-xs`}
-                  />
-                  {c.example && <p className="text-xs text-muted italic sm:col-span-2">Example from a post: “{c.example}”</p>}
-                </div>
-              </div>
+              </fieldset>
             ))}
-            {draft[list].length < CODEBOOK_LIMITS[list] && (
-              <button type="button" onClick={() => add(list)} className="self-start text-sm font-medium text-accent hover:underline">
-                + Add
+          </>
+        ) : (
+          <>
+            {LISTS.filter((list) => draft[list].length > 0).map((list) => (
+              <section key={list} className="flex flex-col gap-1.5">
+                <h3 className="text-sm font-medium">{TITLES[list]}</h3>
+                <ul className="flex flex-col gap-1.5">
+                  {draft[list].map((c) => (
+                    <li key={c.key || c.label} className="text-sm">
+                      <span className="font-medium">{c.label}</span>
+                      {list === "themes" && <span className="text-xs text-muted"> · {(c as Theme).kind}</span>}
+                      <span className="text-muted"> · {c.definition}</span>
+                      {(c.counts || c.excludes) && (
+                        <span className="block text-xs text-muted">
+                          {c.counts && <>Counts when: {c.counts}. </>}
+                          {c.excludes && <>Not when: {c.excludes}.</>}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+            <button type="button" onClick={() => setEditing(true)} className="self-start text-sm font-medium text-accent hover:underline">
+              Edit definitions
+            </button>
+          </>
+        )}
+        {(changed || note || editing || asking) && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
+            <button type="button" disabled={!changed || pending} onClick={save} className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+              {pending && !asking ? "Saving…" : "Save changes"}
+            </button>
+            {(changed || editing) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(initial);
+                  setEditing(false);
+                }}
+                className="text-sm text-muted underline"
+              >
+                {changed ? "Undo changes" : "Close editing"}
               </button>
             )}
-          </fieldset>
-        ))}
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
-          <button type="button" disabled={!changed || pending} onClick={save} className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            {pending ? "Saving…" : "Save changes"}
-          </button>
-          {changed && (
-            <button type="button" onClick={() => setDraft(initial)} className="text-sm text-muted underline">
-              Undo changes
-            </button>
-          )}
-          {note && <span className={`text-sm ${note.ok ? "text-muted" : "text-critical"}`}>{note.text}</span>}
-        </div>
+            {asking && <span className="text-sm text-muted">Claude is improving the definitions…</span>}
+            {note && <span className={`text-sm ${note.ok ? "text-muted" : "text-critical"}`}>{note.text}</span>}
+          </div>
+        )}
       </div>
     </details>
   );

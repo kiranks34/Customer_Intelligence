@@ -129,6 +129,14 @@ describe("reddit via scrapecreators", () => {
     const [c] = flattenComments([{ id: "a", body: "hi", replies: "" }], undefined);
     expect(c.parentSourceId).toBeUndefined();
   });
+  it("keeps which comment a reply answers, not for top-level comments", () => {
+    const [top, reply] = flattenComments(
+      [{ id: "a", body: "Canon is better", parent_id: "t3_x", replies: { items: [{ id: "b", body: "I print a lot", parent_id: "t1_a" }] } }],
+      "t3_x",
+    );
+    expect(top.engagement).not.toHaveProperty("replyTo");
+    expect(reply.engagement).toMatchObject({ replyTo: "t1_a" });
+  });
   it("maps deleted accounts to no author", () => {
     const [c] = flattenComments([{ id: "a", body: "Same here", author: "[deleted]" }], "t3_x");
     expect(c.author).toBeNull();

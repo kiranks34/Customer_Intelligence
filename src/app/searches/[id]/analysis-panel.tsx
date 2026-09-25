@@ -9,7 +9,7 @@ import type { Codebook } from "@/lib/codebook";
 
 import { advanceAnalysisAction, resumeAnalysisAction, reviewAction, startAnalysisAction } from "../analysis-actions";
 import type { ActionState } from "../actions";
-import { CodebookEditor } from "./codebook-editor";
+import { CodebookEditor, type EditorHandle } from "./codebook-editor";
 import { SpotCheck } from "./spot-check";
 
 const isState = (r: AnalysisState | ActionState): r is AnalysisState => "pending" in r;
@@ -30,19 +30,22 @@ interface Props {
   check: { items: CheckItem[]; accuracy: Accuracy } | null;
   /** Collection is finished, so the set of posts is stable. */
   ready: boolean;
+  /** The Claude model in use, and whether it comes from the PULSE_CLAUDE_MODEL setting (Vercel hides the value). */
+  claude: { model: string; fromSetting: boolean };
 }
 
 /**
  * Step 5 on the search page: one button to analyze, a progress bar while Jev reads, then the results (all counted
  * in SQL), the posts Jev wasn't sure about, and the codebook you can edit.
  */
-export function AnalysisPanel({ searchId, subject, initial, summary, look, codebook, check, ready }: Props) {
+export function AnalysisPanel({ searchId, subject, initial, summary, look, codebook, check, ready, claude }: Props) {
   const router = useRouter();
   const [s, setS] = useState(initial);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const stop = useRef(false);
   const looping = useRef(false);
+  const editor = useRef<EditorHandle>(null);
 
   // A run that was going when the page closed carries on when it's opened again.
   useEffect(() => {
@@ -174,9 +177,22 @@ export function AnalysisPanel({ searchId, subject, initial, summary, look, codeb
       {summary && <Results summary={summary} subject={subject} totalPosts={s.totalPosts} />}
       {summary && look.length > 0 && <NeedsLook searchId={searchId} version={summary.version} posts={look} total={summary.relevance.needsLook} />}
       {summary && check && check.items.length > 0 && (
-        <SpotCheck searchId={searchId} version={summary.version} codebook={summary.codebook} items={check.items} accuracy={check.accuracy} />
+        <SpotCheck
+          searchId={searchId}
+          version={summary.version}
+          codebook={summary.codebook}
+          items={check.items}
+          accuracy={check.accuracy}
+          claudeModel={claude.model}
+          onImprove={() => editor.current?.improve()}
+        />
       )}
-      {codebook && <CodebookEditor key={codebook.version} searchId={searchId} codebook={codebook.codebook} version={codebook.version} />}
+      {codebook && <CodebookEditor key={codebook.version} searchId={searchId} codebook={codebook.codebook} version={codebook.version} handle={editor} />}
+      <p className="text-xs text-muted">
+        Jev reads every post. Claude ({claude.model}
+        {claude.fromSetting ? ", from your PULSE_CLAUDE_MODEL setting" : ", the default; set PULSE_CLAUDE_MODEL to change it"}) drafts the definitions and
+        runs the auto-check.
+      </p>
     </section>
   );
 }
@@ -529,6 +545,7 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
           <li key={p.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 text-sm">
               {p.thread && <p className="mb-1 text-xs text-muted">Under: “{p.thread}”</p>}
+              {p.replyingTo && <p className="mb-1 line-clamp-2 border-l-2 border-border pl-2 text-xs text-muted">Replying to: “{p.replyingTo}”</p>}
               {p.title && <p className="font-medium break-words">{p.title}</p>}
               <p className="line-clamp-3 break-words">{p.text}</p>
               <p className="mt-1 text-xs text-muted">
