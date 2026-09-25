@@ -6,13 +6,13 @@ We move on only if the gates pass.
 ## Phase 0: Plan ← we are here
 - [x] Goal alignment
 - [x] PRD, architecture, Jev role, evaluation, design (this folder)
-- [ ] Your review of these docs
+- [x] Your review of these docs (PR #1 merged)
 - [x] First search: HP Smart Tank printers
 - [x] Phase 1 scope: North America only. Filters family → series. Price approach (DECISIONS D17–D20)
 
 ## Phase 1: Feasibility, "does it work on a few hundred posts?"
 Rough web app, not polished. Proposed scope: **HP Smart Tank, North America**.
-1. Project setup: Next.js on Vercel Hobby, Postgres, passcode, env vars, cost meter
+1. ✅ Project setup: Next.js on Vercel Hobby, Postgres schema, passcode, env vars, cost meter, CI
 2. Connectors: YouTube + Reddit (free) + Amazon.com via Apify (free credit)
 3. Search planner (Claude) with an editable plan
 4. Product catalog from Amazon listings (Claude proposes, you edit), with price observations

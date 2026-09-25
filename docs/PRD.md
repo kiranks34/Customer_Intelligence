@@ -151,8 +151,9 @@ by source (ARCHITECTURE.md §5).
    not counted until read.
 3. **Bases don't move silently.** A report is a frozen snapshot with a
    version. If the codebook or the data changes, the report says so.
-4. **Deduplicate by text.** The same review appears across product variants
-   and retailers.
+4. **Deduplicate by author + text.** The same review appears across product
+   variants and retailers. Different people writing the same short text stay
+   separate.
 5. **Keys live in the environment.** Never in code, logs or the database.
 6. **Public data only.** Author handles are pseudonymized. We never try to
    identify or contact people.
