@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, isCovered, mergeModel, treeLimitError, modelFromMention, normalize, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
+import { cleanTree, compileMatcher, familyKey, familyTerms, findMentions, flatten, isCovered, looseFamilyKey, mergeModel, treeLimitError, modelFromMention, normalize, treeFromDraft, type FlatNode, type TreeNode } from "./catalog";
 
 describe("familyKey and familyTerms", () => {
   it("gives searches of one family the same key", () => {
@@ -147,4 +147,48 @@ describe("cleanTree duplicates and limits", () => {
     expect(treeLimitError(fam([series("Big", many)]))).toMatch(/more than 30 models/);
     expect(treeLimitError(fam([series("Ok", many.slice(0, 30))]))).toBeNull();
   });
+});
+
+describe("how people type model names", () => {
+  const nodes = flatten({
+    ...tree,
+    children: [...tree.children, { id: 8, level: "series", name: "Smart Tank 700 series", aliases: [], verified: true, children: [{ id: 9, level: "model", name: "Smart Tank 720", aliases: ["720"], verified: true, children: [] }] }],
+  });
+  const match = compileMatcher(nodes);
+  it("ignores case and spaces, and accepts the shared letter once", () => {
+    expect(match("SMART TANK 720 is great")).toEqual([9]);
+    expect(match("my smarttank 720")).toEqual([9]);
+    expect(match("Smartank 720 wifi")).toEqual([9]);
+    expect(match("SmartTank7301 jams")).toEqual([3]);
+    expect(match("I like my Smartank")).toEqual([1]);
+  });
+  it("accepts tank, ink tank and inktank before a model number", () => {
+    expect(match("tank 720 prints fine")).toEqual([9]);
+    expect(match("Ink Tank 720 setup")).toEqual([9]);
+    expect(match("inktank 720")).toEqual([9]);
+    expect(match("hp tank 580 ink")).toEqual([6]);
+  });
+  it("never claims numbers that aren't models in the catalog, or bare short numbers", () => {
+    expect(match("Ink Tank 415 is a different line")).toEqual([]);
+    expect(match("printed 720 pages")).toEqual([]);
+  });
+  it("findMentions counts only the family's own name, however it is typed", () => {
+    expect(findMentions(["HP SmartTank 999", "my Smartank 999 jams", "smart tank 999", "ink tank 415", "the tank 210 leaked"], ["smart tank"])).toEqual([
+      { text: "smart tank 999", posts: 3 },
+    ]);
+  });
+});
+
+it("numbers shared with another product line only count after this family's own name", () => {
+  const nodes = flatten(tree);
+  const match = compileMatcher(nodes, { sharedNumbers: ["580"] });
+  expect(match("ink tank 580")).toEqual([]);
+  expect(match("tank 580")).toEqual([]);
+  expect(match("SmartTank 580")).toEqual([6]);
+  expect(compileMatcher(nodes)("ink tank 580")).toEqual([6]);
+});
+
+it("looseFamilyKey treats brand, spacing and doubled letters as the same family", () => {
+  for (const k of ["hp smart tank", "smart tank", "HP SmartTank printers", "smartank"]) expect(looseFamilyKey(k)).toBe("smartank");
+  expect(looseFamilyKey("hp ink tank")).not.toBe(looseFamilyKey("hp smart tank"));
 });

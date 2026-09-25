@@ -7,7 +7,8 @@
  */
 import { z } from "zod";
 
-export const CATALOG_LIMITS = { series: 15, modelsPerSeries: 30, aliases: 12, name: 80 } as const;
+// HP lists 27 Smart Tank series (up to 15 models each), so the limits leave room for a family of that size.
+export const CATALOG_LIMITS = { series: 40, modelsPerSeries: 30, aliases: 12, name: 80 } as const;
 
 /** Brands dropped when turning a family name into the words people use for it ("HP Smart Tank" → "smart tank"). */
 const BRANDS = ["hp", "epson", "canon", "brother", "xerox", "lexmark", "kodak", "samsung"];
@@ -33,6 +34,15 @@ export function familyKey(subject: string): string {
     .join(" ");
 }
 
+/**
+ * A key compared loosely: without brand words, spaces or doubled letters, so "HP Smart Tank", "smart tank",
+ * "SmartTank" and "smartank" are the same family.
+ */
+export function looseFamilyKey(key: string): string {
+  const words = familyKey(key).split(" ").filter(Boolean);
+  return (BRANDS.includes(words[0]) ? words.slice(1) : words).join("").replace(/(\p{L})\1+/gu, "$1");
+}
+
 /** The words people use for a family without its brand: "hp smart tank" → "smart tank". */
 export function familyTerms(names: string[]): string[] {
   const out = new Set<string>();
@@ -46,7 +56,32 @@ export function familyTerms(names: string[]): string[] {
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** A family term matched with or without spaces: "smart tank" also finds "smarttank". */
-const termPattern = (t: string) => t.split(" ").map(escape).join("\\s*");
+/**
+ * A family term matched however people type it: any case, with or without spaces, and with the shared letter
+ * written once: "smart tank" also finds "SmartTank", "smarttank" and "smartank".
+ */
+function termPattern(t: string): string {
+  const words = t.split(" ").filter(Boolean);
+  let out = escape(words[0] ?? "");
+  for (let i = 1; i < words.length; i++) {
+    const prev = words[i - 1];
+    const w = words[i];
+    out += prev.at(-1) === w[0] ? `\\s*${escape(w[0])}?${escape(w.slice(1))}` : `\\s*${escape(w)}`;
+  }
+  return out;
+}
+
+/**
+ * What may come right before a model number: a family term ("smart tank") or any form ending in the family's last
+ * word, with one optional word in front ("tank", "ink tank", "inktank", "hp tank"). Numbers alone are too common
+ * to match, so this is how "580" becomes Smart Tank 580 but "580 pages" stays nothing. It only ever matches
+ * numbers that are models in the catalog (compileMatcher), so another family's "Ink Tank 415" is not claimed.
+ */
+function numberPrefix(terms: string[], loose = true): string {
+  const last = [...new Set(terms.map((t) => t.split(" ").at(-1)!).filter(Boolean))];
+  const looseRe = last.length ? `(?:\\p{L}+\\s+)?\\p{L}*(?:${last.map(escape).join("|")})` : null;
+  return [...terms.map(termPattern), ...(loose && looseRe ? [looseRe] : [])].join("|");
+}
 
 export interface Mention {
   /** e.g. "smart tank 7301" */
@@ -62,13 +97,16 @@ export interface Mention {
  */
 export function findMentions(texts: string[], terms: string[], limit = 40): Mention[] {
   if (terms.length === 0) return [];
-  const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])(${terms.map(termPattern).join("|")})\\s*(plus\\s*)?(\\d{3,4}[a-z]{0,2})(?![\\p{L}\\p{N}])`, "gu");
+  // Only the family's own name counts here ("Smart Tank", "SmartTank", "smartank"). The looser forms ("tank",
+  // "ink tank") are only trusted for numbers already in the catalog (compileMatcher); here they would suggest
+  // other product lines or phrases like "the tank 210".
+  const strict = terms.map((t) => ({ t, re: new RegExp(`^(?:${termPattern(t)})$`, "u") }));
+  const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])(${numberPrefix(terms, false)})\\s*(plus\\s*)?(\\d{3,4}[a-z]{0,2})(?![\\p{L}\\p{N}])`, "gu");
   const counts = new Map<string, number>();
   for (const t of texts) {
     const seen = new Set<string>();
     for (const m of normalize(t).matchAll(re)) {
-      const term = m[1].replace(/\s+/g, "");
-      const canonical = terms.find((x) => x.replace(/\s+/g, "") === term) ?? m[1];
+      const canonical = strict.find((x) => x.re.test(m[1]))?.t ?? m[1];
       seen.add(`${canonical}${m[2] ? " plus" : ""} ${m[3]}`);
     }
     for (const k of seen) counts.set(k, (counts.get(k) ?? 0) + 1);
@@ -218,10 +256,13 @@ const needsFamilyWord = (alias: string) => /^\d{1,3}[a-z]{0,2}$/.test(alias) || 
  * Matching is whole-word and ignores case and dashes. Short numbers ("580") only count right after a family word
  * ("Smart Tank 580"); longer ones ("7301") count on their own.
  */
-export function compileMatcher(nodes: FlatNode[]): (text: string) => number[] {
+export function compileMatcher(nodes: FlatNode[], opts: { sharedNumbers?: string[] } = {}): (text: string) => number[] {
   const family = nodes.find((n) => n.level === "family");
   const terms = family ? familyTerms([family.name, ...family.aliases]) : [];
-  const termsRe = terms.map(termPattern).join("|");
+  const termsRe = terms.length ? numberPrefix(terms) : "";
+  // Numbers another product line also uses (e.g. an "Ink Tank" model) only count after this family's own name.
+  const strictRe = terms.length ? numberPrefix(terms, false) : "";
+  const shared = new Set((opts.sharedNumbers ?? []).map(normalize));
   const parent = new Map(nodes.map((n) => [n.id, n.parentId]));
 
   const rules = nodes.map((n) => {
@@ -230,8 +271,12 @@ export function compileMatcher(nodes: FlatNode[]): (text: string) => number[] {
       .filter(Boolean)
       .map((a) => {
         const body = a.split(" ").map(escape).join(" ");
-        if (needsFamilyWord(a)) return termsRe ? `(?:${termsRe})\\s*(?:plus\\s*)?${body}` : null;
-        return body;
+        const prefixRe = shared.has(a) ? strictRe : termsRe;
+        const prefixed = prefixRe ? `(?:${prefixRe})\\s*(?:plus\\s*)?${body}` : null;
+        if (shared.has(a)) return prefixed;
+        if (needsFamilyWord(a)) return prefixed;
+        // Multi-word names ("Smart Tank 7301") also match typed without spaces or with the shared letter once.
+        return a.includes(" ") ? termPattern(a) : body;
       })
       .filter((p): p is string => p !== null);
     return { id: n.id, re: patterns.length ? new RegExp(`(?:^|[^\\p{L}\\p{N}])(?:${patterns.join("|")})(?![\\p{L}\\p{N}])`, "u") : null };

@@ -3,10 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
+import type { Source } from "@/lib/catalog-reference";
+
+type ReferenceSource = Source & { page: string | null };
 import { CATALOG_LIMITS, mergeModel, modelFromMention, normalize, type Mention, type ModelPath, type TreeNode } from "@/lib/catalog";
 
 import { ChipField } from "../../chip-field";
-import { saveCatalogAction } from "../actions";
+import { applyReferenceAction, saveCatalogAction } from "../actions";
 
 interface Props {
   catalogId: number;
@@ -16,6 +19,15 @@ interface Props {
   counts: Record<number, number>;
   posts: number;
   uncovered: Mention[];
+  /** The family's verified reference, if one exists: sources and notes per node (by normalized name). */
+  reference: ReferenceInfo | null;
+}
+
+export interface ReferenceInfo {
+  checkedAt: string;
+  sources: Record<string, ReferenceSource[]>;
+  notes: Record<string, string>;
+  unverified: { name: string; reason: string }[];
 }
 
 const input = "rounded-md border border-border bg-background px-2 py-1.5 text-sm";
@@ -24,7 +36,7 @@ const input = "rounded-md border border-border bg-background px-2 py-1.5 text-sm
  * Review screen for a product catalog: the family → series → model tree with how many posts name each one.
  * Everything is edited in place; Save re-links posts to the models, Approve also marks the catalog reviewed.
  */
-export function CatalogEditor({ catalogId, tree, status, counts, posts, uncovered }: Props) {
+export function CatalogEditor({ catalogId, tree, status, counts, posts, uncovered, reference }: Props) {
   const router = useRouter();
   const [draft, setDraft] = useState(tree);
   const [pending, startTransition] = useTransition();
@@ -63,6 +75,16 @@ export function CatalogEditor({ catalogId, tree, status, counts, posts, uncovere
   const addSeries = () =>
     setDraft((d) => ({ ...d, children: [...d.children, { id: null, level: "series", name: "", aliases: [], verified: true, children: [] }] }));
 
+  function updateFromReference() {
+    if (dirty && !window.confirm("Replace your unsaved edits with HP's verified list?")) return;
+    setNote(null);
+    startTransition(async () => {
+      const r = await applyReferenceAction(catalogId);
+      setNote({ ok: r.ok, text: r.message });
+      if (r.ok) router.refresh();
+    });
+  }
+
   function save(approve: boolean) {
     setNote(null);
     startTransition(async () => {
@@ -77,6 +99,32 @@ export function CatalogEditor({ catalogId, tree, status, counts, posts, uncovere
 
   return (
     <div className="flex flex-col gap-6">
+      {reference && (
+        <section aria-labelledby="ref-heading" className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 p-5">
+          <h2 id="ref-heading" className="text-lg font-medium">
+            Verified list available
+          </h2>
+          <p className="text-sm text-muted">
+            Every series and model in it was checked on HP&apos;s or a major retailer&apos;s own pages on {reference.checkedAt}, with a source link for each.
+            Updating keeps your post links for the same models and removes anything that couldn&apos;t be verified.
+          </p>
+          <button type="button" onClick={updateFromReference} disabled={pending} className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+            {pending ? "Updating…" : "Update from verified sources"}
+          </button>
+          {reference.unverified.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted">{reference.unverified.length} names were left out because they couldn&apos;t be verified</summary>
+              <ul className="mt-2 list-disc pl-5 text-muted">
+                {reference.unverified.map((u) => (
+                  <li key={u.name}>
+                    {u.name}: {u.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
       {top.length > 0 && (
         <section aria-labelledby="top-heading" className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5">
           <h2 id="top-heading" className="text-lg font-medium">
@@ -127,6 +175,7 @@ export function CatalogEditor({ catalogId, tree, status, counts, posts, uncovere
                 </button>
               </div>
               <ChipField label="Series other names" hint="e.g. 7000 series" values={s.aliases} onChange={(aliases) => setSeries(si, { aliases })} />
+              <SourceLine sources={reference?.sources[normalize(s.name)]} />
 
               <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
                 {s.children.map((m, mi) => {
@@ -159,6 +208,7 @@ export function CatalogEditor({ catalogId, tree, status, counts, posts, uncovere
                         </button>
                       </div>
                       <ChipField label="How people write it" hint="e.g. 7301, ST 7301" values={m.aliases} onChange={(aliases) => setModel(si, mi, { aliases })} />
+                      <SourceLine sources={reference?.sources[normalize(m.name)]} note={reference?.notes[normalize(m.name)]} />
                     </li>
                   );
                 })}
@@ -246,5 +296,28 @@ function Verified({ value, onChange }: { value: boolean; onChange: (v: boolean) 
     >
       {value ? "verified" : "unverified"}
     </button>
+  );
+}
+
+/** Where a node was verified: links to the pages, with the retailer/region note when there is one. */
+function SourceLine({ sources, note }: { sources?: ReferenceSource[]; note?: string }) {
+  if (!sources?.length) return null;
+  const host = (url: string) => new URL(url).hostname.replace(/^www\./, "");
+  const pages = [...new Set(sources.map((src) => src.page).filter((p): p is string => p !== null))];
+  return (
+    <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+      <span>Verified:</span>
+      {pages.map((page) => (
+        <a key={page} href={page} target="_blank" rel="noreferrer noopener" className="underline hover:text-accent">
+          HP support page ↗
+        </a>
+      ))}
+      {sources.map((src) => (
+        <a key={src.url} href={src.url} target="_blank" rel="noreferrer noopener" title={`“${src.quote}”`} className="underline hover:text-accent">
+          {src.page ? "HP data" : host(src.url)} ↗
+        </a>
+      ))}
+      {note && <span>· {note}</span>}
+    </p>
   );
 }
