@@ -10,7 +10,7 @@ import type { Plan } from "@/lib/plan";
 import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
 import { scopeFor, type Scope } from "@/lib/catalog";
-import { getCatalog } from "@/lib/catalogs";
+import { ensureCatalogForSearch, getCatalog } from "@/lib/catalogs";
 import { createSearch, hideSearches, resumeWaiting, savePlanVersion } from "@/lib/searches";
 
 export type { ActionState };
@@ -45,8 +45,10 @@ export async function createSearchAction(_prev: ActionState | null, form: FormDa
   const { plan, cost } = drafted;
   let id: number | undefined;
   try {
-    // A picked product's search uses its family's catalog straight away (saved in the same statement).
+    // A picked product's search uses its family's catalog straight away (saved in the same statement); a typed
+    // topic of a known family (e.g. "hp smart tank printers") is linked to that family's catalog right after.
     id = await createSearch(query, plan, scope?.catalogId ?? null);
+    if (!scope) await ensureCatalogForSearch(id, plan.subject).catch(() => null);
   } catch (err) {
     return { ok: false, message: `Couldn't save the search: ${errorText(err)}` };
   } finally {

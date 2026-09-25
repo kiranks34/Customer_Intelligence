@@ -5,10 +5,12 @@ import { and, asc, count, countDistinct, eq, inArray, isNull, sql } from "drizzl
 import { requireDb } from "@/db/client";
 import { catalogNodes, catalogs, postProducts, posts, searches } from "@/db/schema";
 
+import { isListed, listedNames, treeFromReference } from "./catalog-reference";
 import { referenceFor } from "./catalog-references";
 import {
   cleanTree,
   compileMatcher,
+  familyKey,
   findMentions,
   familyTerms,
   flatten,
@@ -133,9 +135,6 @@ export async function saveTree(catalogId: number, tree: TreeNode): Promise<void>
   ]);
 }
 
-export async function approveCatalog(catalogId: number): Promise<void> {
-  await requireDb().update(catalogs).set({ status: "approved", approvedAt: sql`now()` }).where(eq(catalogs.id, catalogId));
-}
 
 export async function linkSearch(searchId: number, catalogId: number): Promise<void> {
   await requireDb().update(searches).set({ catalogId }).where(eq(searches.id, searchId));
@@ -291,14 +290,17 @@ export async function listFamilies(): Promise<{ id: number; name: string }[]> {
 export async function addNode(catalogId: number, parentId: number, level: "series" | "model", name: string, aliases: string[]): Promise<number> {
   const [{ id }] = await requireDb()
     .insert(catalogNodes)
-    .values({ catalogId, parentId, level, name, aliases, verified: false, sort: 1000 })
+    .values({ catalogId, parentId, level, name, aliases, verified: true, sort: 1000, evidence: { source: "manual" } })
     .returning({ id: catalogNodes.id });
   return id;
 }
 
 export interface ProposalEvidence {
-  /** Where it came from: model mentions in collected posts, or the family's verified reference list. */
-  source: "posts" | "reference";
+  /**
+   * Where it came from: model mentions in collected posts, the family's verified reference list, added by hand, or
+   * confirmed by you with Keep.
+   */
+  source: "posts" | "reference" | "manual" | "kept";
   posts?: number;
   examples?: string[];
   url?: string;
@@ -326,7 +328,7 @@ export async function listProposals(catalogId: number): Promise<Proposal[]> {
 const MIN_POSTS = 2;
 
 /**
- * "Update product catalog": proposes what the catalog is missing, for your approval.
+ * "Check for new models" (and each finished collection): suggests what the catalog is missing, to add or skip.
  * 1. Series and models in the family's verified reference list that aren't in the catalog.
  * 2. Model numbers written with the family's name in 2+ collected posts ("Smart Tank 7315") that no model covers,
  *    with the number of posts, two short examples and a guessed series.
@@ -417,7 +419,21 @@ export async function findProposals(catalogId: number): Promise<{ reference: num
   }
   if (fromMentions.length) await db.insert(catalogNodes).values(fromMentions);
   fromPosts = fromMentions.length;
+  // Two checks at once (a collection finishing while you click "Check for new models") can both add the same
+  // product: keep the first and drop later copies, moving any models waiting under a copied series to the first.
+  if (fromReference + fromPosts > 0) await dropDuplicateProposals(catalogId);
   return { reference: fromReference, posts: fromPosts };
+}
+
+async function dropDuplicateProposals(catalogId: number): Promise<void> {
+  const db = requireDb();
+  const dupes = sql`select a.id as dupe, min(b.id) as keep from catalog_nodes a join catalog_nodes b
+    on b.catalog_id = a.catalog_id and b.level = a.level and lower(b.name) = lower(a.name) and b.id < a.id
+    where a.catalog_id = ${catalogId} and a.proposed_at is not null and a.retired_at is null group by a.id`;
+  await db.batch([
+    db.execute(sql`update catalog_nodes c set parent_id = d.keep from (${dupes}) d where c.catalog_id = ${catalogId} and c.parent_id = d.dupe`),
+    db.execute(sql`delete from catalog_nodes c using (${dupes}) d where c.id = d.dupe`),
+  ]);
 }
 
 /**
@@ -428,9 +444,10 @@ export async function approveProposal(catalogId: number, nodeId: number, name: s
   const db = requireDb();
   const inCatalog = eq(catalogNodes.catalogId, catalogId);
   await db.batch([
-    db.update(catalogNodes).set({ name, parentId, proposedAt: null }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
+    // Adding it is your confirmation, so it counts as verified from here on.
+    db.update(catalogNodes).set({ name, parentId, proposedAt: null, verified: true }).where(and(inCatalog, eq(catalogNodes.id, nodeId))),
     ...(childIds.length
-      ? [db.update(catalogNodes).set({ proposedAt: null }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), inArray(catalogNodes.id, childIds), isNull(catalogNodes.retiredAt)))]
+      ? [db.update(catalogNodes).set({ proposedAt: null, verified: true }).where(and(inCatalog, eq(catalogNodes.parentId, nodeId), inArray(catalogNodes.id, childIds), isNull(catalogNodes.retiredAt)))]
       : []),
   ]);
 }
@@ -455,4 +472,78 @@ export async function proposalNode(catalogId: number, nodeId: number) {
     .from(catalogNodes)
     .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.id, nodeId), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt)));
   return n ?? null;
+}
+
+/**
+ * Makes sure a search uses its family's catalog: links it to the existing catalog for its subject (spelling and
+ * brand ignored), or creates the catalog from the family's verified list when there is one. Topics outside any
+ * known family (e.g. "Gen Z printers") get no catalog. Returns the catalog id, or null.
+ */
+export async function ensureCatalogForSearch(searchId: number, subject: string): Promise<number | null> {
+  const db = requireDb();
+  const [s] = await db.select({ catalogId: searches.catalogId }).from(searches).where(eq(searches.id, searchId));
+  if (!s) return null;
+  if (s.catalogId) return s.catalogId;
+  const key = familyKey(subject);
+  if (!key) return null;
+  const reference = referenceFor(key);
+  let catalog = await catalogByKey(reference?.key ?? key);
+  if (!catalog && reference) {
+    try {
+      await createCatalog(reference.key, treeFromReference(reference));
+    } catch {
+      // Created by another request a moment ago (unique key): use that one.
+    }
+    catalog = await catalogByKey(reference.key);
+  }
+  if (!catalog) return null;
+  await linkSearch(searchId, catalog.id);
+  await matchSearch(searchId, catalog.id);
+  return catalog.id;
+}
+
+export interface Unlisted {
+  id: number;
+  level: string;
+  name: string;
+  /** A series that holds models from the verified list: Remove would hide those too, so it's refused. */
+  holdsListed: boolean;
+}
+
+/**
+ * Products in a catalog that its family's verified list doesn't have and that you haven't added, approved or kept
+ * yourself (those carry evidence; old AI-draft nodes don't). Compared with the list itself, not the stored `verified` flag, which old drafts set
+ * by guessing. Empty for a family without a verified list.
+ */
+export async function unverifiedNodes(catalogId: number): Promise<Unlisted[]> {
+  const found = await getCatalog(catalogId);
+  const ref = found ? referenceFor(found.catalog.key) : null;
+  if (!found || !ref) return [];
+  const listed = listedNames(ref);
+  const rows = await requireDb()
+    .select({ id: catalogNodes.id, level: catalogNodes.level, name: catalogNodes.name, aliases: catalogNodes.aliases, parentId: catalogNodes.parentId, evidence: catalogNodes.evidence })
+    .from(catalogNodes)
+    .where(and(eq(catalogNodes.catalogId, catalogId), isNull(catalogNodes.proposedAt), isNull(catalogNodes.retiredAt), sql`${catalogNodes.level} <> 'family'`))
+    .orderBy(asc(catalogNodes.id));
+  const holdsListed = new Set(rows.filter((r) => r.level === "model" && isListed(listed, r.name, r.aliases)).map((r) => r.parentId));
+  return rows
+    .filter((r) => !isListed(listed, r.name, r.aliases) && r.evidence === null)
+    .map((r) => ({ id: r.id, level: r.level, name: r.name, holdsListed: r.level === "series" && holdsListed.has(r.id) }));
+}
+
+/** "Keep": you confirm a product that isn't in the verified list, so it isn't asked about again. */
+export async function markVerified(catalogId: number, nodeId: number): Promise<void> {
+  await requireDb()
+    .update(catalogNodes)
+    .set({ verified: true, evidence: { source: "kept" } })
+    .where(and(eq(catalogNodes.catalogId, catalogId), eq(catalogNodes.id, nodeId)));
+}
+
+/** How many new products are waiting for review in a catalog (for the search page notice). */
+export async function waitingCount(catalogId: number): Promise<number> {
+  const [r] = await requireDb()
+    .select({ n: count() })
+    .from(catalogNodes)
+    .where(and(eq(catalogNodes.catalogId, catalogId), sql`${catalogNodes.proposedAt} is not null`, isNull(catalogNodes.retiredAt)));
+  return r?.n ?? 0;
 }

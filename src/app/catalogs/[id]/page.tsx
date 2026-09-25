@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { normalize } from "@/lib/catalog";
 import { modelNote, sourcesByName } from "@/lib/catalog-reference";
 import { referenceFor } from "@/lib/catalog-references";
-import { catalogStats, getCatalog, listFamilies, listProposals } from "@/lib/catalogs";
+import { catalogStats, getCatalog, listFamilies, listProposals, unverifiedNodes } from "@/lib/catalogs";
 
 import { CatalogBrowser } from "./catalog-browser";
 
@@ -17,9 +17,9 @@ export default async function CatalogPage({ params }: PageProps<"/catalogs/[id]"
   const found = await getCatalog(id);
   if (!found) notFound();
   const { catalog, tree } = found;
-  const [stats, families, proposals] = await Promise.all([catalogStats(id), listFamilies(), listProposals(id)]);
-  const pct = stats.posts ? Math.round((stats.postsNamingProduct / stats.posts) * 100) : 0;
   const ref = referenceFor(catalog.key);
+  const [stats, families, proposals, unverified] = await Promise.all([catalogStats(id), listFamilies(), listProposals(id), unverifiedNodes(id)]);
+  const pct = stats.posts ? Math.round((stats.postsNamingProduct / stats.posts) * 100) : 0;
   const reference = ref
     ? {
         checkedAt: ref.checkedAt,
@@ -40,7 +40,9 @@ export default async function CatalogPage({ params }: PageProps<"/catalogs/[id]"
           {stats.searches === 1 ? "search" : "searches"}.
         </p>
       </header>
-      <CatalogBrowser key={catalog.updatedAt.toISOString()} catalogId={id} tree={tree} status={catalog.status} byNode={stats.byNode} bySeries={stats.bySeries} reference={reference} families={families} proposals={proposals} />
+      <CatalogBrowser key={catalog.updatedAt.toISOString()} catalogId={id} tree={tree} byNode={stats.byNode} bySeries={stats.bySeries} reference={reference} families={families} proposals={proposals}
+        unverified={unverified}
+      />
     </main>
   );
 }

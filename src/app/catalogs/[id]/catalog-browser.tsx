@@ -5,16 +5,16 @@ import { useMemo, useState, useTransition, type KeyboardEvent, type ReactNode } 
 
 import { automaticVariants, type TreeNode } from "@/lib/catalog";
 import type { Source } from "@/lib/catalog-reference";
-import type { Proposal } from "@/lib/catalogs";
+import type { Proposal, Unlisted as Unverified } from "@/lib/catalogs";
 
 import {
   addFamilyAction,
   addNameAction,
   addProductAction,
-  applyReferenceAction,
-  approveCatalogAction,
   approveProposalAction,
+  keepAction,
   rejectProposalAction,
+  removeUnlistedAction,
   removeNameAction,
   setRetiredAction,
   updateCatalogAction,
@@ -32,15 +32,16 @@ export interface ReferenceInfo {
 interface Props {
   catalogId: number;
   tree: TreeNode;
-  status: "draft" | "approved";
   /** Posts per node (most specific) and per series (series or any of its models), counted in SQL. */
   byNode: Record<number, number>;
   bySeries: Record<number, number>;
   reference: ReferenceInfo | null;
   /** Every family (one catalog each), for the Family picker. */
   families: { id: number; name: string }[];
-  /** Additions waiting for your approval (from "Update product catalog"). */
+  /** New products found after a collection or by "Check for new models", waiting for Add or Skip. */
   proposals: Proposal[];
+  /** Products in the catalog that HP's verified list doesn't have (e.g. from an old AI draft), waiting for Keep or Remove. */
+  unverified: Unverified[];
 }
 
 const ADD = "__add";
@@ -54,9 +55,9 @@ const numberOf = (m: TreeNode) => Number(m.aliases.find((a) => /^\d{3,4}/.test(a
 /**
  * The product catalog as three pickers (family → series → model) and one card for what's picked. Name variants
  * and merges are handled by Pulse; here you only add a name it doesn't know yet, retire what's no longer sold,
- * and approve. Every action saves straight away.
+ * and add or skip new products Pulse found. Every action saves straight away.
  */
-export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, reference, families, proposals }: Props) {
+export function CatalogBrowser({ catalogId, tree, byNode, bySeries, reference, families, proposals, unverified }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -76,6 +77,7 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
   const retiredModels = (series?.children ?? []).filter((m) => m.retired);
   const model = modelId === "all" ? null : (models.find((m) => m.id === modelId) ?? null);
   const maxModel = Math.max(1, ...models.map((m) => byNode[m.id!] ?? 0));
+  const modelCount = activeSeries.reduce((n, s) => n + s.children.filter((m) => !m.retired).length, 0);
 
   function run(action: () => Promise<{ ok: boolean; message: string }>) {
     setNote(null);
@@ -88,42 +90,21 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3">
-        {status === "approved" ? (
-          <span className="rounded-full bg-accent/15 px-3 py-1 text-sm font-medium text-accent">Approved</span>
-        ) : (
-          <>
-            <span className="rounded-full bg-warning/20 px-3 py-1 text-sm font-medium">Draft</span>
-            <button type="button" disabled={pending} onClick={() => run(() => approveCatalogAction(catalogId))} className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60">
-              Approve catalog
-            </button>
-          </>
-        )}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+        <span className="font-medium text-foreground">{short(tree.name)}</span>
+        <span>
+          · {activeSeries.length} series · {modelCount} models{reference && ` · checked against HP on ${reference.checkedAt}`} ·
+        </span>
         <button
           type="button"
           disabled={pending}
           onClick={() => run(() => updateCatalogAction(catalogId))}
-          className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium hover:border-accent disabled:opacity-60"
-          title="Look for series and models the catalog is missing, in HP's verified list and in your collected posts"
+          className="underline hover:text-accent disabled:opacity-60"
+          title="Look for series and models this catalog is missing, in HP's verified list and in your collected posts"
         >
-          {pending ? "Working…" : "Update product catalog"}
+          {pending ? "Checking…" : "Check for new models"}
         </button>
-        {reference && (
-          <span className="text-sm text-muted">
-            Verified against HP&apos;s own data on {reference.checkedAt} ·{" "}
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => {
-                if (window.confirm("Replace the catalog with HP's verified list? Links from posts to the same models are kept.")) run(() => applyReferenceAction(catalogId));
-              }}
-              className="underline hover:text-accent"
-            >
-              Update from verified sources
-            </button>
-          </span>
-        )}
-      </div>
+      </p>
 
       {note && (
         <p role="status" className={`-mt-3 text-sm ${note.ok ? "text-muted" : "text-critical"}`}>
@@ -131,13 +112,16 @@ export function CatalogBrowser({ catalogId, tree, status, byNode, bySeries, refe
         </p>
       )}
 
-      {proposals.length > 0 && (
-        <Proposals
+      {(proposals.length > 0 || unverified.length > 0) && (
+        <Review
           proposals={proposals}
+          unverified={unverified}
           series={activeSeries}
           pending={pending}
-          onApprove={(p, name, seriesId) => run(() => approveProposalAction(catalogId, p.id, name, seriesId))}
-          onReject={(p) => run(() => rejectProposalAction(catalogId, p.id))}
+          onAdd={(p, name, seriesId) => run(() => approveProposalAction(catalogId, p.id, name, seriesId))}
+          onSkip={(p) => run(() => rejectProposalAction(catalogId, p.id))}
+          onKeep={(n) => run(() => keepAction(catalogId, n.id))}
+          onRemove={(n) => run(() => removeUnlistedAction(catalogId, n.id))}
         />
       )}
 
@@ -419,35 +403,71 @@ function AddForm(props: { kind: "family" | "series" | "model"; seriesName: strin
   );
 }
 
-/** Additions found by "Update product catalog", each with its evidence, waiting for approve or reject. */
-function Proposals(props: {
+/**
+ * One card for everything that needs a decision: new products Pulse found (Add or Skip) and products HP's verified
+ * list doesn't have (Keep or Remove). Nothing here is used until you add or keep it.
+ */
+function Review(props: {
   proposals: Proposal[];
+  unverified: Unverified[];
   series: TreeNode[];
   pending: boolean;
-  onApprove: (p: Proposal, name: string, seriesId: number | null) => void;
-  onReject: (p: Proposal) => void;
+  onAdd: (p: Proposal, name: string, seriesId: number | null) => void;
+  onSkip: (p: Proposal) => void;
+  onKeep: (n: Unverified) => void;
+  onRemove: (n: Unverified) => void;
 }) {
-  const proposedSeries = props.proposals.filter((p) => p.level === "series");
-  const waitingOn = new Map(proposedSeries.map((p) => [p.id, p.name]));
+  const waitingOn = new Map(props.proposals.filter((p) => p.level === "series").map((p) => [p.id, p.name]));
+  const n = props.proposals.length;
   return (
     <section aria-labelledby="review-heading" className="flex flex-col gap-3 rounded-xl border border-warning/60 bg-warning/5 p-5">
       <h2 id="review-heading" className="text-lg font-medium">
-        To review ({props.proposals.length})
+        {n > 0 ? `${n} new ${n === 1 ? "product" : "products"} found` : "Check these products"}
       </h2>
-      <p className="-mt-2 text-sm text-muted">Found by “Update product catalog”. Nothing is used until you approve it; rejected items aren&apos;t proposed again.</p>
-      <ul className="flex flex-col divide-y divide-border">
-        {props.proposals.map((p) => (
-          <ProposalRow
-            key={p.id}
-            p={p}
-            series={props.series}
-            waitingOn={p.parentId !== null ? waitingOn.get(p.parentId) : undefined}
-            pending={props.pending}
-            onApprove={props.onApprove}
-            onReject={props.onReject}
-          />
-        ))}
-      </ul>
+      {n > 0 && (
+        <>
+          <p className="-mt-2 text-sm text-muted">Add the ones that are real products. Skipped ones aren&apos;t suggested again.</p>
+          <ul className="flex flex-col divide-y divide-border">
+            {props.proposals.map((p) => (
+              <ProposalRow
+                key={p.id}
+                p={p}
+                series={props.series}
+                waitingOn={p.parentId !== null ? waitingOn.get(p.parentId) : undefined}
+                pending={props.pending}
+                onAdd={props.onAdd}
+                onSkip={props.onSkip}
+              />
+            ))}
+          </ul>
+        </>
+      )}
+      {props.unverified.length > 0 && (
+        <>
+          <h3 className="text-sm font-medium">Not in HP&apos;s verified list ({props.unverified.length})</h3>
+          <p className="-mt-2 text-sm text-muted">Keep it if you know it&apos;s real; Remove retires it (past posts stay linked).</p>
+          <ul className="flex flex-col divide-y divide-border">
+            {props.unverified.map((u) => (
+              <li key={u.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                <span className="rounded-full bg-border/60 px-2 py-0.5 text-xs">{u.level}</span>
+                <span className="flex-1">{short(u.name)}</span>
+                <button type="button" disabled={props.pending} onClick={() => props.onKeep(u)} className="rounded-md border border-border px-3 py-1 font-medium hover:border-accent disabled:opacity-50">
+                  Keep
+                </button>
+                {u.holdsListed ? (
+                  <span className="px-2 py-1 text-xs text-muted" title="It holds models from HP's verified list">
+                    holds HP models
+                  </span>
+                ) : (
+                  <button type="button" disabled={props.pending} onClick={() => props.onRemove(u)} className="px-2 py-1 text-muted underline hover:text-critical">
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
@@ -457,8 +477,8 @@ function ProposalRow(props: {
   series: TreeNode[];
   waitingOn?: string;
   pending: boolean;
-  onApprove: (p: Proposal, name: string, seriesId: number | null) => void;
-  onReject: (p: Proposal) => void;
+  onAdd: (p: Proposal, name: string, seriesId: number | null) => void;
+  onSkip: (p: Proposal) => void;
 }) {
   const { p } = props;
   const [name, setName] = useState(p.name);
@@ -471,7 +491,7 @@ function ProposalRow(props: {
         <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" className="min-w-40 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm" />
         {p.level === "model" &&
           (props.waitingOn ? (
-            <span className="text-xs text-muted">in {short(props.waitingOn)} (approve the series first)</span>
+            <span className="text-xs text-muted">in {short(props.waitingOn)} (add the series first)</span>
           ) : (
             <select
               value={seriesId}
@@ -490,13 +510,13 @@ function ProposalRow(props: {
         <button
           type="button"
           disabled={props.pending || !name.trim() || (p.level === "model" && (seriesId === "" || !!props.waitingOn))}
-          onClick={() => props.onApprove(p, name, seriesId === "" ? null : seriesId)}
+          onClick={() => props.onAdd(p, name, seriesId === "" ? null : seriesId)}
           className="rounded-md bg-accent px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
         >
-          Approve
+          Add
         </button>
-        <button type="button" disabled={props.pending} onClick={() => props.onReject(p)} className="px-2 py-1 text-sm text-muted underline hover:text-critical">
-          Reject
+        <button type="button" disabled={props.pending} onClick={() => props.onSkip(p)} className="px-2 py-1 text-sm text-muted underline hover:text-critical">
+          Skip
         </button>
       </div>
       {ev?.source === "reference" && (

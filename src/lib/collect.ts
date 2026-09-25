@@ -1,14 +1,15 @@
 import "server-only";
 
 import { and, count, desc, eq, sql } from "drizzle-orm";
+import { after } from "next/server";
 
 import * as reddit from "@/connectors/reddit";
 import { ConnectorError, type CallCost, type RawPost } from "@/connectors/types";
 import * as youtube from "@/connectors/youtube";
 import { requireDb } from "@/db/client";
-import { costEvents, jobs, plans, posts, searches } from "@/db/schema";
+import { costEvents, jobs, plans, posts } from "@/db/schema";
 
-import { matchSearch } from "./catalogs";
+import { ensureCatalogForSearch, findProposals, matchSearch } from "./catalogs";
 import { paidWorkBlockedReason, recordCost } from "./cost";
 import { toPostRow } from "./ingest";
 import { inWindow, isExcluded, redditTimeframe, roomFor, type Plan } from "./plan";
@@ -307,12 +308,19 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
   return prog;
 }
 
-/** When a run is done, link its posts to the search's product catalog (if it has one). Never fails the run. */
+/**
+ * When a run is done: link its posts to the family's catalog and look for products the catalog is missing, so the
+ * search page can say "N new models found → Review". Proposals change nothing until you add them. Never fails the run.
+ */
 async function linkToCatalog(searchId: number) {
   try {
-    const [s] = await requireDb().select({ catalogId: searches.catalogId }).from(searches).where(eq(searches.id, searchId));
-    if (s?.catalogId) await matchSearch(searchId, s.catalogId);
+    const plan = await loadPlan(searchId);
+    const catalogId = plan ? await ensureCatalogForSearch(searchId, plan.plan.subject) : null;
+    if (!catalogId) return;
+    await matchSearch(searchId, catalogId);
+    // Scanning every post in the family takes a while: do it after the response so the last step stays fast.
+    after(() => findProposals(catalogId).catch(() => undefined));
   } catch {
-    // The catalog page's Save re-links everything; a failure here only delays the counts.
+    // Opening the catalog page or "Check for new models" does the same later; a failure here only delays it.
   }
 }

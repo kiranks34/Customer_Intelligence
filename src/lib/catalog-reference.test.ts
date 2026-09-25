@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TreeNode } from "./catalog";
-import { applyReference, modelNote, readablePage, ReferenceSchema, sourcesByName, treeFromReference } from "./catalog-reference";
+import { applyReference, isListed, listedNames, modelNote, readablePage, ReferenceSchema, sourcesByName, treeFromReference } from "./catalog-reference";
 
 const src = (url: string, quote: string) => ({ url, title: "HP page", quote });
 const raw = {
@@ -108,4 +108,14 @@ it("links HP's normal support page when the evidence is its product-data endpoin
   const data = { url: "https://support.hp.com/wcc-services/productdata/version/us-en?seriesid=2100178736", title: "", quote: "" };
   expect(readablePage(data, "HP Smart Tank 7300 series")).toBe("https://support.hp.com/us-en/product/details/hp-smart-tank-7300-series/2100178736");
   expect(readablePage({ url: "https://www.hp.com/us-en/shop/pdp/x", title: "", quote: "" }, "x")).toBeNull();
+});
+
+describe("listedNames / isListed", () => {
+  it("matches by name, model number or other name, ignoring case and spacing", async () => {
+    const { referenceFor } = await import("./catalog-references");
+    const listed = listedNames(referenceFor("hp smart tank")!);
+    expect(isListed(listed, "hp smarttank 7301")).toBe(true);
+    expect(isListed(listed, "Some odd name", ["7301"])).toBe(true);
+    expect(isListed(listed, "Smart Tank 9999", ["9999"])).toBe(false);
+  });
 });
