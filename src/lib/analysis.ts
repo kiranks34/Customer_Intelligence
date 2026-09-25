@@ -1,7 +1,7 @@
 import "server-only";
 
 import { experimental_evaluate as evaluate } from "ai";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { requireDb } from "@/db/client";
 import { codebooks, decisions, jobs, posts, reviews } from "@/db/schema";
@@ -11,6 +11,7 @@ import {
   estimateTokens,
   jevUsd,
   NOT_STATED,
+  NOT_SURE,
   orderOf,
   Q,
   questionsFor,
@@ -374,6 +375,7 @@ export interface Tally {
 export interface AnalysisSummary {
   version: number;
   codebook: Codebook;
+  /** Every analyzed post falls in exactly one of these, so they add up to the posts collected. */
   relevance: { counted: number; notRelevant: number; needsLook: number; skipped: number };
   sentiment: Tally[];
   stages: Tally[];
@@ -435,19 +437,26 @@ export async function analysisSummary(searchId: number, version: number): Promis
   const relevance = relRes.rows[0] as AnalysisSummary["relevance"];
   const answers = ansRes.rows as { question: string; answer: string; counted: number; uncertain: number }[];
   const tally = (question: string, answer: string) => answers.find((a) => a.question === question && a.answer === answer) ?? { counted: 0, uncertain: 0 };
-  const list = (question: string, codes: { key: string; label: string }[]) =>
-    codes.map((c) => ({ key: c.key, label: c.label, counted: tally(question, c.key).counted, uncertain: tally(question, c.key).uncertain }));
+  /**
+   * One answer per post, so the rows add up to the posts about the subject: each option with the posts Jev was
+   * sure about, then "Not sure" for the rest (less sure answers, or none).
+   */
+  const oneOf = (question: string, codes: { key: string; label: string }[]): Tally[] => {
+    const rows = codes.map((c) => ({ key: c.key, label: c.label, counted: tally(question, c.key).counted, uncertain: 0 }));
+    const sure = rows.reduce((n, r) => n + r.counted, 0);
+    return [...rows, { key: NOT_SURE, label: "Not sure", counted: Math.max(0, relevance.counted - sure), uncertain: 0 }];
+  };
 
   const stageOrder = orderOf(codebook.stages);
+  const notStated = { key: NOT_STATED, label: "Not stated" };
+  const hasSegments = codebook.segments.length > 0;
   return {
     version,
     codebook,
     relevance,
-    sentiment: list(Q.sentiment, SENTIMENTS),
-    stages: list(Q.stage, codebook.stages).sort((a, b) => (stageOrder.get(a.key) ?? 0) - (stageOrder.get(b.key) ?? 0)),
-    segments: list(Q.segment, codebook.segments)
-      .filter((s) => s.key !== NOT_STATED)
-      .sort((a, b) => b.counted - a.counted),
+    sentiment: oneOf(Q.sentiment, SENTIMENTS),
+    stages: oneOf(Q.stage, [...codebook.stages, notStated]).sort((a, b) => (stageOrder.get(a.key) ?? 99) - (stageOrder.get(b.key) ?? 99)),
+    segments: hasSegments ? oneOf(Q.segment, [...[...codebook.segments].sort((a, b) => tally(Q.segment, b.key).counted - tally(Q.segment, a.key).counted), notStated]) : [],
     themes: codebook.themes
       .map((t) => ({ key: t.key, label: t.label, kind: t.kind, ...pick(tally(themeQuestion(t.key), "yes")) }))
       .sort((a, b) => b.counted - a.counted || b.uncertain - a.uncertain),
@@ -461,6 +470,7 @@ export interface LookPost {
   id: number;
   source: string;
   url: string | null;
+  title: string;
   text: string;
   /** Jev's leaning and how sure it was. */
   answer: string;
@@ -470,23 +480,35 @@ export interface LookPost {
 /** Posts Jev wasn't sure are about the subject (confidence under 0.8) that you haven't decided yet. */
 export async function needsLook(searchId: number, version: number, limit = 20): Promise<LookPost[]> {
   const res = await requireDb().execute(sql`
-    select p.id, p.source, p.url, p.text, d.answer, d.confidence
-    from ${decisions} d join ${posts} p on p.id = d.post_id
-    where p.search_id = ${searchId} and d.codebook_version = ${version} and d.question = ${Q.relevant}
-      and d.answer in ('yes', 'no') and d.confidence < ${COUNTED}
-      and not exists (select 1 from ${reviews} r where r.post_id = d.post_id and r.question = ${Q.relevant} and r.kind = 'review_queue')
-    order by p.id limit ${limit}`);
+    select * from (
+      -- The same author's same text (a repost or cross-post) is listed once; Keep/Drop applies to every copy.
+      select distinct on (coalesce(p.author_hash, p.id::text), md5(p.text)) p.id, p.source, p.url, p.title, p.text, d.answer, d.confidence
+      from ${decisions} d join ${posts} p on p.id = d.post_id
+      where p.search_id = ${searchId} and d.codebook_version = ${version} and d.question = ${Q.relevant}
+        and d.answer in ('yes', 'no') and d.confidence < ${COUNTED}
+        and not exists (select 1 from ${reviews} r where r.post_id = d.post_id and r.question = ${Q.relevant} and r.kind = 'review_queue')
+      order by coalesce(p.author_hash, p.id::text), md5(p.text), p.id
+    ) t order by id limit ${limit}`);
   return res.rows as unknown as LookPost[];
 }
 
 /** Keep (about the subject) or Drop (not about it). Your answer replaces Jev's in every count. */
 export async function saveReview(searchId: number, postId: number, version: number, keep: boolean): Promise<boolean> {
   const db = requireDb();
-  const [own] = await db.select({ id: posts.id }).from(posts).where(and(eq(posts.id, postId), eq(posts.searchId, searchId)));
+  const [own] = await db
+    .select({ id: posts.id, authorHash: posts.authorHash, text: posts.text })
+    .from(posts)
+    .where(and(eq(posts.id, postId), eq(posts.searchId, searchId)));
   if (!own) return false;
-  await db
-    .insert(reviews)
-    .values({ postId, codebookVersion: version, question: Q.relevant, humanAnswer: keep ? "yes" : "no", kind: "review_queue" })
-    .onConflictDoUpdate({ target: [reviews.postId, reviews.codebookVersion, reviews.question, reviews.kind], set: { humanAnswer: keep ? "yes" : "no", reviewedAt: new Date() } });
+  // Copies of the same post (same author, same text) get the same answer; posts without an author stay separate.
+  const copies = own.authorHash
+    ? (await db.select({ id: posts.id }).from(posts).where(and(eq(posts.searchId, searchId), eq(posts.authorHash, own.authorHash), eq(posts.text, own.text)))).map((r) => r.id)
+    : [own.id];
+  const answer = keep ? "yes" : "no";
+  // Replace any earlier answer (one transaction). No ON CONFLICT, so it works whatever indexes the table has.
+  await db.batch([
+    db.delete(reviews).where(and(inArray(reviews.postId, copies), eq(reviews.question, Q.relevant), eq(reviews.kind, "review_queue"))),
+    db.insert(reviews).values(copies.map((id) => ({ postId: id, codebookVersion: version, question: Q.relevant, humanAnswer: answer, kind: "review_queue" }))),
+  ]);
   return true;
 }

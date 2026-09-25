@@ -25,4 +25,13 @@ export async function budgetBlock(): Promise<ActionState | null> {
   return reason ? { ok: false, message: `Blocked: ${reason}.` } : null;
 }
 
-export const errorText = (err: unknown) => (err instanceof Error ? err.message.slice(0, 300) : "unknown error");
+/**
+ * A short, readable error. Database errors wrap the real reason in `cause` behind a long "Failed query: …" text,
+ * so the reason is shown instead of the query.
+ */
+export function errorText(err: unknown): string {
+  if (!(err instanceof Error)) return "unknown error";
+  const cause = err.cause instanceof Error ? err.cause.message : null;
+  const message = cause && err.message.startsWith("Failed query") ? `database error: ${cause}` : err.message;
+  return message.slice(0, 300);
+}

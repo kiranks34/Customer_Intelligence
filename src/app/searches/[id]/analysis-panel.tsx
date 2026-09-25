@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import type { AnalysisState, AnalysisSummary, LookPost, Tally } from "@/lib/analysis";
+import { NOT_STATED, NOT_SURE } from "@/lib/codebook";
 import type { Codebook } from "@/lib/codebook";
 
 import { advanceAnalysisAction, resumeAnalysisAction, reviewAction, startAnalysisAction } from "../analysis-actions";
@@ -163,92 +164,151 @@ export function AnalysisPanel({ searchId, subject, initial, summary, look, codeb
         </p>
       )}
 
-      {summary && <Results summary={summary} subject={subject} />}
+      {summary && <Results summary={summary} subject={subject} totalPosts={s.totalPosts} />}
       {summary && look.length > 0 && <NeedsLook searchId={searchId} version={summary.version} posts={look} total={summary.relevance.needsLook} />}
       {codebook && <CodebookEditor key={codebook.version} searchId={searchId} codebook={codebook.codebook} version={codebook.version} />}
     </section>
   );
 }
 
-function Results({ summary, subject }: { summary: AnalysisSummary; subject: string }) {
+/** Sentiment colours: green / red / amber / slate, and a light hatch for "not sure". Never colour alone: every part is labelled. */
+const SENTIMENT_COLORS: Record<string, string> = {
+  positive: "bg-[#2f9e6e]",
+  negative: "bg-critical",
+  mixed: "bg-warning",
+  neutral: "bg-[#6f86b8]",
+  [NOT_SURE]: "bg-border",
+};
+const TALLY_COLORS = { about: "bg-accent", not: "bg-muted/40", look: "bg-warning", skipped: "bg-border" };
+
+function Results({ summary, subject, totalPosts }: { summary: AnalysisSummary; subject: string; totalPosts: number }) {
   const r = summary.relevance;
-  const sentimentTotal = summary.sentiment.reduce((n, t) => n + t.counted, 0);
-  const COLORS: Record<string, string> = { positive: "bg-accent", negative: "bg-critical", mixed: "bg-warning", neutral: "bg-muted/40" };
+  const parts = [
+    { key: "about", label: `About ${subject}`, n: r.counted, color: TALLY_COLORS.about },
+    { key: "not", label: "Not about it", n: r.notRelevant, color: TALLY_COLORS.not },
+    { key: "look", label: "Unsure (Needs a look)", n: r.needsLook, color: TALLY_COLORS.look },
+    { key: "skipped", label: "Skipped", n: r.skipped, color: TALLY_COLORS.skipped },
+  ].filter((p) => p.n > 0);
+  const analyzed = r.counted + r.notRelevant + r.needsLook + r.skipped;
   return (
-    <div className="flex flex-col gap-6">
-      <p className="text-sm">
-        <span className="text-2xl font-semibold tabular-nums">{r.counted.toLocaleString()}</span> posts are about {subject}
-        <span className="text-muted">
-          {" "}
-          · {r.notRelevant} not about it{r.needsLook > 0 && ` · ${r.needsLook} need a look`}
-          {r.skipped > 0 && ` · ${r.skipped} skipped (Jev couldn't read them)`}
-        </span>
-      </p>
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm">
+          <span className="text-2xl font-semibold tabular-nums">{r.counted.toLocaleString()}</span> of {analyzed.toLocaleString()} posts are about {subject}
+          {analyzed < totalPosts && <span className="text-muted"> ({(totalPosts - analyzed).toLocaleString()} not analyzed yet)</span>}
+        </p>
+        <Stacked parts={parts} total={analyzed} label="Posts collected" />
+        <p className="text-xs text-muted">Everything below counts only the {r.counted} posts about {subject}.</p>
+      </div>
 
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">How people feel</h3>
-        {sentimentTotal > 0 ? (
-          <>
-            <div className="flex h-3 overflow-hidden rounded-full bg-border" role="img" aria-label={summary.sentiment.map((t) => `${t.label} ${t.counted}`).join(", ")}>
-              {summary.sentiment.map((t) => (
-                <div key={t.key} className={COLORS[t.key]} style={{ width: `${(t.counted / sentimentTotal) * 100}%` }} />
-              ))}
-            </div>
-            <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              {summary.sentiment.map((t) => (
-                <span key={t.key} className="flex items-center gap-1.5">
-                  <span className={`size-2.5 rounded-full ${COLORS[t.key]}`} aria-hidden />
-                  {t.label} <span className="text-muted tabular-nums">{t.counted}</span>
-                </span>
-              ))}
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-muted">No sure answers yet.</p>
-        )}
+        <Stacked parts={summary.sentiment.map((t) => ({ key: t.key, label: t.label, n: t.counted, color: SENTIMENT_COLORS[t.key] }))} total={r.counted} label="Sentiment" />
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <Bars title="Themes" items={summary.themes} tag={(t) => (t as Tally & { kind: string }).kind} />
-        <Bars title="Journey stage" items={summary.stages} keepOrder />
+      <div className="grid gap-7 sm:grid-cols-2">
+        <Themes items={summary.themes} total={r.counted} />
+        <Bars title="Journey stage" note="One stage per post; adds up to the posts about it." items={summary.stages} />
       </div>
       {summary.segments.length > 0 && (
-        <div className="grid gap-6 sm:grid-cols-2">
-          <Bars title="Who is posting" items={summary.segments} />
+        <div className="grid gap-7 sm:grid-cols-2">
+          <Bars title="Who is posting" note="From what people say about themselves." items={summary.segments} />
         </div>
       )}
       <p className="text-xs text-muted">
-        Only posts Jev is sure are about {subject} (confidence 0.8 or more), or that you kept, are counted. Within them, counts use answers Jev was
-        sure about; “+N” shows less sure ones (0.5 to 0.8).
+        “Sure” means Jev was at least 80% confident. “Not sure” is everything below that, so every chart adds up. All numbers are counted from the
+        stored answers, not written by AI.
       </p>
     </div>
   );
 }
 
-const KIND: Record<string, string> = { pain: "Pain", delight: "Delight", need: "Need", topic: "Topic" };
+/** One bar split into labelled parts that add up to `total`, with the numbers in the legend. */
+function Stacked({ parts, total, label }: { parts: { key: string; label: string; n: number; color: string }[]; total: number; label: string }) {
+  if (total === 0) return <p className="text-sm text-muted">Nothing yet.</p>;
+  return (
+    <>
+      <div className="flex h-3 overflow-hidden rounded-full bg-border/50" role="img" aria-label={`${label}: ${parts.map((p) => `${p.label} ${p.n}`).join(", ")}`}>
+        {parts.map((p) => (
+          <div key={p.key} className={p.color} style={{ width: `${(p.n / total) * 100}%` }} title={`${p.label}: ${p.n}`} />
+        ))}
+      </div>
+      <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {parts.map((p) => (
+          <span key={p.key} className="flex items-center gap-1.5">
+            <span className={`size-2.5 rounded-full ${p.color}`} aria-hidden />
+            {p.label} <span className="text-muted tabular-nums">{p.n}</span>
+          </span>
+        ))}
+      </p>
+    </>
+  );
+}
 
-function Bars({ title, items, tag, keepOrder }: { title: string; items: Tally[]; tag?: (t: Tally) => string; keepOrder?: boolean }) {
-  const shown = keepOrder ? items : items.filter((t) => t.counted + t.uncertain > 0);
+const KIND: Record<string, string> = { pain: "Pain", delight: "Delight", need: "Need", topic: "Topic" };
+const MUTED = new Set([NOT_SURE, NOT_STATED]);
+
+/** One answer per post: rows add up to the posts about the subject ("Not stated" and "Not sure" shown last, muted). */
+function Bars({ title, note, items }: { title: string; note: string; items: Tally[] }) {
   const max = Math.max(1, ...items.map((t) => t.counted));
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">{title}</h3>
+      <div>
+        <h3 className="text-sm font-medium">{title}</h3>
+        <p className="text-xs text-muted">{note}</p>
+      </div>
+      <ul className="flex flex-col gap-1.5">
+        {items.map((t) => (
+          <li key={t.key} className={`grid grid-cols-[minmax(0,1fr)_5rem_2.5rem] items-center gap-3 text-sm ${MUTED.has(t.key) ? "text-muted" : ""}`}>
+            <span className="truncate" title={t.label}>
+              {t.label}
+            </span>
+            <span className="h-1.5 rounded-full bg-border/50" aria-hidden>
+              <span className={`block h-1.5 rounded-full ${MUTED.has(t.key) ? "bg-muted/40" : "bg-accent"}`} style={{ width: `${(t.counted / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums">{t.counted}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Themes can overlap (a post can mention several), so they don't add up. Solid = sure, light = likely. */
+function Themes({ items, total }: { items: (Tally & { kind: string })[]; total: number }) {
+  const shown = items.filter((t) => t.counted + t.uncertain > 0);
+  const max = Math.max(1, ...items.map((t) => t.counted + t.uncertain));
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h3 className="text-sm font-medium">Themes</h3>
+        <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
+          <span>A post can mention several; out of {total} posts.</span>
+          <span className="flex items-center gap-1">
+            <span className="h-1.5 w-3 rounded-full bg-accent" aria-hidden /> sure
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-1.5 w-3 rounded-full bg-accent/35" aria-hidden /> likely
+          </span>
+        </p>
+      </div>
       {shown.length === 0 ? (
         <p className="text-sm text-muted">None found yet.</p>
       ) : (
         <ul className="flex flex-col gap-1.5">
           {shown.map((t) => (
-            <li key={t.key} className="grid grid-cols-[minmax(0,1fr)_5rem_4.5rem] items-center gap-3 text-sm">
+            <li key={t.key} className="grid grid-cols-[minmax(0,1fr)_5rem_5.5rem] items-center gap-3 text-sm">
               <span className="truncate" title={t.label}>
                 {t.label}
-                {tag && <span className="ml-2 text-xs text-muted">{KIND[tag(t)] ?? ""}</span>}
+                <span className="ml-2 text-xs text-muted">{KIND[t.kind] ?? ""}</span>
               </span>
-              <span className="h-1.5 rounded-full bg-border" aria-hidden>
-                <span className="block h-1.5 rounded-full bg-accent" style={{ width: `${(t.counted / max) * 100}%` }} />
+              <span className="flex h-1.5 overflow-hidden rounded-full bg-border/50" aria-hidden>
+                <span className="h-1.5 bg-accent" style={{ width: `${(t.counted / max) * 100}%` }} />
+                <span className="h-1.5 bg-accent/35" style={{ width: `${(t.uncertain / max) * 100}%` }} />
               </span>
               <span className="text-right tabular-nums">
                 {t.counted}
-                {t.uncertain > 0 && <span className="text-xs text-muted"> +{t.uncertain}</span>}
+                {t.uncertain > 0 && <span className="text-xs text-muted"> +{t.uncertain} likely</span>}
               </span>
             </li>
           ))}
@@ -281,7 +341,11 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
   return (
     <details className="rounded-lg border border-warning/60 bg-warning/5 px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">
-        Needs a look ({total}) <span className="font-normal text-muted">· optional. Jev wasn&apos;t sure these are about the product, so they aren&apos;t counted unless you keep them.</span>
+        Needs a look ({total}){" "}
+        <span className="font-normal text-muted">
+          · optional{total > posts.length ? `, showing ${posts.length} at a time` : ""}. Jev wasn&apos;t sure these are about the product, so they aren&apos;t
+          counted unless you keep them.
+        </span>
       </summary>
       {error && (
         <p role="alert" className="mt-2 text-sm text-critical">
@@ -292,6 +356,7 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
         {shown.map((p) => (
           <li key={p.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 text-sm">
+              {p.title && <p className="font-medium break-words">{p.title}</p>}
               <p className="line-clamp-3 break-words">{p.text}</p>
               <p className="mt-1 text-xs text-muted">
                 {SOURCE_LABELS[p.source] ?? p.source}
