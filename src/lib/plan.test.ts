@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { tokenCostUsd } from "./ai";
-import { estimatePlan, inWindow, isExcluded, isRealDate, normalizePlan, redditTimeframe, type Plan } from "./plan";
+import { estimatePlan, inWindow, isExcluded, isRealDate, normalizePlan, redditTimeframe, roomFor, type Plan } from "./plan";
 import { activeDepth, activePeriod, addAsSearch, applyDepth, applyPeriod, isSearched, planSummary, planWarnings, validatePlan } from "./plan-edit";
 
 const base: Plan = {
@@ -48,12 +48,19 @@ describe("estimatePlan", () => {
     expect(e.youtubeQuotaUnits).toBe(2 * 100 + 2 * 5 * 1);
     expect(e.redditCredits).toBe(1 + 3);
     expect(e.usd).toBeCloseTo(0.008);
-    expect(e.maxPosts).toBe(300);
+    // Each channel is capped on its own: YouTube 2×5×50 = 500 → 300; Reddit 25 + 3×100 = 325 → 300.
+    expect(e.maxBySource).toEqual({ youtube: 300, reddit: 300 });
+    expect(e.maxPosts).toBe(600);
   });
   it("ignores disabled sources", () => {
     const e = estimatePlan({ ...base, reddit: { ...base.reddit, enabled: false } }, 0.002);
     expect(e.redditCredits).toBe(0);
     expect(e.usd).toBe(0);
+    expect(e.maxPosts).toBe(300);
+  });
+  it("caps a channel at what it can return when that is below the cap", () => {
+    const e = estimatePlan({ ...base, reddit: { ...base.reddit, commentThreadsPerQuery: 0 } }, 0.002);
+    expect(e.maxBySource.reddit).toBe(25);
   });
 });
 
@@ -145,8 +152,12 @@ describe("plan editing helpers", () => {
     expect(planWarnings({ ...base, reddit: { ...base.reddit, queries: [] } })).toEqual(["Reddit is on but has no searches."]);
   });
   it("summarises a plan in one sentence", () => {
-    expect(planSummary(base, { maxPosts: 300, usd: 0.008, redditCredits: 4, youtubeQuotaUnits: 210 })).toBe(
-      "Up to 300 posts from YouTube and Reddit about HP Smart Tank 5000 series, last 7 days. Cost: up to $0.008.",
+    expect(planSummary(base, estimatePlan(base, 0.002))).toBe(
+      "Up to 600 posts (300 from YouTube and 300 from Reddit) about HP Smart Tank 5000 series, last 7 days. Cost: up to $0.008.",
+    );
+    const ytOnly = { ...base, reddit: { ...base.reddit, enabled: false } };
+    expect(planSummary(ytOnly, estimatePlan(ytOnly, 0.002))).toBe(
+      "Up to 300 posts from YouTube about HP Smart Tank 5000 series, last 7 days. Cost: free.",
     );
   });
 });
@@ -161,5 +172,19 @@ describe("addAsSearch", () => {
     expect(isSearched(base, "Smart Tank 7301")).toBe(false);
     const ytOff = { ...base, youtube: { ...base.youtube, enabled: false } };
     expect(addAsSearch(ytOff, "Smart Tank 7301").youtube.queries).toEqual(base.youtube.queries);
+  });
+});
+
+describe("roomFor (per-channel cap)", () => {
+  it("gives each channel its own cap and does not pass unused room to another", () => {
+    const cursor = { baseline: 150, baselines: { youtube: 100, reddit: 50 } };
+    // YouTube added 100 this run (full); Reddit only 20 so far.
+    const counts = { youtube: 200, reddit: 70 };
+    expect(roomFor("youtube", cursor, counts, 100)).toBe(0);
+    expect(roomFor("reddit", cursor, counts, 100)).toBe(80);
+    expect(roomFor("reddit", { baseline: 0, baselines: {} }, {}, 100)).toBe(100);
+  });
+  it("keeps the old shared cap for runs started before per-channel caps", () => {
+    expect(roomFor("reddit", { baseline: 100 }, { youtube: 150, reddit: 30 }, 100)).toBe(20);
   });
 });

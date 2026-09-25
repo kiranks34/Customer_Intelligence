@@ -30,7 +30,7 @@ export const PlanSchema = z.object({
     commentThreadsPerQuery: z.number().describe("How many of the most-discussed posts per query to read comments from"),
   }),
   exclusions: z.array(z.string()).describe("Terms that signal off-topic results, e.g. other brands' 'Smart Tank' products"),
-  postCap: z.number().describe("Stop collecting after this many posts"),
+  postCap: z.number().describe("Posts to collect per channel per run (each channel gets its own cap)"),
   notes: z.string().describe("One or two sentences explaining the plan and any caveats about the question"),
 });
 
@@ -87,7 +87,9 @@ export interface Estimate {
   youtubeQuotaUnits: number;
   redditCredits: number;
   usd: number;
+  /** Upper bound across all channels: each channel is capped at postCap on its own. */
   maxPosts: number;
+  maxBySource: { youtube: number; reddit: number };
 }
 
 /** Upper-bound cost of running a plan: each Reddit search and comment page is one ScrapeCreators credit. */
@@ -99,11 +101,13 @@ export function estimatePlan(p: Plan, usdPerCredit: number): Estimate {
   const ytPosts = yt * p.youtube.videosPerQuery * p.youtube.commentsPerVideo;
   // A Reddit search page returns up to ~25 posts; a comment page up to ~100 comments.
   const rdPosts = rd * 25 + rd * p.reddit.commentThreadsPerQuery * 100;
+  const maxBySource = { youtube: Math.min(p.postCap, ytPosts), reddit: Math.min(p.postCap, rdPosts) };
   return {
     youtubeQuotaUnits,
     redditCredits,
     usd: redditCredits * usdPerCredit,
-    maxPosts: Math.min(p.postCap, ytPosts + rdPosts),
+    maxPosts: maxBySource.youtube + maxBySource.reddit,
+    maxBySource,
   };
 }
 
@@ -135,4 +139,19 @@ export function isExcluded(p: Plan, text: string): boolean {
     const t = term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(^|[^\\p{L}\\p{N}])${t}($|[^\\p{L}\\p{N}])`, "u").test(lower);
   });
+}
+
+/**
+ * Posts a collection job may still store in the current run. Each channel gets its own `postCap` and unused room is
+ * not passed to other channels, so one channel can't crowd out another (docs/DECISIONS.md D28).
+ * Runs started before per-channel caps only recorded a total baseline; they keep the old shared cap.
+ */
+export function roomFor(
+  source: string,
+  cursor: { baseline?: number; baselines?: Record<string, number> },
+  counts: Record<string, number>,
+  postCap: number,
+): number {
+  if (!cursor.baselines) return (cursor.baseline ?? 0) + postCap - Object.values(counts).reduce((a, b) => a + b, 0);
+  return (cursor.baselines[source] ?? 0) + postCap - (counts[source] ?? 0);
 }

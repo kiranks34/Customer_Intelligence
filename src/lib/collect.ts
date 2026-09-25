@@ -10,7 +10,7 @@ import { costEvents, jobs, plans, posts } from "@/db/schema";
 
 import { paidWorkBlockedReason, recordCost } from "./cost";
 import { toPostRow } from "./ingest";
-import { inWindow, isExcluded, redditTimeframe, type Plan } from "./plan";
+import { inWindow, isExcluded, redditTimeframe, roomFor, type Plan } from "./plan";
 import { savePosts } from "./posts";
 
 /**
@@ -24,8 +24,10 @@ interface JobCursor {
   planVersion: number;
   /** Identifies one press of "Run"; progress and the post cap are per run. */
   run: number;
-  /** Posts the search already had when this run started; the cap allows `postCap` new ones on top. */
+  /** Posts the search already had when this run started (all sources). */
   baseline: number;
+  /** The same per source: each source may add `postCap` new posts on top of its own count (docs/DECISIONS.md D28). */
+  baselines?: Record<string, number>;
   query?: string;
   videoId?: string;
   url?: string;
@@ -43,10 +45,13 @@ export async function loadPlan(searchId: number, version?: number): Promise<{ ve
   return row ? { version: row.version, plan: row.plan as Plan } : null;
 }
 
-async function postCount(searchId: number): Promise<number> {
-  const [r] = await requireDb().select({ n: count() }).from(posts).where(eq(posts.searchId, searchId));
-  return r?.n ?? 0;
+const SOURCE_OF: Record<Step, string> = { "yt.search": "youtube", "yt.comments": "youtube", "rd.search": "reddit", "rd.comments": "reddit" };
+
+async function postCounts(searchId: number): Promise<Record<string, number>> {
+  const rows = await requireDb().select({ source: posts.source, n: count() }).from(posts).where(eq(posts.searchId, searchId)).groupBy(posts.source);
+  return Object.fromEntries(rows.map((r) => [r.source, r.n]));
 }
+const sum = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a + b, 0);
 
 /** Queues the first jobs for the latest plan. Refuses while a previous run still has open jobs. */
 export async function startCollection(searchId: number): Promise<{ started: boolean; reason?: string }> {
@@ -60,7 +65,8 @@ export async function startCollection(searchId: number): Promise<{ started: bool
   if ((open?.n ?? 0) > 0) return { started: false, reason: "A collection is already running for this search." };
 
   const { plan, version } = latest;
-  const base = { planVersion: version, run: Date.now(), baseline: await postCount(searchId) };
+  const counts = await postCounts(searchId);
+  const base = { planVersion: version, run: Date.now(), baseline: sum(counts), baselines: counts };
   const seeds = [
     ...(plan.youtube.enabled ? plan.youtube.queries : []).map((query) => ({ searchId, step: "yt.search", cursor: { ...base, query } })),
     ...(plan.reddit.enabled ? plan.reddit.queries : []).map((query) => ({ searchId, step: "rd.search", cursor: { ...base, query } })),
@@ -135,7 +141,7 @@ async function runJob(
   plan: Plan,
   room: number,
 ): Promise<{ step: Step; cursor: JobCursor }[]> {
-  const inherit = { planVersion: cursor.planVersion, run: cursor.run, baseline: cursor.baseline };
+  const inherit = { planVersion: cursor.planVersion, run: cursor.run, baseline: cursor.baseline, baselines: cursor.baselines };
   if (step === "yt.search") {
     const page = await youtube.searchVideos(process.env.YOUTUBE_API_KEY, cursor.query!, {
       maxResults: plan.youtube.videosPerQuery,
@@ -180,8 +186,12 @@ export interface Progress {
   postsBySource: Record<string, number>;
   /** All posts stored for this search, across every run. */
   totalPosts: number;
-  /** Posts stored by the latest run (each run adds at most postCap new posts). */
+  /** Posts stored by the latest run. */
   runPosts: number;
+  /** Posts stored by the latest run, per source it searched (each source adds at most runCap per run). */
+  runBySource: Record<string, number>;
+  /** The per-channel cap the latest run used (its own plan version; the saved plan may have changed since). */
+  runCap: number;
   postCap: number;
   costUsd: number;
   finished: boolean;
@@ -192,7 +202,7 @@ export async function progress(searchId: number): Promise<Progress> {
   const d = requireDb();
   const latestRun = sql`(select max((cursor->>'run')::bigint) from ${jobs} where search_id = ${searchId})`;
   const inLatestRun = and(eq(jobs.searchId, searchId), sql`(${jobs.cursor}->>'run')::bigint = ${latestRun}`);
-  const [jobRows, openRows, postRows, [costRow], latest, errs, [runRow]] = await Promise.all([
+  const [jobRows, openRows, postRows, [costRow], latest, errs, [runRow], runSteps] = await Promise.all([
     d.select({ status: jobs.status, n: count() }).from(jobs).where(inLatestRun).groupBy(jobs.status),
     d
       .select({ n: count() })
@@ -206,17 +216,27 @@ export async function progress(searchId: number): Promise<Progress> {
       .from(jobs)
       .where(and(inLatestRun, sql`${jobs.lastError} is not null and ${jobs.status} in ('failed','waiting')`))
       .limit(3),
-    d.select({ baseline: sql<string | null>`${jobs.cursor}->>'baseline'` }).from(jobs).where(inLatestRun).limit(1),
+    d.select({ cursor: jobs.cursor }).from(jobs).where(inLatestRun).limit(1),
+    d.selectDistinct({ step: jobs.step }).from(jobs).where(inLatestRun),
   ]);
   const j = { queued: 0, running: 0, waiting: 0, done: 0, failed: 0 };
   for (const r of jobRows) j[r.status] = r.n;
   const postsBySource = Object.fromEntries(postRows.map((r) => [r.source, r.n]));
   const totalPosts = postRows.reduce((s, r) => s + r.n, 0);
+  const runCursor = runRow?.cursor as JobCursor | undefined;
+  const runBySource: Record<string, number> = {};
+  if (runCursor?.baselines) {
+    const searched = new Set(runSteps.map((r) => SOURCE_OF[r.step as Step]));
+    for (const source of searched) runBySource[source] = Math.max(0, (postsBySource[source] ?? 0) - (runCursor.baselines[source] ?? 0));
+  }
+  const runPlan = runCursor && runCursor.planVersion !== latest?.version ? await loadPlan(searchId, runCursor.planVersion) : latest;
   return {
     jobs: j,
     postsBySource,
     totalPosts,
-    runPosts: runRow ? Math.max(0, totalPosts - Number(runRow.baseline ?? 0)) : 0,
+    runPosts: runCursor ? Math.max(0, totalPosts - Number(runCursor.baseline ?? 0)) : 0,
+    runBySource,
+    runCap: runPlan?.plan.postCap ?? latest?.plan.postCap ?? 0,
     postCap: latest?.plan.postCap ?? 0,
     costUsd: Number(costRow?.usd ?? 0),
     finished: (openRows[0]?.n ?? 0) === 0,
@@ -237,7 +257,7 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
   const plansByVersion = new Map<number, Plan>();
   // One budget check per call: a single ~20 s cycle can't move spend meaningfully.
   let paidBlocked: string | null | undefined;
-  let count = await postCount(searchId);
+  let counts = await postCounts(searchId);
 
   while (Date.now() - started < budgetMs) {
     const job = await claimJob(searchId);
@@ -254,9 +274,9 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
       plansByVersion.set(loaded.version, plan);
     }
 
-    const room = (job.cursor.baseline ?? 0) + plan.postCap - count;
+    const room = roomFor(SOURCE_OF[job.step], job.cursor, counts, plan.postCap);
     if (room <= 0) {
-      await finishJob(job.id, "done", "Skipped: post cap reached for this run.", { refundAttempt: true });
+      await finishJob(job.id, "done", "Skipped: this channel reached its post cap for this run.", { refundAttempt: true });
       continue;
     }
     if (PAID_STEPS.has(job.step)) {
@@ -279,7 +299,7 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
       if (retryable && job.attempts < MAX_ATTEMPTS) await finishJob(job.id, "queued", message, { retryInSeconds: 30 * job.attempts });
       else await finishJob(job.id, "failed", message);
     }
-    count = await postCount(searchId);
+    counts = await postCounts(searchId);
   }
   return progress(searchId);
 }

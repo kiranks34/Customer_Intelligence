@@ -22,7 +22,7 @@ Produce a plan:
 - youtube.queries / reddit.queries: 2-4 short search strings each that real people would type or title videos with.
   Cover the family name plus its most discussed models or series. For a focus, include it in some queries
   (e.g. "Smart Tank wifi problem"). No boolean operators.
-- Defaults unless the question needs otherwise: youtube.videosPerQuery 5, commentsPerVideo 50, reddit.commentThreadsPerQuery 3, postCap 300.
+- Defaults unless the question needs otherwise: youtube.videosPerQuery 5, commentsPerVideo 50, reddit.commentThreadsPerQuery 3, postCap 300 (per channel).
 - exclusions: only words for UNRELATED things that share a word with the subject (e.g. "fish tank", "propane tank").
   Never exclude competitors or other brands: comparisons ("vs EcoTank") are valuable evidence. Usually 0-3 terms.
 - notes: 1-2 plain sentences on what will be collected and any limitation (e.g. public posts only, so counts are

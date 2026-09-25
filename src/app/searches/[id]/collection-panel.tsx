@@ -76,6 +76,8 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
 
   const total = p.jobs.queued + p.jobs.running + p.jobs.done + p.jobs.failed + p.jobs.waiting;
   const hasRun = total > 0;
+  // Channels with posts, plus any the last run searched that found nothing yet.
+  const sources = [...new Set([...Object.keys(p.postsBySource), ...Object.keys(p.runBySource)])];
   const pct = total ? Math.round(((p.jobs.done + p.jobs.failed) / total) * 100) : 0;
 
   return (
@@ -88,18 +90,24 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
         <div>
           <dt className="text-muted">Posts collected (total)</dt>
           <dd className="text-xl font-semibold tabular-nums">{p.totalPosts}</dd>
-          {hasRun && (
-            <dd className="text-xs text-muted">
-              Last run added {p.runPosts} of up to {p.postCap}
-            </dd>
-          )}
+          {hasRun && <dd className="text-xs text-muted">Last run +{p.runPosts}</dd>}
         </div>
-        {Object.entries(p.postsBySource).map(([s, n]) => (
-          <div key={s}>
-            <dt className="text-muted">{SOURCE_LABELS[s] ?? s}</dt>
-            <dd className="text-xl font-semibold tabular-nums">{n}</dd>
-          </div>
-        ))}
+        {sources.map((s) => {
+          const n = p.postsBySource[s] ?? 0;
+          const added = p.runBySource[s];
+          return (
+            <div key={s}>
+              <dt className="text-muted">{SOURCE_LABELS[s] ?? s}</dt>
+              <dd className="text-xl font-semibold tabular-nums">{n}</dd>
+              {hasRun && added !== undefined && (
+                <dd className="text-xs text-muted">
+                  Last run +{added} of up to {p.runCap}
+                  {p.finished && p.jobs.failed === 0 && p.jobs.waiting === 0 && added < p.runCap && " (all it found)"}
+                </dd>
+              )}
+            </div>
+          );
+        })}
         <div>
           <dt className="text-muted">Spent on this search</dt>
           <dd className="text-xl font-semibold tabular-nums">${p.costUsd.toFixed(3)}</dd>
@@ -148,7 +156,7 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
         )}
       </div>
       <p className="text-xs text-muted">
-        Collection runs while this page is open; closing it pauses safely. Each run adds up to {p.postCap} new posts and skips ones already collected.
+        Collection runs while this page is open; closing it pauses safely. Each run adds up to {p.postCap} new posts per channel and skips ones already collected.
       </p>
     </section>
   );
