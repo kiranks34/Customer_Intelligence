@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } fr
 
 import type { Progress } from "@/lib/collect";
 import { estimatePlan, LIMITS, type Plan } from "@/lib/plan";
-import { activeDepth, activePeriod, applyDepth, applyPeriod, DEPTHS, PERIODS, planSummary, planWarnings, type PeriodId } from "@/lib/plan-edit";
+import { activeDepth, activePeriod, addAsSearch, applyDepth, applyPeriod, DEPTHS, isSearched, PERIODS, planSummary, planWarnings, type PeriodId } from "@/lib/plan-edit";
 
 import { savePlanAction } from "../actions";
 import { CollectionPanel } from "./collection-panel";
@@ -198,7 +198,14 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
           )}
 
           <ChipField label="Focus themes" hint="e.g. wifi, ink cost" values={draft.focus} onChange={(focus) => update({ focus })} />
-          <ChipField label="Other names people use" hint="model numbers, nicknames" values={draft.aliases} onChange={(aliases) => update({ aliases })} />
+          <ChipField
+            label="Model names to recognise in posts"
+            hint="e.g. 7301, Smart Tank 580"
+            note="Used to tell which model a post is about. Press + search to also search for a name."
+            values={draft.aliases}
+            onChange={(aliases) => update({ aliases })}
+            chipAction={{ label: "+ search", done: (v) => isSearched(draft, v), run: (v) => setDraft((d) => addAsSearch(d, v)) }}
+          />
           <ChipField
             label="Drop results mentioning"
             hint="only unrelated products with a similar name, e.g. fish tank"
@@ -279,7 +286,15 @@ function SourceBox(props: { name: string; enabled: boolean; queries: string[]; o
 }
 
 /** A list of short strings shown as removable chips, with a box to add more (Enter or leaving the box adds). */
-function ChipField({ label: text, hint, values, onChange, max }: { label: string; hint: string; values: string[]; onChange: (v: string[]) => void; max?: number }) {
+interface ChipAction {
+  label: string;
+  /** The action has nothing left to do for this chip (the button is hidden). */
+  done: (value: string) => boolean;
+  run: (value: string) => void;
+}
+
+function ChipField(props: { label: string; hint: string; note?: string; values: string[]; onChange: (v: string[]) => void; max?: number; chipAction?: ChipAction }) {
+  const { label: text, hint, note, values, onChange, max, chipAction } = props;
   const [input, setInput] = useState("");
   const full = max !== undefined && values.length >= max;
   function add() {
@@ -302,6 +317,11 @@ function ChipField({ label: text, hint, values, onChange, max }: { label: string
         {values.map((v) => (
           <span key={v} className="inline-flex items-center gap-1 rounded-full bg-border/60 py-0.5 pr-1 pl-2.5">
             {v}
+            {chipAction && !chipAction.done(v) && (
+              <button type="button" onClick={() => chipAction.run(v)} aria-label={`Add ${v} as a search`} className="rounded-full px-1.5 text-xs text-accent hover:underline">
+                {chipAction.label}
+              </button>
+            )}
             <button type="button" aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))} className="rounded-full px-1 text-muted hover:text-foreground">
               ×
             </button>
@@ -319,6 +339,7 @@ function ChipField({ label: text, hint, values, onChange, max }: { label: string
           />
         )}
       </div>
+      {note && <span className="text-xs text-muted">{note}</span>}
       {full && <span className="text-xs text-muted">Up to {max}; remove one to add another.</span>}
     </div>
   );

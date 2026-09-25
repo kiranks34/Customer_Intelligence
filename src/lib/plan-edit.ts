@@ -2,7 +2,7 @@
  * Helpers behind the plan screen: validating an edited plan, one-click period and depth presets,
  * conflict warnings and the one-line summary. Pure (no DB, no network), so the browser can use them for live updates.
  */
-import { isExcluded, isRealDate, normalizePlan, PlanSchema, type Estimate, type Plan } from "./plan";
+import { isExcluded, isRealDate, LIMITS, normalizePlan, PlanSchema, type Estimate, type Plan } from "./plan";
 
 /** Checks an edited plan (from the browser, so untrusted) and applies the hard limits. */
 export function validatePlan(candidate: unknown): { ok: true; plan: Plan } | { ok: false; error: string } {
@@ -119,4 +119,20 @@ export function planSummary(p: Plan, est: Estimate): string {
   const from = sources.length ? sources.join(" and ") : "no sources";
   const cost = est.usd > 0 ? `up to $${est.usd.toFixed(3)}` : "free";
   return `Up to ${est.maxPosts.toLocaleString("en-US")} posts from ${from} about ${p.subject}, ${p.timeWindow.label}. Cost: ${cost}.`;
+}
+
+const SEARCH_SOURCES = ["youtube", "reddit"] as const;
+const hasTerm = (list: string[], term: string) => list.some((q) => q.toLowerCase() === term.trim().toLowerCase());
+
+/** True when every source that is on already searches for this term (or has no room for it). */
+export function isSearched(p: Plan, term: string): boolean {
+  return SEARCH_SOURCES.every((s) => !p[s].enabled || hasTerm(p[s].queries, term) || p[s].queries.length >= LIMITS.queries);
+}
+
+/** Adds a model name as a search to every source that is on, where it isn't already and there is room. */
+export function addAsSearch(p: Plan, term: string): Plan {
+  const t = term.trim();
+  const add = (src: { enabled: boolean; queries: string[] }) =>
+    t && src.enabled && !hasTerm(src.queries, t) && src.queries.length < LIMITS.queries ? [...src.queries, t] : src.queries;
+  return { ...p, youtube: { ...p.youtube, queries: add(p.youtube) }, reddit: { ...p.reddit, queries: add(p.reddit) } };
 }
