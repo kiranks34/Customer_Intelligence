@@ -36,6 +36,8 @@ interface JobCursor {
 }
 
 const MAX_ATTEMPTS = 3;
+/** The jobs table also holds analysis jobs (src/lib/analysis.ts); collection only ever looks at its own. */
+const isCollectionJob = sql`${jobs.step} <> 'analyze'`;
 const STALE_RUNNING_SECONDS = 120;
 const PAID_STEPS = new Set<Step>(["rd.search", "rd.comments"]);
 /** For time-bounded searches, only read videos published this long before the window (comments on old videos are rarely recent). */
@@ -63,7 +65,7 @@ export async function startCollection(searchId: number): Promise<{ started: bool
   const [open] = await db
     .select({ n: count() })
     .from(jobs)
-    .where(and(eq(jobs.searchId, searchId), sql`${jobs.status} in ('queued','running','waiting')`));
+    .where(and(eq(jobs.searchId, searchId), isCollectionJob, sql`${jobs.status} in ('queued','running','waiting')`));
   if ((open?.n ?? 0) > 0) return { started: false, reason: "A collection is already running for this search." };
 
   const { plan, version } = latest;
@@ -84,7 +86,7 @@ async function claimJob(searchId: number) {
     update ${jobs} set status = 'running', attempts = attempts + 1, updated_at = now()
     where id = (
       select id from ${jobs}
-      where search_id = ${searchId} and status = 'queued' and run_after <= now()
+      where search_id = ${searchId} and step <> 'analyze' and status = 'queued' and run_after <= now()
       order by id limit 1
       for update skip locked
     )
@@ -209,7 +211,7 @@ export async function progress(searchId: number): Promise<Progress> {
     d
       .select({ n: count() })
       .from(jobs)
-      .where(and(eq(jobs.searchId, searchId), sql`${jobs.status} in ('queued','running')`)),
+      .where(and(eq(jobs.searchId, searchId), isCollectionJob, sql`${jobs.status} in ('queued','running')`)),
     d.select({ source: posts.source, n: count() }).from(posts).where(eq(posts.searchId, searchId)).groupBy(posts.source),
     d.select({ usd: sql<string>`coalesce(sum(${costEvents.usd}), 0)` }).from(costEvents).where(eq(costEvents.searchId, searchId)),
     loadPlan(searchId),
@@ -254,7 +256,7 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
   await d
     .update(jobs)
     .set({ status: "queued" })
-    .where(and(eq(jobs.searchId, searchId), eq(jobs.status, "running"), sql`${jobs.updatedAt} < now() - make_interval(secs => ${STALE_RUNNING_SECONDS})`));
+    .where(and(eq(jobs.searchId, searchId), isCollectionJob, eq(jobs.status, "running"), sql`${jobs.updatedAt} < now() - make_interval(secs => ${STALE_RUNNING_SECONDS})`));
 
   const plansByVersion = new Map<number, Plan>();
   // One budget check per call: a single ~20 s cycle can't move spend meaningfully.
