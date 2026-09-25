@@ -6,7 +6,7 @@ import { fetchJson, type FetchJsonOptions } from "./http";
 import { ConnectorError, type Page, type RawPost } from "./types";
 
 const BASE = "https://www.googleapis.com/youtube/v3";
-export const QUOTA_UNITS = { search: 100, commentThreads: 1 } as const;
+export const QUOTA_UNITS = { search: 100, commentThreads: 1, videos: 1 } as const;
 
 export interface YoutubeVideo {
   videoId: string;
@@ -87,6 +87,17 @@ export async function searchVideos(
     next: res.nextPageToken,
     cost: { provider: "youtube", operation: "search.list", usd: 0, units: { quota: QUOTA_UNITS.search } },
   };
+}
+
+/** Titles of up to 50 videos in one call (1 quota unit), for giving comments their context. */
+export async function videoTitles(apiKey: string | undefined, videoIds: string[], http: Http = {}): Promise<{ titles: Record<string, string>; cost: Page<never>["cost"] }> {
+  const url = new URL(`${BASE}/videos`);
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("id", videoIds.slice(0, 50).join(","));
+  url.searchParams.set("key", requireKey(apiKey));
+  const res = await fetchJson<{ items?: { id?: string; snippet?: { title?: string } }[] }>(url.toString(), { provider: "youtube", ...http });
+  const titles = Object.fromEntries((res.items ?? []).filter((i) => i.id && i.snippet?.title).map((i) => [i.id!, i.snippet!.title!]));
+  return { titles, cost: { provider: "youtube", operation: "videos.list", usd: 0, units: { quota: QUOTA_UNITS.videos } } };
 }
 
 /**

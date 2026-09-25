@@ -4,13 +4,16 @@ import { experimental_evaluate as evaluate } from "ai";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { requireDb } from "@/db/client";
-import { codebooks, decisions, jobs, posts, reviews } from "@/db/schema";
+import * as youtube from "@/connectors/youtube";
+import { catalogNodes, codebooks, decisions, jobs, postProducts, posts, reviews } from "@/db/schema";
 
 import {
+  ABOUT,
   COUNTED,
   estimateTokens,
   jevUsd,
   NOT_STATED,
+  NOT_PRODUCT,
   NOT_SURE,
   orderOf,
   Q,
@@ -20,11 +23,13 @@ import {
   themeQuestion,
   UNCERTAIN,
   type Codebook,
+  type PostForJev,
 } from "./codebook";
 import { claudeModel, tokenCostUsd } from "./ai";
 import { CodebookError, draftCodebook } from "./codebook-drafter";
 import { loadPlan } from "./collect";
 import { paidWorkBlockedReason, recordCost } from "./cost";
+import { removeDuplicatePosts } from "./posts";
 
 /**
  * Step 5: Jev answers the codebook's questions for every post (docs/JEV.md). Like collection, it runs as a job
@@ -65,7 +70,7 @@ export async function saveCodebook(searchId: number, codebook: Codebook): Promis
 /** Posts of the search that have no answers yet for this codebook version. */
 const pendingWhere = (searchId: number, version: number) =>
   sql`${posts.searchId} = ${searchId} and not exists (
-    select 1 from ${decisions} d where d.post_id = ${posts.id} and d.codebook_version = ${version} and d.question = ${Q.relevant})`;
+    select 1 from ${decisions} d where d.post_id = ${posts.id} and d.codebook_version = ${version} and d.question = ${Q.about})`;
 
 async function pendingStats(searchId: number, version: number): Promise<{ n: number; chars: number }> {
   const [row] = await requireDb()
@@ -87,6 +92,7 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   if (!plan) return { started: false, reason: "No plan saved yet." };
   const [{ n: total } = { n: 0 }] = await db.select({ n: count() }).from(posts).where(eq(posts.searchId, searchId));
   if (total === 0) return { started: false, reason: "Collect some posts first." };
+  await prepare(searchId);
   let current = await latestCodebook(searchId);
   if (current && (await pendingStats(searchId, current.version)).n === 0) {
     return { started: false, reason: "Every post is already analyzed with this codebook." };
@@ -171,6 +177,49 @@ async function finish(id: number, status: "done" | "failed" | "waiting" | "queue
     .where(eq(jobs.id, id));
 }
 
+/** The next posts to read, with their context: the video or thread title and the catalog products they name. */
+async function pendingBatch(searchId: number, version: number): Promise<(PostForJev & { id: number })[]> {
+  const res = await requireDb().execute(sql`
+    select p.id, p.source, p.title, p.text, p.parent_source_id is not null as "isComment",
+      coalesce(p.engagement->>'thread', parent.title) as thread,
+      (select string_agg(distinct n.name, ', ') from ${postProducts} pp join ${catalogNodes} n on n.id = pp.node_id where pp.post_id = p.id) as names
+    from ${posts} p
+    left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
+    where p.search_id = ${searchId} and not exists (
+      select 1 from ${decisions} d where d.post_id = p.id and d.codebook_version = ${version} and d.question = ${Q.about})
+    order by p.id limit ${BATCH}`);
+  return (res.rows as unknown as (PostForJev & { id: number })[]).map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+/**
+ * Before reading: removes duplicate posts, and looks up the titles of YouTube videos whose comments were stored
+ * without one (free quota), so every comment is read with its context.
+ */
+async function prepare(searchId: number): Promise<void> {
+  await removeDuplicatePosts(searchId);
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) return;
+  const db = requireDb();
+  const missing = await db.execute(sql`
+    select distinct parent_source_id as id from ${posts}
+    where search_id = ${searchId} and source = 'youtube' and parent_source_id is not null and (engagement->>'thread') is null
+    limit 200`);
+  const ids = (missing.rows as { id: string }[]).map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    try {
+      const { titles, cost } = await youtube.videoTitles(key, ids.slice(i, i + 50));
+      await recordCost({ searchId, ...cost });
+      for (const [videoId, title] of Object.entries(titles)) {
+        await db.execute(sql`
+          update ${posts} set engagement = coalesce(engagement, '{}'::jsonb) || jsonb_build_object('thread', ${title.slice(0, 300)}::text)
+          where search_id = ${searchId} and source = 'youtube' and parent_source_id = ${videoId}`);
+      }
+    } catch {
+      // Without titles the comments are still read, only with less context.
+    }
+  }
+}
+
 /** Jev refused this particular post (bad or oversized input): skip it instead of retrying forever. */
 function rejectedPost(err: unknown): boolean {
   const e = (err as { lastError?: unknown })?.lastError ?? err;
@@ -216,12 +265,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
   const heartbeat = (patch: Partial<typeof jobs.$inferInsert> = {}) => db.update(jobs).set({ updatedAt: new Date(), ...patch }).where(eq(jobs.id, job.id));
   try {
     while (Date.now() - started < budgetMs) {
-      const batch = await db
-        .select({ id: posts.id, source: posts.source, title: posts.title, text: posts.text })
-        .from(posts)
-        .where(pendingWhere(searchId, version))
-        .orderBy(posts.id)
-        .limit(BATCH);
+      const batch = await pendingBatch(searchId, version);
       if (batch.length === 0) {
         await finish(job.id, "done", null);
         return analysisState(searchId);
@@ -242,7 +286,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
               } catch (err) {
                 if (!rejectedPost(err)) throw err;
                 // Stored so the post isn't retried; it never counts and is listed as skipped.
-                rows.push({ postId: post.id, codebookVersion: version, model: JEV_MODEL, question: Q.relevant, answer: "skipped", confidence: 0 });
+                rows.push({ postId: post.id, codebookVersion: version, model: JEV_MODEL, question: Q.about, answer: "skipped", confidence: 0 });
               }
             }),
           );
@@ -252,8 +296,15 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
           await heartbeat();
         }
       } finally {
-        // Answers already paid for are saved even when another post failed or time ran out.
-        if (rows.length) await db.insert(decisions).values(rows).onConflictDoNothing();
+        // Answers already paid for are saved even when another post failed or time ran out. A post read again
+        // (e.g. with the new "about" question) replaces its older answers for this version, in one transaction.
+        if (rows.length) {
+          const answered = [...new Set(rows.map((r) => r.postId))];
+          await db.batch([
+            db.delete(decisions).where(and(inArray(decisions.postId, answered), eq(decisions.codebookVersion, version))),
+            db.insert(decisions).values(rows).onConflictDoNothing(),
+          ]);
+        }
         if (inputTokens > 0) await recordCost({ searchId, provider: "jev", operation: "classify", units: { inputTokens, posts: read }, usd: jevUsd(inputTokens) });
       }
       if (failure) throw failure;
@@ -300,6 +351,8 @@ export interface AnalysisState {
   message: string | null;
   /** Spent on this search's analysis so far (codebook + Jev). */
   costUsd: number;
+  /** Some posts were read with the older yes/no question and will be read again with the improved one. */
+  improved: boolean;
 }
 
 export async function analysisState(searchId: number): Promise<AnalysisState> {
@@ -326,7 +379,7 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
     // Questions are unknown until the codebook exists; a typical one adds about 900 tokens per post.
     const jev = jevUsd(Number(chars) / 4 + 900 * totalPosts);
     const draft = tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output);
-    return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd };
+    return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd, improved: false };
   }
   // A run in progress is measured against the codebook it is using, even if a newer one was saved meanwhile.
   const running = open && jobVersion > 0;
@@ -344,7 +397,12 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
           : "none";
   // A failed first draft leaves no run to resume: show why, with Analyze to try again.
   const message = lastJob?.status === "failed" || lastJob?.status === "waiting" ? lastJob.lastError : null;
-  return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd };
+  const [legacy] = await db
+    .select({ n: count() })
+    .from(decisions)
+    .innerJoin(posts, eq(posts.id, decisions.postId))
+    .where(and(eq(posts.searchId, searchId), eq(decisions.codebookVersion, version), eq(decisions.question, Q.relevant)));
+  return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved: (legacy?.n ?? 0) > 0 };
 }
 
 // ---- Results (all SQL) -----------------------------------------------------------------------------------------
@@ -357,7 +415,7 @@ export async function resultsVersion(searchId: number): Promise<number | null> {
   const res = await requireDb().execute(sql`
     select d.codebook_version as version, count(*) as n
     from ${decisions} d join ${posts} p on p.id = d.post_id
-    where p.search_id = ${searchId} and d.question = ${Q.relevant}
+    where p.search_id = ${searchId} and d.question in (${Q.about}, ${Q.relevant})
     group by d.codebook_version
     order by n desc, version desc
     limit 1`);
@@ -376,7 +434,7 @@ export interface AnalysisSummary {
   version: number;
   codebook: Codebook;
   /** Every analyzed post falls in exactly one of these, so they add up to the posts collected. */
-  relevance: { counted: number; notRelevant: number; needsLook: number; skipped: number };
+  relevance: { counted: number; otherBrands: number; chat: number; notRelevant: number; needsLook: number; skipped: number };
   sentiment: Tally[];
   stages: Tally[];
   segments: Tally[];
@@ -384,24 +442,40 @@ export interface AnalysisSummary {
 }
 
 /**
- * Relevance per post for one codebook version: your Keep/Drop wins over Jev (and counts as sure). A yes/no answer's
- * confidence is never below 0.5, so relevance is strict (docs/DECISIONS.md D37): a post is in only when Jev is sure
- * (0.8 or more) or you kept it; anything less sure waits in "Needs a look" and isn't counted.
+ * The group of every analyzed post for one codebook version (docs/DECISIONS.md D38):
+ * - "product": Jev is ≥ 0.8 sure it's feedback about the subject, or you kept it. Only these are analysed further.
+ * - "other_brands" / "chat" / "not": Jev is ≥ 0.8 sure it is not product feedback; grouped by what Jev says it is.
+ * - "look": anything in between, or "unclear": waits in "Needs a look". "skipped": Jev couldn't read it.
+ * Your Keep/Drop wins (relevance doesn't depend on the codebook, so it applies to every version). Answers stored with
+ * the older yes/no question are read the same way until the post is read again.
  */
 const relevanceCte = (searchId: number, version: number) => sql`
   rel as (
     select d.post_id,
-      coalesce(r.human_answer, d.answer) as answer,
-      case when r.human_answer is not null then 1.0 else d.confidence end as conf
+      case
+        when r.human_answer = 'yes' then 'product'
+        when r.human_answer = 'no' then 'not'
+        when d.answer = 'skipped' then 'skipped'
+        when d.question = ${Q.relevant} then
+          case when d.answer = 'yes' and d.confidence >= ${COUNTED} then 'product'
+               when d.answer = 'no' and d.confidence >= ${COUNTED} then 'not' else 'look' end
+        when d.answer = ${ABOUT.unclear} then 'look'
+        when pp.confidence >= ${COUNTED} then 'product'
+        when pp.confidence <= ${NOT_PRODUCT} then
+          case d.answer when ${ABOUT.otherBrands} then 'other_brands' when ${ABOUT.chat} then 'chat' else 'not' end
+        else 'look'
+      end as grp
     from ${decisions} d
     join ${posts} p on p.id = d.post_id
+    left join ${decisions} pp on pp.post_id = d.post_id and pp.codebook_version = d.codebook_version and pp.question = ${Q.aboutProduct}
     left join lateral (
-      -- Relevance doesn't depend on the codebook, so your latest Keep/Drop applies to every version.
       select human_answer from ${reviews}
       where post_id = d.post_id and question = ${Q.relevant} and kind = 'review_queue'
       order by created_at desc, id desc limit 1
     ) r on true
-    where p.search_id = ${searchId} and d.codebook_version = ${version} and d.question = ${Q.relevant}
+    where p.search_id = ${searchId} and d.codebook_version = ${version}
+      and (d.question = ${Q.about} or (d.question = ${Q.relevant} and not exists (
+        select 1 from ${decisions} x where x.post_id = d.post_id and x.codebook_version = d.codebook_version and x.question = ${Q.about})))
   )`;
 
 const SENTIMENTS = [
@@ -419,10 +493,12 @@ export async function analysisSummary(searchId: number, version: number): Promis
   const [relRes, ansRes] = await Promise.all([
     db.execute(sql`with ${relevanceCte(searchId, version)}
       select
-        count(*) filter (where answer = 'yes' and conf >= ${COUNTED})::int as counted,
-        count(*) filter (where answer = 'no' and conf >= ${COUNTED})::int as "notRelevant",
-        count(*) filter (where answer in ('yes', 'no') and conf < ${COUNTED})::int as "needsLook",
-        count(*) filter (where answer = 'skipped')::int as skipped
+        count(*) filter (where grp = 'product')::int as counted,
+        count(*) filter (where grp = 'other_brands')::int as "otherBrands",
+        count(*) filter (where grp = 'chat')::int as chat,
+        count(*) filter (where grp = 'not')::int as "notRelevant",
+        count(*) filter (where grp = 'look')::int as "needsLook",
+        count(*) filter (where grp = 'skipped')::int as skipped
       from rel`),
     // Every other answer, only for posts that are surely about the subject.
     db.execute(sql`with ${relevanceCte(searchId, version)}
@@ -430,8 +506,8 @@ export async function analysisSummary(searchId: number, version: number): Promis
         count(*) filter (where d.confidence >= ${COUNTED})::int as counted,
         count(*) filter (where d.confidence >= ${UNCERTAIN} and d.confidence < ${COUNTED})::int as uncertain
       from ${decisions} d
-      join rel on rel.post_id = d.post_id and rel.answer = 'yes' and rel.conf >= ${COUNTED}
-      where d.codebook_version = ${version} and d.question <> ${Q.relevant}
+      join rel on rel.post_id = d.post_id and rel.grp = 'product'
+      where d.codebook_version = ${version} and d.question not in (${Q.relevant}, ${Q.about}, ${Q.aboutProduct})
       group by d.question, d.answer`),
   ]);
   const relevance = relRes.rows[0] as AnalysisSummary["relevance"];
@@ -472,21 +548,20 @@ export interface LookPost {
   url: string | null;
   title: string;
   text: string;
-  /** Jev's leaning and how sure it was. */
-  answer: string;
-  confidence: number;
+  /** The video or thread it was posted under. */
+  thread: string | null;
 }
 
-/** Posts Jev wasn't sure are about the subject (confidence under 0.8) that you haven't decided yet. */
+/** Posts Jev couldn't place (unclear, or 20–80% likely to be product feedback) that you haven't decided yet. */
 export async function needsLook(searchId: number, version: number, limit = 20): Promise<LookPost[]> {
-  const res = await requireDb().execute(sql`
+  const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version)}
     select * from (
       -- The same author's same text (a repost or cross-post) is listed once; Keep/Drop applies to every copy.
-      select distinct on (coalesce(p.author_hash, p.id::text), md5(p.text)) p.id, p.source, p.url, p.title, p.text, d.answer, d.confidence
-      from ${decisions} d join ${posts} p on p.id = d.post_id
-      where p.search_id = ${searchId} and d.codebook_version = ${version} and d.question = ${Q.relevant}
-        and d.answer in ('yes', 'no') and d.confidence < ${COUNTED}
-        and not exists (select 1 from ${reviews} r where r.post_id = d.post_id and r.question = ${Q.relevant} and r.kind = 'review_queue')
+      select distinct on (coalesce(p.author_hash, p.id::text), md5(p.text)) p.id, p.source, p.url, p.title, p.text,
+        coalesce(p.engagement->>'thread', parent.title) as thread
+      from rel join ${posts} p on p.id = rel.post_id
+      left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
+      where rel.grp = 'look'
       order by coalesce(p.author_hash, p.id::text), md5(p.text), p.id
     ) t order by id limit ${limit}`);
   return res.rows as unknown as LookPost[];

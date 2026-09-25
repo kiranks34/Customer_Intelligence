@@ -41,13 +41,16 @@ can edit it on the search page, and every edit is a new version
 
 ### How it's called (confirmed from the AI SDK, `experimental_evaluate`)
 
-- **One call per post carries every question**: relevance (yes/no), sentiment
+- **One call per post carries every question**: the kind of post (choice: product
+  feedback / other brands / chat / unclear, D38), sentiment
   (choice), stage and segment (choice, plus "not stated"), and one yes/no per
   theme, so a post can have several themes. Code: `src/lib/codebook.ts`.
 - A yes/no answer returns P(yes). We store "yes"/"no" with confidence
   max(p, 1 − p). A choice returns the chosen option and, when available, the
   probability of each option; we store the chosen option's probability (0.5
   if none is given, so it's never counted as sure).
+- Each post is sent with its context: channel, the video or Reddit thread title
+  it was posted under, and the catalog products it names (D38).
 - Posts are cut at 3,000 characters. A post Jev rejects as bad input is stored
   as "skipped" and never counted.
 
@@ -59,7 +62,9 @@ can edit it on the search page, and every edit is a new version
 | 0.5 – 0.8 | Counted in an "uncertain" band, shown separately in charts |
 | < 0.5 | Review queue. Not counted until you read it |
 
-**Relevance is stricter** (D37): a yes/no confidence is never below 0.5, so a
+**Relevance** (D37, D38): a post counts when Jev is ≥ 0.8 sure it is product
+feedback; ≤ 0.2 goes to its group (other brands, chat, not about it); in between
+or "unclear" goes to Needs a look. Originally (D37): a yes/no confidence is never below 0.5, so a
 post is counted only when Jev is sure (≥ 0.8) it is about the subject, or you
 kept it. Less sure posts go to the optional "Needs a look" list (Keep / Drop)
 and are not counted meanwhile. The bands above apply to the other answers,
