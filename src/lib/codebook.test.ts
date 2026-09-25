@@ -160,6 +160,12 @@ describe("stateFor", () => {
       context: "Reply in the Reddit thread “Printhead error”",
     });
   });
+  it("gives a reply what it answers", () => {
+    expect(stateFor({ source: "reddit", title: "", text: "I will print heavily", thread: "Epson or HP?", isComment: true, replyingTo: "Canon MegaTanks have a good reputation" })).toMatchObject({
+      replying_to: "Canon MegaTanks have a good reputation",
+      post: "I will print heavily",
+    });
+  });
   it("names the channel and cuts very long posts", () => {
     expect(stateFor({ source: "youtube", title: "", text: "Great" })).toEqual({ channel: "YouTube comment", post: "Great" });
     const long = stateFor({ source: "reddit", title: "T", text: "a".repeat(5000) });

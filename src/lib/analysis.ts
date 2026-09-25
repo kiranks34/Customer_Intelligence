@@ -12,6 +12,7 @@ import {
   COUNTED,
   estimateTokens,
   jevUsd,
+  MAX_POST_CHARS,
   NOT_STATED,
   NO_BRAND,
   NOT_PRODUCT,
@@ -52,8 +53,10 @@ const CONCURRENCY = 4;
 const MAX_ATTEMPTS = 3;
 const STALE_RUNNING_SECONDS = 120;
 const SAMPLE_SIZE = 60;
-/** Tokens for drafting a codebook (60 posts × 300 characters plus instructions; the answer), rounded up. */
-const DRAFT_TOKENS = { input: 8_000, output: 3_000 };
+/** How much of the comment or post a reply answers is read with it. */
+const REPLY_CHARS = 600;
+/** Tokens for drafting a codebook (60 posts × 800 characters plus instructions; the answer), rounded up. */
+const DRAFT_TOKENS = { input: 16_000, output: 3_000 };
 
 interface Cursor {
   codebookVersion: number;
@@ -74,18 +77,19 @@ export async function saveCodebook(searchId: number, codebook: Codebook): Promis
   return Number((res.rows[0] as { version: number }).version);
 }
 
-/** Posts of the search that have no answers yet for this codebook version. */
+/** Posts (`p`) of the search that have no answers yet for this codebook version. */
 const pendingWhere = (searchId: number, version: number) =>
-  sql`${posts.searchId} = ${searchId} and not exists (
-    select 1 from ${decisions} d where d.post_id = ${posts.id} and d.codebook_version = ${version}
+  sql`p.search_id = ${searchId} and not exists (
+    select 1 from ${decisions} d where d.post_id = p.id and d.codebook_version = ${version}
       and d.question = ${Q.aboutProduct} and d.answer = ${QUESTION_SET})`;
 
+/** Posts still to read, and the characters Jev will get for them (post and title, plus what a reply answers). */
 async function pendingStats(searchId: number, version: number): Promise<{ n: number; chars: number }> {
-  const [row] = await requireDb()
-    .select({ n: count(), chars: sql<string>`coalesce(sum(least(length(${posts.text}) + length(${posts.title}), 3000)), 0)` })
-    .from(posts)
-    .where(pendingWhere(searchId, version));
-  return { n: row?.n ?? 0, chars: Number(row?.chars ?? 0) };
+  const res = await requireDb().execute(sql`
+    select count(*)::int as n, coalesce(sum(least(length(t.text) + length(t.title), ${MAX_POST_CHARS}) + coalesce(length(t."replyingTo"), 0)), 0) as chars
+    from (select p.text, p.title, ${contextColumns} from ${posts} p ${contextJoins} where ${pendingWhere(searchId, version)}) t`);
+  const row = res.rows[0] as { n: number; chars: string } | undefined;
+  return { n: Number(row?.n ?? 0), chars: Number(row?.chars ?? 0) };
 }
 
 export type StartResult = { started: true; drafted: boolean } | { started: false; reason: string };
@@ -207,17 +211,28 @@ async function finish(id: number, status: "done" | "failed" | "waiting" | "queue
     .where(eq(jobs.id, id));
 }
 
-/** The next posts to read, with their context: the video or thread title and the catalog products they name. */
+/** What a comment is read with: the video or thread it's under, and what it answers (see `contextColumns`). */
+const contextJoins = sql`
+  left join ${posts} parent on parent.search_id = p.search_id and parent.source = p.source and parent.source_id = p.parent_source_id
+  left join ${posts} answered on answered.search_id = p.search_id and answered.source = p.source and answered.source_id = p.engagement->>'replyTo'`;
+
+/**
+ * `thread`: the video or thread title. `names`: the catalog products the post names. `replyingTo`: the comment a reply answers, or for a top-level Reddit comment
+ * the post it answers (cut short). Replies collected before replies were linked (no `replyTo`, depth above 0) get
+ * none rather than the wrong one.
+ */
+const contextColumns = sql`coalesce(p.engagement->>'thread', nullif(parent.title, '')) as thread,
+  left(case when p.engagement ? 'replyTo' then answered.text when p.engagement->>'depth' = '0' then nullif(parent.text, '') end, ${REPLY_CHARS}) as "replyingTo",
+  (select string_agg(distinct n.name, ', ') from ${postProducts} pp join ${catalogNodes} n on n.id = pp.node_id where pp.post_id = p.id) as names`;
+
+/** The next posts to read, with their context: the video or thread, what they reply to, and the catalog products they name. */
 async function pendingBatch(searchId: number, version: number): Promise<(PostForJev & { id: number })[]> {
   const res = await requireDb().execute(sql`
     select p.id, p.source, p.title, p.text, p.parent_source_id is not null as "isComment",
-      coalesce(p.engagement->>'thread', parent.title) as thread,
-      (select string_agg(distinct n.name, ', ') from ${postProducts} pp join ${catalogNodes} n on n.id = pp.node_id where pp.post_id = p.id) as names
+      ${contextColumns}
     from ${posts} p
-    left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
-    where p.search_id = ${searchId} and not exists (
-      select 1 from ${decisions} d where d.post_id = p.id and d.codebook_version = ${version}
-        and d.question = ${Q.aboutProduct} and d.answer = ${QUESTION_SET})
+    ${contextJoins}
+    where ${pendingWhere(searchId, version)}
     order by p.id limit ${BATCH}`);
   return (res.rows as unknown as (PostForJev & { id: number })[]).map((r) => ({ ...r, id: Number(r.id) }));
 }
@@ -322,7 +337,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
             pair.map(async (post) => {
               try {
                 const result = await evaluate({ model: JEV_MODEL, state: stateFor({ ...post, productNotes }), questions, maxRetries: 3, abortSignal: AbortSignal.timeout(30_000) });
-                inputTokens += result.usage.inputTokens ?? estimateTokens(post.text.length + post.title.length, cb.codebook as Codebook, plan.plan.subject);
+                inputTokens += result.usage.inputTokens ?? estimateTokens(post.text.length + post.title.length + (post.replyingTo?.length ?? 0), cb.codebook as Codebook, plan.plan.subject);
                 for (const r of readAnswers(result.answers)) rows.push({ postId: post.id, codebookVersion: version, model: JEV_MODEL, ...r });
               } catch (err) {
                 if (!rejectedPost(err)) throw err;
@@ -711,6 +726,10 @@ export interface LookPost {
   text: string;
   /** The video or thread it was posted under. */
   thread: string | null;
+  /** What it answers, when it's a reply. */
+  replyingTo: string | null;
+  /** Catalog products it names. */
+  names: string | null;
 }
 
 /** Posts Jev couldn't place (unclear, or 20–80% likely to be product feedback) that you haven't decided yet. */
@@ -720,9 +739,9 @@ export async function needsLook(searchId: number, version: number, limit = 200):
     select * from (
       -- The same author's same text (a repost or cross-post) is listed once; Keep/Drop applies to every copy.
       select distinct on (coalesce(p.author_hash, p.id::text), md5(p.text)) p.id, p.source, p.url, p.title, p.text,
-        coalesce(p.engagement->>'thread', parent.title) as thread
+        ${contextColumns}
       from rel join ${posts} p on p.id = rel.post_id
-      left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
+      ${contextJoins}
       where rel.grp = 'look'
       order by coalesce(p.author_hash, p.id::text), md5(p.text), p.id
     ) t order by id limit ${limit}`);
@@ -770,6 +789,8 @@ export interface CheckItem {
   title: string;
   text: string;
   thread: string | null;
+  replyingTo: string | null;
+  names: string | null;
   /** Jev's answers: sentiment, stage, segment, and per theme yes/no. */
   jev: Record<string, CheckAnswer>;
   /** Your answers when this post has been checked. */
@@ -786,9 +807,9 @@ export async function spotCheckItems(searchId: number, version: number): Promise
   const db = requireDb();
   const named = await namedNodeIds(searchId);
   const res = await db.execute(sql`with ${relevanceCte(searchId, version, named)}
-    select p.id, p.source, p.url, p.title, p.text, coalesce(p.engagement->>'thread', parent.title) as thread
+    select p.id, p.source, p.url, p.title, p.text, ${contextColumns}
     from rel join ${posts} p on p.id = rel.post_id
-    left join ${posts} parent on parent.search_id = p.search_id and parent.source_id = p.parent_source_id and parent.title <> ''
+    ${contextJoins}
     where rel.grp = 'product'
     order by md5(p.id::text || '-' || ${version}::text)
     limit ${SPOT_CHECK_SIZE}`);

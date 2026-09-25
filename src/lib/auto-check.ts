@@ -5,8 +5,8 @@ import { z } from "zod";
 
 import type { CallCost } from "@/connectors/types";
 
-import { claudeModel, tokenCostUsd } from "./ai";
-import { criterion, NOT_STATED, OWNERSHIP, POST_TYPES, type Code, type Codebook } from "./codebook";
+import { claudeErrorText, claudeModel, tokenCostUsd } from "./ai";
+import { criterion, MAX_POST_CHARS, NOT_STATED, OWNERSHIP, POST_TYPES, type Code, type Codebook } from "./codebook";
 
 /**
  * Claude as a second reader for the accuracy check (D41): it answers the same questions as Jev for the 20 sample
@@ -24,6 +24,8 @@ export interface CheckPost {
   title: string;
   text: string;
   thread: string | null;
+  replyingTo: string | null;
+  names: string | null;
 }
 
 export type CheckAnswers = Record<string, string>;
@@ -46,6 +48,9 @@ const costOf = (model: string, inputTokens = 0, outputTokens = 0): ClaudeCost =>
   usd: tokenCostUsd(model, inputTokens, outputTokens),
   units: { inputTokens, outputTokens },
 });
+
+/** The same text Jev reads (docs/JEV.md), so a disagreement is about judgement, not about who saw more. */
+const oneLine = (t: string) => t.replace(/\s+/g, " ").trim();
 
 const list = (codes: Code[]) => codes.map((c) => `  - ${c.key} (${c.label}): ${criterion(c)}`).join("\n");
 
@@ -79,7 +84,7 @@ export async function claudeCheck(subject: string, codebook: Codebook, posts: Ch
     `How long they have had it (one):\n${OWNERSHIP.map((o) => `  - ${o.key}: ${o.definition}`).join("\n")}\n  - not_stated`,
     `Themes (any):\n${list(codebook.themes)}`,
     `Posts:\n${posts
-      .map((p, i) => `${i + 1}. [${p.source}]${p.thread ? ` under “${p.thread}”` : ""}${p.title ? ` Title: ${p.title}.` : ""} ${p.text.replace(/\s+/g, " ").slice(0, 1200)}`)
+      .map((p, i) => [`${i + 1}. [${p.source}]${p.thread ? ` under “${p.thread}”` : ""}`, p.names ? `Products named: ${p.names}.` : "", p.replyingTo ? `Replying to: “${oneLine(p.replyingTo)}”` : "", p.title ? `Title: ${p.title}.` : "", `Post: ${oneLine(p.text).slice(0, MAX_POST_CHARS)}`].filter(Boolean).join(" "))
       .join("\n")}`,
   ]
     .filter(Boolean)
@@ -97,7 +102,7 @@ export async function claudeCheck(subject: string, codebook: Codebook, posts: Ch
     });
   } catch (err) {
     const usage = NoObjectGeneratedError.isInstance(err) ? err.usage : undefined;
-    throw new AutoCheckError(err instanceof Error ? err.message.slice(0, 300) : "unknown error", usage ? costOf(model, usage.inputTokens, usage.outputTokens) : null);
+    throw new AutoCheckError(claudeErrorText(err, model), usage ? costOf(model, usage.inputTokens, usage.outputTokens) : null);
   }
   const answers = new Map<number, CheckAnswers>();
   for (const a of result.output.posts) {

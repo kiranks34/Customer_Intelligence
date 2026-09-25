@@ -18,8 +18,17 @@ const TARGET = 0.9;
  * The accuracy check (docs/EVALUATION.md §1): 20 counted posts with Jev's answers, pre-filled. Change what's wrong
  * and save; the score shows how often Jev's sure answers match yours, per question.
  */
-export function SpotCheck(props: { searchId: number; version: number; codebook: Codebook; items: CheckItem[]; accuracy: Accuracy }) {
-  const { items, accuracy, searchId } = props;
+export function SpotCheck(props: {
+  searchId: number;
+  version: number;
+  codebook: Codebook;
+  items: CheckItem[];
+  accuracy: Accuracy;
+  claudeModel: string;
+  /** Asks Claude to rewrite the definitions to fix the mistakes found (shown in "What Jev looks for"). */
+  onImprove: () => void;
+}) {
+  const { items, accuracy, searchId, claudeModel, onImprove } = props;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<string | null>(null);
@@ -32,6 +41,7 @@ export function SpotCheck(props: { searchId: number; version: number; codebook: 
   );
   const shown = !claudeRan || all ? items : disputed;
   const open = accuracy.questions.reduce((n, q) => n + q.open, 0);
+  const wrong = accuracy.questions.reduce((n, q) => n + q.sure - q.right, 0);
 
   function autoCheck() {
     setNote(null);
@@ -56,11 +66,23 @@ export function SpotCheck(props: { searchId: number; version: number; codebook: 
             {pending ? "Claude is checking…" : claudeRan ? "Run the auto-check again" : "Auto-check with Claude"}
           </button>
           <span className="text-xs text-muted">
-            Claude answers the same questions for {items.length} posts (a few cents). You only decide where it disagrees with Jev; your answer always wins.
+            Claude ({claudeModel}) answers the same questions for {items.length} posts, reading what Jev reads (a few cents). You only decide where it
+            disagrees with Jev; your answer always wins.
           </span>
         </div>
         {note && <p className="text-sm text-muted">{note}</p>}
         <Score accuracy={accuracy} open={open} />
+        {wrong > 0 && (
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
+            <span>
+              {wrong} of Jev&apos;s sure {wrong === 1 ? "answer was" : "answers were"} judged wrong.
+            </span>
+            <button type="button" onClick={onImprove} className="rounded-md border border-accent px-3 py-1 font-medium text-accent">
+              Improve the definitions
+            </button>
+            <span className="text-xs text-muted">Claude rewrites them to fix these (a few cents). You review before saving.</span>
+          </div>
+        )}
         {claudeRan && (
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">{all ? `All ${items.length} posts` : `${disputed.length} posts where Claude and Jev disagree`}</span>
@@ -173,6 +195,7 @@ function CheckRow({ n, item, searchId, version, codebook }: { n: number; item: C
           )}
           {item.person && <span className="ml-2 text-[#2f9e6e]">✓ checked</span>}
         </p>
+        {item.replyingTo && <p className="mb-1 line-clamp-2 border-l-2 border-border pl-2 text-xs text-muted">Replying to: “{item.replyingTo}”</p>}
         {item.title && <p className="font-medium">{item.title}</p>}
         <p className="break-words whitespace-pre-line">{item.text.length > 700 ? `${item.text.slice(0, 700)}…` : item.text}</p>
       </div>

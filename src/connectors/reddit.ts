@@ -125,7 +125,13 @@ export function flattenComments(comments: RedditComment[], postName: string | un
         author: authorOf(c.author),
         postedAt: toDate(c.created_utc),
         text: c.body,
-        engagement: { score: c.score ?? null, depth: c.depth ?? null, subreddit: c.subreddit ?? null },
+        engagement: {
+          score: c.score ?? null,
+          depth: c.depth ?? null,
+          subreddit: c.subreddit ?? null,
+          // A reply to another comment names it, so the reply can be read with what it answers.
+          ...(c.parent_id?.startsWith("t1_") ? { replyTo: c.parent_id } : {}),
+        },
       });
     }
     if (c.replies && typeof c.replies === "object") for (const r of c.replies.items ?? []) visit(r);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { usdPerCredit } from "@/connectors/reddit";
+import { claudeModel } from "@/lib/ai";
 import { analysisState, analysisSummary, latestCodebook, needsLook, resultsVersion, spotCheckAccuracy, spotCheckItems } from "@/lib/analysis";
 import { referenceFor } from "@/lib/catalog-references";
 import { catalogStats, ensureCatalogForSearch, getCatalog, waitingCount } from "@/lib/catalogs";
@@ -50,7 +51,7 @@ export default async function SearchPage({ params }: PageProps<"/searches/[id]">
 
       <PlanWorkspace searchId={id} plan={plan} version={version} usdPerCredit={usdPerCredit()} initialProgress={prog} locked={locked} />
       {prog.totalPosts > 0 && (
-        <AnalysisPanel key={`${analysis.version}-${analysis.status}`} searchId={id} subject={plan.subject} initial={analysis} summary={summary} look={look} codebook={codebook} check={accuracy ? { items: checkItems, accuracy } : null} ready={prog.finished} />
+        <AnalysisPanel key={`${analysis.version}-${analysis.status}`} searchId={id} subject={plan.subject} initial={analysis} summary={summary} look={look} codebook={codebook} check={accuracy ? { items: checkItems, accuracy } : null} ready={prog.finished} claude={{ model: claudeModel(), fromSetting: Boolean(process.env.PULSE_CLAUDE_MODEL?.trim()) }} />
       )}
       {catalog && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border bg-surface px-5 py-3 text-sm">
