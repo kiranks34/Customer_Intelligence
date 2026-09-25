@@ -19,20 +19,35 @@ export const ThemeSchema = CodeSchema.extend({
   kind: z.enum(["pain", "delight", "need", "topic"]).describe("pain = problem or complaint; delight = praise; need = wish or unmet need; topic = neutral subject"),
 });
 
-export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12 } as const;
+export const CODEBOOK_LIMITS = { stages: 8, segments: 6, themes: 12, competitors: 8 } as const;
 
 export const CodebookSchema = z.object({
   stages: z.array(CodeSchema).min(2).max(CODEBOOK_LIMITS.stages).describe("Customer journey stages, in order"),
   segments: z.array(CodeSchema).max(CODEBOOK_LIMITS.segments).describe("Who people say they are / what they use it for"),
   themes: z.array(ThemeSchema).min(3).max(CODEBOOK_LIMITS.themes).describe("Pains, delights, needs and topics people raise"),
+  competitors: z
+    .array(CodeSchema)
+    .max(CODEBOOK_LIMITS.competitors)
+    .default([])
+    .describe("Other brands or product lines people compare with or switch to, e.g. Epson EcoTank, Canon MegaTank"),
 });
 
 export type Code = z.infer<typeof CodeSchema>;
 export type Theme = z.infer<typeof ThemeSchema>;
-export type Codebook = z.infer<typeof CodebookSchema>;
+/** Competitors are optional: codebooks saved before D39 have none. */
+export type Codebook = z.input<typeof CodebookSchema>;
 
 /** Reserved answer for stage and segment when the post doesn't say. */
 export const NOT_STATED = "not_stated";
+/**
+ * Version of the questions Jev is asked, stored as the answer of the "about:product" row. Posts read with an older
+ * set are read again (D39: competitors). Bump it whenever the questions change in a way results depend on.
+ */
+export const QUESTION_SET = "q39";
+
+/** Reserved answers for the competitor question. */
+export const OTHER_BRAND = "other_brand";
+export const NO_BRAND = "no_brand";
 /** The "Not sure" row in results, so one-answer questions add up to the posts counted. Never a stored answer. */
 export const NOT_SURE = "_not_sure";
 
@@ -40,10 +55,10 @@ export const NOT_SURE = "_not_sure";
 export function validateCodebook(candidate: unknown): { ok: true; codebook: Codebook } | { ok: false; error: string } {
   const parsed = CodebookSchema.safeParse(candidate);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid codebook" };
-  for (const list of ["stages", "segments", "themes"] as const) {
+  for (const list of ["stages", "segments", "themes", "competitors"] as const) {
     const keys = parsed.data[list].map((c) => c.key);
     if (new Set(keys).size !== keys.length) return { ok: false, error: `Two ${list} have the same key.` };
-    if (keys.includes(NOT_STATED)) return { ok: false, error: `"${NOT_STATED}" is reserved.` };
+    if (keys.some((k) => [NOT_STATED, OTHER_BRAND, NO_BRAND].includes(k))) return { ok: false, error: `"${keys.find((k) => [NOT_STATED, OTHER_BRAND, NO_BRAND].includes(k))}" is reserved.` };
     const labels = parsed.data[list].map((c) => c.label.trim().toLowerCase());
     if (new Set(labels).size !== labels.length) return { ok: false, error: `Two ${list} have the same name.` };
   }
@@ -62,7 +77,7 @@ export function keyFor(label: string, taken: string[]): string {
       .slice(0, 36) || "item";
   const start = /^[a-z]/.test(base) ? base : `x_${base}`;
   let key = start.length >= 2 ? start : `${start}_x`;
-  for (let i = 2; taken.includes(key) || key === NOT_STATED; i++) key = `${start.slice(0, 36)}_${i}`;
+  for (let i = 2; taken.includes(key) || [NOT_STATED, OTHER_BRAND, NO_BRAND].includes(key); i++) key = `${start.slice(0, 36)}_${i}`;
   return key;
 }
 
@@ -71,17 +86,23 @@ export function keyFor(label: string, taken: string[]): string {
 export const Q = {
   /** What kind of post it is (see ABOUT). Replaced the yes/no "relevant" question (D38); old answers still read. */
   about: "about",
-  /** Stored next to "about": Jev's probability that the post is feedback about the product. */
+  /** Stored next to "about": Jev's probability that the post is feedback about the product (answer = QUESTION_SET). */
   aboutProduct: "about:product",
   /** The first, yes/no relevance question. Only read for answers stored before D38. */
   relevant: "relevant",
   sentiment: "sentiment",
+  /** Which competitor a post mainly talks about, and how the writer feels about it (only with a competitor list). */
+  competitor: "competitor",
+  competitorFeeling: "competitor:feeling",
   stage: "stage",
   segment: "segment",
 } as const;
 
-/** The kinds of post (D38). Only "product" posts are analysed further; the others are counted as groups. */
-export const ABOUT = { product: "product", otherBrands: "other_brands", chat: "chat", unclear: "unclear" } as const;
+/**
+ * The kinds of post (D38, D39). Only "product" posts are analysed for the journey; competitor posts get their brand
+ * and feeling; the others are counted as groups. "other_brands" is the D38 name of "competitor" (older answers).
+ */
+export const ABOUT = { product: "product", competitor: "competitor", chat: "chat", offTopic: "off_topic", unclear: "unclear", otherBrands: "other_brands" } as const;
 export const themeQuestion = (key: string) => `theme:${key}`;
 
 type Question =
@@ -99,8 +120,9 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
       instructions: `What kind of post is this, for research on ${subject}? Use its context: the video or thread it was posted under, and any products it names.`,
       criteria: {
         [ABOUT.product]: `About ${subject}: owning, buying, setting up, using, a problem, a question or an opinion. It counts when the post names it, or when it is a comment under a video or thread about ${subject} and talks about that. Comparisons that include it count.`,
-        [ABOUT.otherBrands]: `Mainly about other brands or products rather than ${subject}.`,
-        [ABOUT.chat]: "Thanks or praise for the video or poster, greetings, jokes, or off-topic talk with no experience, opinion or question.",
+        [ABOUT.competitor]: `Mainly about another brand or product line (one they own, recommend, switched to or compare with), not ${subject} itself. It counts even under a video or thread about ${subject}.`,
+        [ABOUT.chat]: "Thanks or praise for the video or poster, greetings or jokes, with no experience, opinion or question about any product.",
+        [ABOUT.offTopic]: "About something else entirely (not these products or this kind of product), or spam.",
         [ABOUT.unclear]: "Too short or vague to tell what it is about.",
       },
     },
@@ -120,6 +142,28 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
       criteria: { ...Object.fromEntries(codebook.stages.map((s) => [s.key, s.definition])), [NOT_STATED]: "The post doesn't show where they are." },
     },
   };
+  const competitors = codebook.competitors ?? [];
+  if (competitors.length > 0) {
+    questions[Q.competitor] = {
+      type: "choice",
+      instructions: `Which other brand or product line (not ${subject}) does the post mainly talk about?`,
+      criteria: {
+        ...Object.fromEntries(competitors.map((c) => [c.key, c.definition])),
+        [OTHER_BRAND]: "Another brand not listed here.",
+        [NO_BRAND]: `No other brand; only ${subject} or nothing specific.`,
+      },
+    };
+    questions[Q.competitorFeeling] = {
+      type: "choice",
+      instructions: "How does the writer feel about that other brand?",
+      criteria: {
+        positive: "Favourable: praises it, recommends it, happy they switched.",
+        negative: "Unfavourable: complains about it or warns against it.",
+        mixed: "Both good and bad points.",
+        neutral: "No clear feeling, or no other brand is mentioned.",
+      },
+    };
+  }
   if (codebook.segments.length > 0) {
     questions[Q.segment] = {
       type: "choice",
@@ -184,7 +228,7 @@ export function readAnswers(answers: Record<string, Answer>): DecisionRow[] {
       if (question === Q.about) {
         // How likely it is product feedback decides what counts; without a distribution it's unknown (0.5).
         const product = a.probabilities?.[ABOUT.product];
-        rows.push({ question: Q.aboutProduct, answer: ABOUT.product, confidence: product === undefined ? (a.choice === ABOUT.product && p !== undefined ? clamp(p) : 0.5) : clamp(product) });
+        rows.push({ question: Q.aboutProduct, answer: QUESTION_SET, confidence: product === undefined ? (a.choice === ABOUT.product && p !== undefined ? clamp(p) : 0.5) : clamp(product) });
       }
     }
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ABOUT, estimateTokens, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
+import { estimateTokens, QUESTION_SET, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
 
 const codebook: Codebook = {
   stages: [
@@ -17,7 +17,7 @@ const codebook: Codebook = {
 
 describe("validateCodebook", () => {
   it("accepts a valid codebook", () => {
-    expect(validateCodebook(codebook)).toEqual({ ok: true, codebook });
+    expect(validateCodebook(codebook)).toEqual({ ok: true, codebook: { ...codebook, competitors: [] } });
   });
   it("rejects duplicate keys, duplicate names and the reserved key", () => {
     const dupKey = { ...codebook, themes: [...codebook.themes, { ...codebook.themes[0], label: "Other" }] };
@@ -48,13 +48,19 @@ describe("questionsFor", () => {
   it("asks the kind of post, sentiment, stage, segment and one yes/no per theme in one call", () => {
     expect(Object.keys(q)).toEqual(["about", "sentiment", "stage", "segment", "theme:wifi", "theme:ink_cost", "theme:print_quality"]);
     expect(q.about.type).toBe("choice");
-    expect(Object.keys((q.about as { criteria: object }).criteria)).toEqual(["product", "other_brands", "chat", "unclear"]);
+    expect(Object.keys((q.about as { criteria: object }).criteria)).toEqual(["product", "competitor", "chat", "off_topic", "unclear"]);
     expect(JSON.stringify(q.about)).toContain("HP Smart Tank 7301");
     expect(q[themeQuestion("wifi")]).toMatchObject({ type: "boolean" });
   });
   it("offers 'not stated' for stage and segment", () => {
     expect(q.stage).toMatchObject({ type: "choice" });
     expect(Object.keys((q.stage as { criteria: object }).criteria)).toEqual(["buy", "use", NOT_STATED]);
+  });
+  it("asks which competitor and how the writer feels about it, only with a competitor list", () => {
+    expect(q.competitor).toBeUndefined();
+    const withBrands = questionsFor({ ...codebook, competitors: [{ key: "epson", label: "Epson EcoTank", definition: "Epson EcoTank printers." }] }, "HP Smart Tank");
+    expect(Object.keys((withBrands.competitor as { criteria: object }).criteria)).toEqual(["epson", "other_brand", "no_brand"]);
+    expect(withBrands["competitor:feeling"]).toMatchObject({ type: "choice" });
   });
   it("leaves out the segment question when there are no segments", () => {
     expect(questionsFor({ ...codebook, segments: [] }, "x").segment).toBeUndefined();
@@ -73,9 +79,9 @@ describe("readAnswers", () => {
     expect(readAnswers({ sentiment: { type: "choice", choice: "positive" } })).toEqual([{ question: "sentiment", answer: "positive", confidence: 0.5 }]);
   });
   it("stores how likely a post is product feedback next to its kind", () => {
-    expect(readAnswers({ about: { type: "choice", choice: "chat", probabilities: { product: 0.1, other_brands: 0.05, chat: 0.8, unclear: 0.05 } } })).toEqual([
+    expect(readAnswers({ about: { type: "choice", choice: "chat", probabilities: { product: 0.1, competitor: 0.05, chat: 0.8, unclear: 0.05 } } })).toEqual([
       { question: "about", answer: "chat", confidence: 0.8 },
-      { question: "about:product", answer: ABOUT.product, confidence: 0.1 },
+      { question: "about:product", answer: QUESTION_SET, confidence: 0.1 },
     ]);
     // Without a distribution, "product" keeps its own probability and anything else is unknown (0.5).
     expect(readAnswers({ about: { type: "choice", choice: "chat" } })[1].confidence).toBe(0.5);

@@ -7,8 +7,9 @@ import { CODEBOOK_LIMITS, keyFor, type Code, type Codebook, type Theme } from "@
 
 import { saveCodebookAction } from "../analysis-actions";
 
-type List = "themes" | "stages" | "segments";
-const TITLES: Record<List, string> = { themes: "Themes", stages: "Journey stages (in order)", segments: "Who is posting" };
+type List = "themes" | "stages" | "segments" | "competitors";
+const LISTS: List[] = ["themes", "stages", "segments", "competitors"];
+const TITLES: Record<List, string> = { themes: "Themes", stages: "Journey stages (in order)", segments: "Who is posting", competitors: "Competitors (brands people compare with)" };
 const KINDS: Theme["kind"][] = ["pain", "delight", "need", "topic"];
 const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
 
@@ -18,12 +19,14 @@ const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
  */
 export function CodebookEditor({ searchId, codebook, version }: { searchId: number; codebook: Codebook; version: number }) {
   const router = useRouter();
-  const [draft, setDraft] = useState<Codebook>(codebook);
+  // Codebooks saved before competitors existed have none.
+  const initial = { ...codebook, competitors: codebook.competitors ?? [] };
+  const [draft, setDraft] = useState<Required<Codebook>>(initial);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const changed = JSON.stringify(draft) !== JSON.stringify(codebook);
+  const changed = JSON.stringify(draft) !== JSON.stringify(initial);
 
-  function update<L extends List>(list: L, index: number, patch: Partial<Codebook[L][number]>) {
+  function update<L extends List>(list: L, index: number, patch: Partial<Required<Codebook>[L][number]>) {
     setDraft((d) => ({ ...d, [list]: d[list].map((c, i) => (i === index ? { ...c, ...patch } : c)) }));
   }
   function remove(list: List, index: number) {
@@ -38,7 +41,7 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
   function save() {
     // New items get a key from their label; existing ones keep theirs, so past answers still line up.
     const withKeys = Object.fromEntries(
-      (["themes", "stages", "segments"] as const).map((list) => {
+      LISTS.map((list) => {
         const taken = draft[list].map((c) => c.key).filter(Boolean);
         return [
           list,
@@ -62,10 +65,10 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
   return (
     <details className="rounded-lg border border-border px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">
-        Themes, stages and user types <span className="font-normal text-muted">· version {version}, drafted by Claude from a sample. Edit if something is missing or off.</span>
+        Themes, stages, user types and competitors <span className="font-normal text-muted">· version {version}, drafted by Claude from a sample. Edit if something is missing or off.</span>
       </summary>
       <div className="mt-4 flex flex-col gap-5">
-        {(["themes", "stages", "segments"] as const).map((list) => (
+        {LISTS.map((list) => (
           <fieldset key={list} className="flex flex-col gap-2">
             <legend className="mb-1 text-sm font-medium">{TITLES[list]}</legend>
             {draft[list].map((c, i) => (
@@ -107,7 +110,7 @@ export function CodebookEditor({ searchId, codebook, version }: { searchId: numb
             {pending ? "Saving…" : "Save changes"}
           </button>
           {changed && (
-            <button type="button" onClick={() => setDraft(codebook)} className="text-sm text-muted underline">
+            <button type="button" onClick={() => setDraft(initial)} className="text-sm text-muted underline">
               Undo changes
             </button>
           )}
