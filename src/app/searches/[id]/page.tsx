@@ -20,7 +20,7 @@ import { ui } from "../../ui";
 import { Improve } from "./improve";
 import { PlanWorkspace } from "./plan-workspace";
 import { Results } from "./results";
-import { StudyBar, StudyControl, StudyProgress } from "./study-control";
+import { HeaderStep, StudyBar, StudyControl, StudyProgress } from "./study-control";
 
 export const dynamic = "force-dynamic";
 
@@ -77,42 +77,47 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
 
   return (
     <AppShell active="studies">
+      <StudyControl facts={facts}>
       <div className="flex flex-col gap-2">
         <Crumbs path={[{ label: "Studies", href: "/" }, { label: search.query }]} />
-        <h1 id="study-title" className={ui.pageTitle}>
-          {search.query}
-        </h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
-          <span className="flex gap-1">
-            {SOURCE_BADGES(plan).map((s) => (
-              <span key={s} className={ui.sourceBadge}>
-                {s}
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="flex min-w-0 flex-col gap-2">
+            <h1 id="study-title" className={ui.pageTitle}>
+              {search.query}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
+              <span className="flex gap-1">
+                {SOURCE_BADGES(plan).map((s) => (
+                  <span key={s} className={ui.sourceBadge}>
+                    {s}
+                  </span>
+                ))}
               </span>
-            ))}
-          </span>
-          <span>
-            {periodText(plan)} · Started <LocalTime iso={search.createdAt.toISOString()} />
-          </span>
-        </div>
-        {family && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
-            <span>
-              Product family:{" "}
-              <Link href={withFrom(`/products/${family.id}`, from)} className={ui.link}>
-                {family.name} →
-              </Link>
-            </span>
-            {family.waiting > 0 && (
-              <Link href={withFrom(`/products/${family.id}`, from)} className={ui.link}>
-                {family.waiting} new {family.waiting === 1 ? "model" : "models"} found →
-              </Link>
+              <span>
+                {periodText(plan)} · Started <LocalTime iso={search.createdAt.toISOString()} />
+              </span>
+            </div>
+            {family && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
+                <span>
+                  Product family:{" "}
+                  <Link href={withFrom(`/products/${family.id}`, from)} className={ui.link}>
+                    {family.name} →
+                  </Link>
+                </span>
+                {family.waiting > 0 && (
+                  <Link href={withFrom(`/products/${family.id}`, from)} className={ui.link}>
+                    {family.waiting} new {family.waiting === 1 ? "model" : "models"} found →
+                  </Link>
+                )}
+              </div>
             )}
           </div>
-        )}
+          <HeaderStep />
+        </div>
         {plan.question && <p className="mt-1 rounded-r-[10px] border-l-[3px] border-accent bg-surface px-3.5 py-2.5 text-sm">“{plan.question}”</p>}
       </div>
 
-      <StudyControl facts={facts}>
         <StudyBar
           sections={
             summary

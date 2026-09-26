@@ -96,6 +96,36 @@ export default function DesignPage() {
         </ul>
       </Block>
 
+      <Block title="Page header" note="Title on the left; status and main action on the right, level with the title">
+        <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
+          <Crumbs path={[{ label: "Studies", href: "/" }, { label: "Smart Tank 7301" }]} />
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className={ui.pageTitle}>Smart Tank 7301</span>
+              <span className={ui.detail}>YouTube · Reddit · 1 year · Started Sep 18</span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex flex-col items-end pt-1.5 text-right">
+                <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
+                  <span className={`h-2 w-2 rounded-full ${dot.good}`} aria-hidden />
+                  Ready
+                </span>
+                <span className={ui.meta}>Results use every post</span>
+              </span>
+              <span className="flex flex-col items-end gap-0.5">
+                <button type="button" className={ui.secondarySm}>
+                  Collect new posts
+                </button>
+                <span className={ui.meta}>about $0.04</span>
+              </span>
+              <button type="button" aria-label="More actions" className={ui.icon}>
+                ⋯
+              </button>
+            </div>
+          </div>
+        </div>
+      </Block>
+
       <Block title="Links and navigation" note="Every page below Studies or Products shows its path; a page reached from the other section shows the way back">
         <div className="flex flex-wrap items-center gap-6">
           <Link href="/design" className={ui.link}>
