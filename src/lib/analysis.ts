@@ -64,7 +64,11 @@ export const draftUsd = () => tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DR
 
 interface Cursor {
   codebookVersion: number;
+  /** A run that re-reads posts with newer questions (D50) keeps the groups as they were, to say what moved. */
+  before?: RelevanceCounts;
 }
+
+export type RelevanceCounts = AnalysisSummary["relevance"];
 
 export async function latestCodebook(searchId: number): Promise<{ version: number; codebook: Codebook } | null> {
   const [row] = await requireDb().select().from(codebooks).where(eq(codebooks.searchId, searchId)).orderBy(desc(codebooks.version)).limit(1);
@@ -151,9 +155,11 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
         current = { version: await saveCodebook(searchId, merged), codebook: merged };
       }
     }
+    // Re-reading posts read with older questions: remember the groups as they are, to say what moved (D50).
+    const before = (await olderAnswers(searchId, current.version)) ? await relevanceCounts(searchId, current.version) : undefined;
     await db
       .update(jobs)
-      .set({ status: "queued", cursor: { codebookVersion: current.version } satisfies Cursor, runAfter: sql`now()` })
+      .set({ status: "queued", cursor: { codebookVersion: current.version, ...(before ? { before } : {}) } satisfies Cursor, runAfter: sql`now()` })
       .where(eq(jobs.id, jobId));
   } catch (err) {
     await finish(jobId, "failed", err instanceof Error ? err.message.slice(0, 300) : "Couldn't draft the codebook.");
@@ -395,7 +401,7 @@ export async function resumeAnalysis(searchId: number): Promise<void> {
   // Only the latest run, and always with the latest codebook (it may have been edited while paused).
   await requireDb().execute(sql`
     update ${jobs} set status = 'queued', attempts = 0, last_error = null, run_after = now(),
-      cursor = jsonb_build_object('codebookVersion', (select max(version) from ${codebooks} where search_id = ${searchId}))
+      cursor = coalesce(cursor, '{}'::jsonb) || jsonb_build_object('codebookVersion', (select max(version) from ${codebooks} where search_id = ${searchId}))
     where id = (select max(id) from ${jobs} where search_id = ${searchId} and step = ${STEP})
       and status in ('waiting', 'failed')
       and exists (select 1 from ${codebooks} where search_id = ${searchId})`);
@@ -408,6 +414,47 @@ export async function analysisBusy(searchId: number): Promise<boolean> {
     .from(jobs)
     .where(and(eq(jobs.searchId, searchId), eq(jobs.step, STEP), sql`${jobs.status} in ('queued', 'running')`));
   return (row?.n ?? 0) > 0;
+}
+
+/** Some posts of this version were read with older questions: Re-analyze reads them with the current ones. */
+export async function olderAnswers(searchId: number, version: number): Promise<boolean> {
+  const res = await requireDb().execute(sql`
+    select exists (select 1 from ${decisions} d join ${posts} p on p.id = d.post_id
+      where p.search_id = ${searchId} and d.codebook_version = ${version}
+        and (d.question = ${Q.relevant} or (d.question = ${Q.aboutProduct} and d.answer <> ${QUESTION_SET}))) as older`);
+  return !!(res.rows[0] as { older: boolean }).older;
+}
+
+/** How many posts each group has: about the product, other brands, chat, off-topic, another language, uncertain. */
+export async function relevanceCounts(searchId: number, version: number): Promise<RelevanceCounts> {
+  const named = await namedNodeIds(searchId);
+  const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version, named)}
+    select
+      count(*) filter (where grp = 'product')::int as counted,
+      count(*) filter (where grp = 'competitor')::int as competitors,
+      count(*) filter (where grp = 'chat')::int as chat,
+      count(*) filter (where grp = 'not')::int as "notRelevant",
+      count(*) filter (where grp = 'language')::int as language,
+      count(*) filter (where grp = 'look')::int as "needsLook",
+      count(*) filter (where grp = 'skipped')::int as skipped
+    from rel`);
+  return res.rows[0] as RelevanceCounts;
+}
+
+/**
+ * What the latest re-read with newer questions moved (D50), once it is done: the groups before and now. Null when
+ * the latest run wasn't such a re-read, or is still going.
+ */
+export async function rulesChange(searchId: number): Promise<{ jobId: number; before: RelevanceCounts; after: RelevanceCounts } | null> {
+  const [last] = await requireDb()
+    .select({ id: jobs.id, status: jobs.status, cursor: jobs.cursor })
+    .from(jobs)
+    .where(and(eq(jobs.searchId, searchId), eq(jobs.step, STEP)))
+    .orderBy(desc(jobs.id))
+    .limit(1);
+  const cursor = last?.cursor as Cursor | null;
+  if (!last || last.status !== "done" || !cursor?.before || !cursor.codebookVersion) return null;
+  return { jobId: last.id, before: cursor.before, after: await relevanceCounts(searchId, cursor.codebookVersion) };
 }
 
 export interface AnalysisState {
@@ -478,23 +525,13 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
           : "none";
   // A failed first draft leaves no run to resume: show why, with Analyze to try again.
   const message = lastJob?.status === "failed" || lastJob?.status === "waiting" ? lastJob.lastError : null;
-  const [legacy] = await db
-    .select({ n: count() })
-    .from(decisions)
-    .innerJoin(posts, eq(posts.id, decisions.postId))
-    .where(
-      and(
-        eq(posts.searchId, searchId),
-        eq(decisions.codebookVersion, version),
-        sql`(${decisions.question} = ${Q.relevant} or (${decisions.question} = ${Q.aboutProduct} and ${decisions.answer} <> ${QUESTION_SET}))`,
-      ),
-    );
+  const improved = await olderAnswers(searchId, version);
   const [{ chars: allChars } = { chars: "0" }] = await db
     .select({ chars: sql<string>`coalesce(sum(least(length(${posts.text}) + length(${posts.title}), 3000)), 0)` })
     .from(posts)
     .where(eq(posts.searchId, searchId));
   const rereadUsd = jevUsd(Number(allChars) / 4 + estimateTokens(0, planned, "") * totalPosts);
-  return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved: (legacy?.n ?? 0) > 0, rereadUsd };
+  return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved, rereadUsd };
 }
 
 /**
@@ -541,7 +578,7 @@ export interface AnalysisSummary {
   version: number;
   codebook: Codebook;
   /** Every analyzed post falls in exactly one of these, so they add up to the posts collected. */
-  relevance: { counted: number; competitors: number; chat: number; notRelevant: number; needsLook: number; skipped: number };
+  relevance: { counted: number; competitors: number; chat: number; notRelevant: number; language: number; needsLook: number; skipped: number };
   /** Other brands the posts mainly talk about (competitor posts and product posts), with how writers feel about them. */
   competitors: { key: string; label: string; posts: number; positive: number; negative: number }[];
   sentiment: Tally[];
@@ -567,7 +604,8 @@ export interface AnalysisSummary {
  * - "product": Jev is ≥ 0.8 sure it's feedback about the subject, or you kept it. Only these get the journey.
  * - "competitor" / "chat" / "not": Jev picked that kind and leans away from product feedback (kind ≥ 0.5 and
  *   product < 0.5), or is ≥ 0.8 sure it isn't product feedback.
- * - "look": anything else, or "unclear": waits in "Needs a look". "skipped": Jev couldn't read it.
+ * - "language": Jev is sure it isn't English (D50): set aside, listed so you can check.
+ * - "look": anything else, or "unclear": waits in "Uncertain posts". "skipped": Jev couldn't read it.
  * Your Keep/Drop wins (relevance doesn't depend on the codebook, so it applies to every version). Answers stored with
  * the older yes/no question are read the same way until the post is read again.
  */
@@ -578,9 +616,12 @@ const relevanceCte = (searchId: number, version: number, named: number[] | null)
         when r.human_answer = 'yes' then 'product'
         when r.human_answer = 'no' then 'not'
         when d.answer = 'skipped' then 'skipped'
+        -- D50: another language (Jev sure) is set aside, even if it names the product; Keep still counts it.
+        when en.answer = 'no' and en.confidence >= ${COUNTED} then 'language'
         -- D41: a post that names the product (catalog match in its title or text) is about it, unless Jev is sure
         -- it's only chat or off-topic.
-        when pp.answer = ${QUESTION_SET}
+        -- Answers read with the D41 questions or later (q41, and today's set) carry the named rule; older ones don't.
+        when pp.answer in (${NAMED_RULE_SETS[0]}, ${QUESTION_SET})
           and exists (select 1 from ${postProducts} named where named.post_id = d.post_id${
             // The pick was removed from the catalog: nothing counts as "named" (never an empty "in ()").
             named ? (named.length ? sql` and named.node_id in (${sql.join(named.map((id) => sql`${id}`), sql`, `)})` : sql` and false`) : sql``
@@ -591,6 +632,9 @@ const relevanceCte = (searchId: number, version: number, named: number[] | null)
                when d.answer = 'no' and d.confidence >= ${COUNTED} then 'not' else 'look' end
         when d.answer = ${ABOUT.unclear} then 'look'
         when pp.confidence >= ${COUNTED} then 'product'
+        -- D50: Jev sure it's only another brand, or only chat (the video, its creator), and leaning away from the product.
+        when d.answer in (${ABOUT.competitor}, ${ABOUT.chat}) and d.confidence >= ${COUNTED} and pp.confidence < 0.5 then
+          case d.answer when ${ABOUT.competitor} then 'competitor' else 'chat' end
         when d.answer <> ${ABOUT.product} and (pp.confidence <= ${NOT_PRODUCT} or (d.confidence >= 0.5 and pp.confidence < ${LEANS_AWAY})) then
           case d.answer when ${ABOUT.competitor} then 'competitor' when ${ABOUT.otherBrands} then 'competitor' when ${ABOUT.chat} then 'chat' else 'not' end
         else 'look'
@@ -598,6 +642,7 @@ const relevanceCte = (searchId: number, version: number, named: number[] | null)
     from ${decisions} d
     join ${posts} p on p.id = d.post_id
     left join ${decisions} pp on pp.post_id = d.post_id and pp.codebook_version = d.codebook_version and pp.question = ${Q.aboutProduct}
+    left join ${decisions} en on en.post_id = d.post_id and en.codebook_version = d.codebook_version and en.question = ${Q.english}
     left join lateral (
       select human_answer from ${reviews}
       where post_id = d.post_id and question = ${Q.relevant} and kind = 'review_queue'
@@ -607,6 +652,9 @@ const relevanceCte = (searchId: number, version: number, named: number[] | null)
       and (d.question = ${Q.about} or (d.question = ${Q.relevant} and not exists (
         select 1 from ${decisions} x where x.post_id = d.post_id and x.codebook_version = d.codebook_version and x.question = ${Q.about})))
   )`;
+
+/** Question sets whose answers the named-product rule (D41) applies to; the current set is added in the query. */
+const NAMED_RULE_SETS = ["q41"] as const;
 
 /** Below this likelihood of being about the subject, a post Jev placed in another group goes there without a look. */
 const LEANS_AWAY = 0.35;
@@ -631,6 +679,7 @@ export async function analysisSummary(searchId: number, version: number): Promis
         count(*) filter (where grp = 'competitor')::int as competitors,
         count(*) filter (where grp = 'chat')::int as chat,
         count(*) filter (where grp = 'not')::int as "notRelevant",
+        count(*) filter (where grp = 'language')::int as language,
         count(*) filter (where grp = 'look')::int as "needsLook",
         count(*) filter (where grp = 'skipped')::int as skipped
       from rel`),
@@ -778,7 +827,7 @@ export async function journeyQuotes(searchId: number, version: number, perCell =
   }));
 }
 
-// ---- Needs a look ----------------------------------------------------------------------------------------------
+// ---- Uncertain posts -------------------------------------------------------------------------------------------
 
 export interface LookPost {
   id: number;
@@ -792,22 +841,61 @@ export interface LookPost {
   replyingTo: string | null;
   /** Catalog products it names. */
   names: string | null;
+  /** Why Jev wasn't sure (D50): how likely it thought the post is about the product, another brand, only chat. */
+  pSubject: number | null;
+  pBrand: number | null;
+  pChat: number | null;
 }
 
-/** Posts Jev couldn't place (unclear, or 20–80% likely to be product feedback) that you haven't decided yet. */
-export async function needsLook(searchId: number, version: number, limit = 200): Promise<LookPost[]> {
+/** The probability of "yes" from a stored yes/no answer (stored as the answer and its confidence). */
+const yesOf = (version: number, question: string) => sql`(select case when x.answer = 'yes' then x.confidence else 1 - x.confidence end
+  from ${decisions} x where x.post_id = p.id and x.codebook_version = ${version} and x.question = ${question} limit 1)`;
+
+/** Posts of one group you haven't decided yet: "look" (Uncertain posts) or "language" (set aside, D50). */
+async function postsIn(searchId: number, version: number, group: "look" | "language", limit: number): Promise<LookPost[]> {
   const named = await namedNodeIds(searchId);
   const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version, named)}
     select * from (
       -- The same author's same text (a repost or cross-post) is listed once; Keep/Drop applies to every copy.
       select distinct on (coalesce(p.author_hash, p.id::text), md5(p.text)) p.id, p.source, p.url, p.title, p.text,
-        ${contextColumns}
+        ${contextColumns},
+        (select x.confidence from ${decisions} x where x.post_id = p.id and x.codebook_version = ${version} and x.question = ${Q.aboutProduct} limit 1) as "pSubject",
+        ${yesOf(version, Q.mentionsCompetitor)} as "pBrand",
+        ${yesOf(version, Q.chat)} as "pChat"
       from rel join ${posts} p on p.id = rel.post_id
       ${contextJoins}
-      where rel.grp = 'look'
+      where rel.grp = ${group}
       order by coalesce(p.author_hash, p.id::text), md5(p.text), p.id
     ) t order by id limit ${limit}`);
-  return res.rows as unknown as LookPost[];
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  return (res.rows as unknown as LookPost[]).map((r) => ({ ...r, id: Number(r.id), pSubject: num(r.pSubject), pBrand: num(r.pBrand), pChat: num(r.pChat) }));
+}
+
+/** Posts Jev couldn't place (unclear, or 20–80% likely to be product feedback) that you haven't decided yet. */
+export const needsLook = (searchId: number, version: number, limit = 200) => postsIn(searchId, version, "look", limit);
+/** Posts set aside as another language (D50), so you can check them; Keep still counts one. */
+export const otherLanguage = (searchId: number, version: number, limit = 100) => postsIn(searchId, version, "language", limit);
+
+export interface PlacedGroup {
+  group: "chat" | "competitor" | "language";
+  posts: number;
+  /** One short post of the group, word for word, as an example. */
+  example: string | null;
+}
+
+/** What the rules placed without asking you (D50): chat, other brands, another language, with an example each. */
+export async function placedByRules(searchId: number, version: number): Promise<PlacedGroup[]> {
+  const named = await namedNodeIds(searchId);
+  const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version, named)},
+    ranked as (
+      select rel.grp, p.text, count(*) over (partition by rel.grp) as n,
+        row_number() over (partition by rel.grp order by length(p.text) > 120, coalesce((p.engagement->>'likes')::int, (p.engagement->>'score')::int, 0) desc, p.id) as rank
+      from rel join ${posts} p on p.id = rel.post_id
+      where rel.grp in ('chat', 'competitor', 'language')
+    )
+    select grp as "group", n::int as posts, left(text, 120) as example from ranked where rank = 1`);
+  const rows = res.rows as unknown as PlacedGroup[];
+  return (["chat", "competitor", "language"] as const).map((g) => rows.find((r) => r.group === g) ?? { group: g, posts: 0, example: null });
 }
 
 /** Keep (about the subject) or Drop (not about it). Your answer replaces Jev's in every count. */

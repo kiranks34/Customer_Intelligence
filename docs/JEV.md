@@ -86,11 +86,17 @@ can edit it on the search page, and every edit is a new version
 
 **Relevance** (D37, D38): a post counts when Jev is ≥ 0.8 sure it is product
 feedback; ≤ 0.2 goes to its group (other brands, chat, not about it); in between
-or "unclear" goes to Needs a look. Originally (D37): a yes/no confidence is never below 0.5, so a
+or "unclear" goes to Uncertain posts (called "Needs a look" before D50). Originally (D37): a yes/no confidence is never below 0.5, so a
 post is counted only when Jev is sure (≥ 0.8) it is about the subject, or you
-kept it. Less sure posts go to the optional "Needs a look" list (Keep / Drop)
+kept it. Less sure posts go to the optional "Uncertain posts" list (Keep / Drop)
 and are not counted meanwhile. The bands above apply to the other answers,
 within counted posts.
+
+**D50 rules:** a post Jev is sure (≥ 0.8) is only about another brand, or only chat (thanks or remarks about the
+video or its creator), and that is under 0.5 about the subject, goes to Competitors or Chat without asking you.
+A post Jev is sure is not in English is set aside ("Other language"), even if it names the product, since a study
+covers North America in English; you can list them and Keep one. Each uncertain post shows Jev's three numbers
+(about the subject, another brand, only chat) against the 0.8 line, so the rules can be checked against real posts.
 
 Thresholds are settings. We check them per new category with a spot-check
 (EVALUATION.md), because the 92–100% figure comes from one category.

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { usdPerCredit } from "@/connectors/reddit";
 import { claudeModel } from "@/lib/ai";
-import { draftUsd, latestCodebook, needsLook, spotCheckAccuracy, spotCheckItems } from "@/lib/analysis";
+import { draftUsd, latestCodebook, needsLook, otherLanguage, placedByRules, rulesChange, spotCheckAccuracy, spotCheckItems } from "@/lib/analysis";
 import { comparisonOf } from "@/lib/compare";
 import { ensureCatalogForSearch, getCatalog, waitingCount } from "@/lib/catalogs";
 import { loadPlan } from "@/lib/collect";
@@ -17,6 +17,7 @@ import { LocalTime } from "../../local-time";
 import { Crumbs, withFrom } from "../../nav";
 import { ui } from "../../ui";
 import { Improve } from "./improve";
+import { RulesNotice } from "./rules-notice";
 import { PlanWorkspace } from "./plan-workspace";
 import { Results } from "./results";
 import { HeaderStep, StudyBar, StudyControl, StudyProgress, type StudyFacts } from "./study-control";
@@ -45,7 +46,11 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
   const { shown, summary, quotes } = side;
   const prog = side.facts.progress;
   const locked = !prog.finished || prog.jobs.waiting > 0;
-  const [look, checkItems, accuracy] = shown ? await Promise.all([needsLook(id, shown), spotCheckItems(id, shown), spotCheckAccuracy(id, shown)]) : [[], [], null];
+  const [look, checkItems, accuracy, placed, languagePosts, change] = shown
+    ? await Promise.all([needsLook(id, shown), spotCheckItems(id, shown), spotCheckAccuracy(id, shown), placedByRules(id, shown), otherLanguage(id, shown), rulesChange(id)])
+    : [[], [], null, [], [], null];
+  // Clearer reading rules (D50) apply once the posts are read again: said where it matters, not in the header.
+  const rulesReady = side.facts.hasResults && side.facts.analysis.improved && side.facts.analysis.status !== "running";
   const notUsed = side.facts.factsNotUsed;
   const facts: StudyFacts = {
     kind: "study",
@@ -134,6 +139,15 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
         <div className="flex flex-col gap-6">
           <StudyProgress />
 
+          {change && <RulesNotice jobId={change.jobId} before={change.before} after={change.after} />}
+          {rulesReady && (
+            <div className={ui.noticeInfo}>
+              <span className="min-w-56 flex-1">
+                <b>Jev can read these posts with clearer rules.</b> Comments only about the video go to Chat, posts only about another brand go to
+                Competitors, and posts in another language are set aside. Re-analyze (top right) applies them to all {side.facts.analysis.totalPosts} posts.
+              </span>
+            </div>
+          )}
           {summary && <Results summary={summary} subject={plan.subject} quotes={quotes} />}
 
           {summary && shown && (
@@ -142,6 +156,9 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
               version={shown}
               look={look}
               lookTotal={summary.relevance.needsLook}
+              placed={placed}
+              languagePosts={languagePosts}
+              subject={plan.target?.label ?? plan.subject}
               check={accuracy ? { items: checkItems, accuracy } : null}
               summaryCodebook={summary.codebook}
               codebook={codebook}

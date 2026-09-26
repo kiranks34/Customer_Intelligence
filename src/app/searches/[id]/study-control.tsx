@@ -283,11 +283,20 @@ function statusOf(s: {
   const pending = sum(as.map((a) => a.pending));
   if (pending > 0) {
     const newer = sides.map((x) => x.newerCategories).find((v) => v !== null) ?? null;
+    // Posts read with older questions are read again with the clearer rules (D50): a Re-analyze, not new posts.
+    const clearer = as.some((a) => a.improved);
     return {
       tone: "warn",
       word: "Update ready",
-      reason: newer !== null ? (pair ? "New categories not used yet" : `Categories version ${newer} not used yet`) : `${n(pending, "new post")} not read yet`,
-      action: { label: newer !== null ? "Re-analyze" : "Analyze new posts", cost: sum(as.map((a) => a.estimateUsd)), primary: true, onClick: () => void s.analyze() },
+      reason:
+        newer !== null
+          ? pair
+            ? "New categories not used yet"
+            : `Categories version ${newer} not used yet`
+          : clearer
+            ? "Jev reads posts with clearer rules"
+            : `${n(pending, "new post")} not read yet`,
+      action: { label: newer !== null || clearer ? "Re-analyze" : "Analyze new posts", cost: sum(as.map((a) => a.estimateUsd)), primary: true, onClick: () => void s.analyze() },
     };
   }
   const answers = sum(sides.map((x) => x.openAnswers));
@@ -406,7 +415,7 @@ export function StudyBar({ sections }: { sections: [string, string][] }) {
 
 /**
  * ⋯: Collect new posts (when it isn't the bar's button), Rename, Search settings (a comparison: each side's study,
- * where its settings, Needs a look and Accuracy live), Remove.
+ * where its settings, Uncertain posts and Accuracy live), Remove.
  */
 function StudyMenu({ facts, collect }: { facts: StudyFacts; collect: { label: string; note: string; cost: number; run: () => void } | null }) {
   const { id, title } = facts;
@@ -502,7 +511,7 @@ function StudyMenu({ facts, collect }: { facts: StudyFacts; collect: { label: st
                 facts.sides.map((x) => (
                   <Link key={x.searchId} href={`/searches/${x.searchId}?from=compare-${id}`} className={item}>
                     Open {x.label} →
-                    <span className="block text-xs text-muted">Its search settings, Needs a look and Accuracy</span>
+                    <span className="block text-xs text-muted">Its search settings, Uncertain posts and Accuracy</span>
                   </Link>
                 ))
               ) : (

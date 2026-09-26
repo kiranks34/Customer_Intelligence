@@ -123,7 +123,7 @@ pushing the page down; Escape closes and returns focus).
 ## Words
 
 - Plain words for what the person does and sees. No internal names (codebook, plan version) in labels.
-- The same thing has one name everywhere: Studies, Products, Categories, Product knowledge, Needs a look, Accuracy.
+- The same thing has one name everywhere: Studies, Products, Categories, Product knowledge, Uncertain posts, Accuracy.
 - No explanatory text where the label can say it. Hints only for costs, limits and consequences.
 
 ## Checks before every UI change

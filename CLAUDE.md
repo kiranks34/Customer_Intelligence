@@ -11,4 +11,5 @@
 - UI follows `docs/DESIGN-SYSTEM.md`: styles only from `ui` (`src/app/ui.ts`) and the colour tokens; a new pattern is
   added to `ui` and to the /design page first. `src/app/design-system.test.ts` enforces the basics.
 - Checks before pushing: `npm run lint && npm run typecheck && npm test && npm run build`.
+- Review your own work with `/code-review` (the code-review skill) before every PR, and fix what it finds.
 - Schema changes: edit `src/db/schema.ts`, then `npm run db:generate` and commit the new file in `drizzle/`.
