@@ -76,6 +76,20 @@ a new tab), **↓** further down this page.
   to New study". Labels stay short; long names never go in a button.
 - Tabs (`tab`, `tabOn`) switch views inside one page and keep the way back.
 
+### Page header
+
+Every page starts the same way:
+
+1. Breadcrumb (pages below Studies or Products), with "← Back to …" above it when you came from the other section.
+2. One row: the **page title on the left** (with its detail lines under it), and on the **right, level with the
+   title**, the page's status and main action: status word and reason, the button (its cost under it), then ⋯. Pages
+   without a status put their main action there alone (Products: "+ Add a product family"; a family: "Check for new
+   models", "Start a study →").
+3. Anything else (a question, tabs, the study bar) comes below that row, never between the title and its action.
+
+On a phone the right side wraps under the title, still right-aligned. A study's bar (sticky, with the jump links)
+takes over the status and action only once the title has scrolled out of view, so they never show twice.
+
 ### Status
 
 One short word and why, the same in All studies and in a study's bar: Collecting, Reading posts (blue); Paused,

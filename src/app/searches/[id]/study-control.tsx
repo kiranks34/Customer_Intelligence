@@ -338,52 +338,78 @@ function statusOf(s: {
 }
 
 /**
- * The study bar: stays at the top while you scroll, with the study's status and its one button, the ⋯ menu, and the
- * jump links to the results. The study's name joins it once the page title has scrolled away.
+ * The study's status and its one next step (D47): a short word and why, the button (its cost under it) and ⋯. It
+ * sits top right, level with the page title (DESIGN-SYSTEM.md, page header), and moves into the study bar once the
+ * title has scrolled away, so it is always in reach and never shown twice.
  */
-export function StudyBar({ sections }: { sections: [string, string][] }) {
+export function NextStep() {
   const { facts, p, status, message, busy, locked, collectNew } = useStudy();
-  const [titleGone, setTitleGone] = useState(false);
-  useEffect(() => {
-    const el = document.getElementById("study-title");
-    if (!el) return;
-    const o = new IntersectionObserver(([e]) => setTitleGone(!e.isIntersecting), { threshold: 0 });
-    o.observe(el);
-    return () => o.disconnect();
-  }, []);
   const act = status.action;
   const cls = act ? (act.primary ? ui.primarySm : ui.secondarySm) : "";
   const showCollect = !busy && status.word !== "Ready" && !["Paused", "Waiting"].includes(status.word);
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <div className="flex min-w-0 flex-col items-end pt-1.5 text-right" role="status">
+        <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${dot[status.tone]}`} aria-hidden />
+          {status.word}
+        </span>
+        <span className={`text-xs ${message ? "text-critical" : "text-muted"}`}>{message ?? status.reason}</span>
+      </div>
+      {act && (
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          {act.href ? (
+            <a href={act.href} onClick={() => openOnPage(act.href!.slice(1))} className={cls}>
+              {act.label}
+            </a>
+          ) : (
+            <button type="button" disabled={locked && act.label !== "Stop"} onClick={act.onClick} className={cls}>
+              {act.label}
+            </button>
+          )}
+          {act.cost !== undefined && <span className={ui.meta}>{aboutUsd(act.cost)}</span>}
+        </div>
+      )}
+      <StudyMenu id={facts.searchId} title={facts.title} collect={showCollect ? { label: p.totalPosts ? "Collect new posts" : "Collect posts", cost: facts.collectUsd, run: collectNew } : null} />
+    </div>
+  );
+}
 
+/** True once the page title (#study-title) has scrolled out of view. */
+function useTitleGone() {
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById("study-title");
+    if (!el) return;
+    const o = new IntersectionObserver(([e]) => setGone(!e.isIntersecting), { threshold: 0 });
+    o.observe(el);
+    return () => o.disconnect();
+  }, []);
+  return gone;
+}
+
+/** The page header's right side: the next step while the title is in view (the study bar takes it over after). */
+export function HeaderStep() {
+  const gone = useTitleGone();
+  return <div className={`ml-auto shrink-0 ${gone ? "invisible" : ""}`}>{gone ? null : <NextStep />}</div>;
+}
+
+/**
+ * The study bar: stays at the top while you scroll, with the jump links to the results. Once the title has scrolled
+ * away it also carries the study's name and its next step.
+ */
+export function StudyBar({ sections }: { sections: [string, string][] }) {
+  const { facts } = useStudy();
+  const gone = useTitleGone();
+  if (!gone && sections.length === 0) return null;
   return (
     <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-2.5 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur sm:mx-0 sm:px-0">
-      <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
-          {titleGone && <span className="mr-auto hidden min-w-0 truncate text-base font-bold sm:block">{facts.title}</span>}
-          <div className="flex min-w-0 flex-col items-end text-right" role="status">
-            <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${dot[status.tone]}`} aria-hidden />
-              {status.word}
-            </span>
-            <span className={`text-xs ${message ? "text-critical" : "text-muted"}`}>{message ?? status.reason}</span>
-          </div>
+      {gone && (
+        <div className="flex items-center justify-between gap-4">
+          <span className="hidden min-w-0 truncate text-base font-bold sm:block">{facts.title}</span>
+          <NextStep />
         </div>
-        {act && (
-          <div className="flex shrink-0 flex-col items-end gap-0.5">
-            {act.href ? (
-              <a href={act.href} onClick={() => openOnPage(act.href!.slice(1))} className={cls}>
-                {act.label}
-              </a>
-            ) : (
-              <button type="button" disabled={locked && act.label !== "Stop"} onClick={act.onClick} className={cls}>
-                {act.label}
-              </button>
-            )}
-            {act.cost !== undefined && <span className={ui.meta}>{aboutUsd(act.cost)}</span>}
-          </div>
-        )}
-        <StudyMenu id={facts.searchId} title={facts.title} collect={showCollect ? { label: p.totalPosts ? "Collect new posts" : "Collect posts", cost: facts.collectUsd, run: collectNew } : null} />
-      </div>
+      )}
       {sections.length > 0 && (
         <nav aria-label="On this page" className="flex flex-wrap gap-1.5">
           {sections.map(([anchor, label]) => (
