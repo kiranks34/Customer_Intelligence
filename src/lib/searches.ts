@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { requireDb } from "@/db/client";
-import { jobs, plans, posts, searches } from "@/db/schema";
+import { comparisons, jobs, plans, posts, searches } from "@/db/schema";
 
 import type { Plan } from "./plan";
 
@@ -62,11 +62,19 @@ export async function recentSearches(limit = 50) {
 
 /** Clears searches from the Recent list. Nothing is deleted: posts, plans and costs stay for a later archive view. */
 export async function hideSearches(ids: number[]): Promise<number> {
-  const res = await requireDb()
-    .update(searches)
-    .set({ hiddenAt: sql`now()` })
-    .where(and(isNull(searches.hiddenAt), inArray(searches.id, ids)))
-    .returning({ id: searches.id });
+  const db = requireDb();
+  // A comparison (D48) never stays with one side: it goes with either of its studies.
+  const [res] = await db.batch([
+    db
+      .update(searches)
+      .set({ hiddenAt: sql`now()` })
+      .where(and(isNull(searches.hiddenAt), inArray(searches.id, ids)))
+      .returning({ id: searches.id }),
+    db
+      .update(comparisons)
+      .set({ hiddenAt: sql`now()` })
+      .where(and(isNull(comparisons.hiddenAt), or(inArray(comparisons.searchA, ids), inArray(comparisons.searchB, ids)))),
+  ]);
   return res.length;
 }
 

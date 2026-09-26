@@ -181,7 +181,7 @@ const listSizes = (c: Codebook) => {
   return [n(c.themes.length, "theme"), n(c.stages.length, "stage"), c.touchpoints?.length ? n(c.touchpoints.length, "touchpoint") : null].filter(Boolean).join(" · ");
 };
 
-function Row(props: { id: string; title: string; status: React.ReactNode; action: React.ReactNode; open: boolean; children: React.ReactNode }) {
+export function Row(props: { id: string; title: React.ReactNode; status: React.ReactNode; action: React.ReactNode; open: boolean; children: React.ReactNode }) {
   return (
     <div id={props.id} className={`${ui.card} scroll-mt-32`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4 sm:px-6">

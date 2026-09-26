@@ -8,6 +8,9 @@ import { choicesProblem, estimateStudy, PERIOD_CHOICES, SOURCES, type PeriodChoi
 
 import { aboutUsd, shortDay } from "./format";
 import { byPostsThenName, pickLabel, shortName, type ListFamily } from "./picker-data";
+import { compareConflict, type Pick } from "@/lib/compare-rules";
+
+import { startComparisonAction } from "./compare/actions";
 import { startCollectionAction, startStudyAction, type StartStudyResult } from "./searches/actions";
 import { ui } from "./ui";
 
@@ -55,15 +58,29 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
   const [question, setQuestion] = useState("");
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  // Comparing (D48): the second product, or null while it isn't picked yet; undefined when not comparing.
+  const [other, setOther] = useState<Pick | null | undefined>(undefined);
+  const comparing = other !== undefined;
 
   const choices: StudyChoices = { sources, period, from, to, question: question.trim() };
   const label = pickLabel(families, pick.catalogId, pick.nodeId);
-  const problem = label ? choicesProblem(choices) : "Pick a product.";
-  const est = useMemo(() => estimateStudy(sources, usdPerCredit, claudeModel), [sources, usdPerCredit, claudeModel]);
+  const labelB = other ? pickLabel(families, other.catalogId, other.nodeId) : null;
+  const conflict = comparing && other ? compareConflict(families, pick, other) : null;
+  const problem = !label
+    ? "Pick a product."
+    : comparing && !labelB
+      ? "Pick the second product."
+      : conflict
+        ? `These two can't be compared (${conflict.toLowerCase()}).`
+        : choicesProblem(choices);
+  // A comparison is two studies with the same settings.
+  const sides = comparing ? 2 : 1;
+  const one = useMemo(() => estimateStudy(sources, usdPerCredit, claudeModel), [sources, usdPerCredit, claudeModel]);
+  const est = { usd: one.usd * sides, minutes: one.minutes * sides };
   const short = leftUsd !== null && est.usd > leftUsd;
   // A cheaper study that fits: one source instead of two.
   const cheaper = short
-    ? SOURCES.map((s) => ({ id: s.id, label: s.label, usd: estimateStudy([s.id], usdPerCredit, claudeModel).usd }))
+    ? SOURCES.map((s) => ({ id: s.id, label: s.label, usd: estimateStudy([s.id], usdPerCredit, claudeModel).usd * sides }))
         .filter((s) => sources.length > 1 && s.usd <= (leftUsd ?? 0))
         .sort((a, b) => a.usd - b.usd)[0]
     : undefined;
@@ -75,6 +92,14 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
   function start(force = false) {
     if (!label || problem) return;
     setNotice(null);
+    if (comparing && other) {
+      startTransition(async () => {
+        const r = await startComparisonAction({ a: pick, b: other, choices });
+        if (r.ok) router.push(`/compare/${r.id}?run=1`);
+        else setNotice(r);
+      });
+      return;
+    }
     startTransition(async () => {
       const r = await startStudyAction({ catalogId: pick.catalogId, nodeId: pick.nodeId, choices, force });
       if (r.ok) router.push(`/searches/${r.id}?run=1`);
@@ -117,9 +142,31 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
       <div className={ui.cardBody}>
         <div className="flex flex-wrap items-center gap-3">
           <ProductPicker families={families} pick={pick} label={label} onPick={change(setPick)} />
+          {comparing ? (
+            <>
+              <span className="text-xs font-extrabold tracking-wider text-muted">VS</span>
+              <ProductPicker
+                families={families}
+                pick={other ?? { catalogId: pick.catalogId, nodeId: -1 }}
+                label={labelB}
+                placeholder="Pick one to compare"
+                side="b"
+                startOpen={!other}
+                blocked={(p) => compareConflict(families, pick, p)}
+                onPick={change(setOther)}
+              />
+              <button type="button" aria-label="Stop comparing" onClick={() => change(setOther)(undefined)} className={ui.icon}>
+                ×
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => change(setOther)(null)} className={ui.addOn}>
+              + Compare
+            </button>
+          )}
           <span className="flex-1" />
           <button type="button" disabled={pending || !!problem || short} onClick={() => start()} className={ui.primary}>
-            {pending ? "Starting…" : "Start study"}
+            {pending ? "Starting…" : comparing ? "Start comparison" : "Start study"}
           </button>
         </div>
 
@@ -181,7 +228,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
         {short && (
           <div className={ui.noticeWarn} role="status">
             <span className="min-w-56 flex-1">
-              <b>Not enough budget left this month.</b> This study needs {aboutUsd(est.usd)}; ${(leftUsd ?? 0).toFixed(2)} is left.
+              <b>Not enough budget left this month.</b> This {comparing ? "comparison" : "study"} needs {aboutUsd(est.usd)}; ${(leftUsd ?? 0).toFixed(2)} is left.
               {cheaper && ` With ${cheaper.label} only it's ${aboutUsd(cheaper.usd)}.`}
             </span>
             {cheaper && (
@@ -210,7 +257,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
         {notice?.kind === "claude" && (
           <div className={ui.noticeBad} role="alert">
             <span className="min-w-56 flex-1">
-              <b>Couldn&apos;t plan the study.</b> {notice.message.replace(/\.?$/, ".")} Nothing was collected.
+              <b>Couldn&apos;t plan the {comparing ? "comparison" : "study"}.</b> {notice.message.replace(/\.?$/, ".")} Nothing was collected.
             </span>
             <button type="button" disabled={pending} onClick={() => start()} className={ui.secondarySm}>
               Try again
@@ -242,7 +289,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
           )}
           <span className="flex-1" />
           <span>
-            {problem ?? `${aboutUsd(est.usd)} · about ${est.minutes} min · keep the study's page open`}
+            {problem ?? `${aboutUsd(est.usd)} · about ${est.minutes} min · keep the ${comparing ? "comparison" : "study"}'s page open`}
           </span>
         </div>
       </div>
@@ -264,8 +311,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * a search box, family tabs when there are several, the whole family, then each series (most discussed first) with
  * its models and their post counts, so you choose from what has data.
  */
-function ProductPicker({ families, pick, label, onPick }: { families: ListFamily[]; pick: { catalogId: number; nodeId: number | null }; label: string | null; onPick: (p: { catalogId: number; nodeId: number | null }) => void }) {
-  const [open, setOpen] = useState(false);
+function ProductPicker({
+  families,
+  pick,
+  label,
+  onPick,
+  placeholder = "Pick a product",
+  side = "a",
+  startOpen = false,
+  blocked,
+}: {
+  families: ListFamily[];
+  pick: Pick;
+  label: string | null;
+  onPick: (p: Pick) => void;
+  placeholder?: string;
+  /** Side B of a comparison: violet, as in its results. */
+  side?: "a" | "b";
+  startOpen?: boolean;
+  /** Why a product can't be picked here (comparing), shown in place of its post count. */
+  blocked?: (p: Pick) => string | null;
+}) {
+  const [open, setOpen] = useState(startOpen);
   const [q, setQ] = useState("");
   const [familyId, setFamilyId] = useState(pick.catalogId);
   const box = useRef<HTMLDivElement>(null);
@@ -294,20 +361,29 @@ function ProductPicker({ families, pick, label, onPick }: { families: ListFamily
   };
   const option = (nodeId: number | null, name: string, posts: number, indent = false) => {
     const on = pick.catalogId === family.id && pick.nodeId === nodeId;
+    const why = blocked?.({ catalogId: family.id, nodeId }) ?? null;
     return (
       <button
         key={nodeId ?? "all"}
         type="button"
         role="option"
         aria-selected={on}
+        aria-disabled={!!why}
+        disabled={!!why}
         onClick={() => choose(nodeId)}
-        className={`grid w-full grid-cols-[minmax(0,1fr)_64px_40px] items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm sm:grid-cols-[minmax(0,1fr)_96px_44px] ${on ? "bg-accent/15 font-semibold outline-[1.5px] outline-accent outline-solid" : "hover:bg-surface-2"} ${indent ? "pl-6" : ""}`}
+        className={`grid w-full grid-cols-[minmax(0,1fr)_64px_40px] items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm sm:grid-cols-[minmax(0,1fr)_96px_44px] ${on ? `${side === "b" ? "bg-violet/15 outline-violet" : "bg-accent/15 outline-accent"} font-semibold outline-[1.5px] outline-solid` : why ? "text-faint" : "hover:bg-surface-2"} ${indent ? "pl-6" : ""}`}
       >
         <span className="truncate">{name}</span>
-        <span className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
-          <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round((posts / max) * 100)}%` }} />
-        </span>
-        <span className="text-right text-[13px] text-muted tabular-nums">{posts}</span>
+        {why ? (
+          <span className="col-span-2 text-right text-xs text-faint">{why}</span>
+        ) : (
+          <>
+            <span className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
+              <span className={`block h-full rounded-full ${side === "b" ? "bg-violet" : "bg-accent"}`} style={{ width: `${Math.round((posts / max) * 100)}%` }} />
+            </span>
+            <span className="text-right text-[13px] text-muted tabular-nums">{posts}</span>
+          </>
+        )}
       </button>
     );
   };
@@ -319,9 +395,9 @@ function ProductPicker({ families, pick, label, onPick }: { families: ListFamily
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-11 max-w-full items-center gap-3 rounded-[10px] border-[1.5px] border-accent bg-accent/15 px-4 text-[15px] font-semibold"
+        className={side === "b" ? ui.pickB : ui.pickA}
       >
-        <span className="truncate">{label ?? "Pick a product"}</span>
+        <span className="truncate">{label ?? placeholder}</span>
         <span className="text-xs text-muted" aria-hidden>
           {open ? "▲" : "▼"}
         </span>

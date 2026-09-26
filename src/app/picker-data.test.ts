@@ -22,3 +22,4 @@ describe("pickLabel", () => {
     expect(pickLabel(fams, 7, null)).toBeNull();
   });
 });
+

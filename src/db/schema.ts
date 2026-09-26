@@ -280,3 +280,24 @@ export const studyHeadlines = pgTable("study_headlines", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+/**
+ * A comparison study (D48): two ordinary studies run side by side with the same sources, period, depth and
+ * categories. The pair is shown as one study; each side stays a study of its own (its posts, answers and reviews).
+ */
+export const comparisons = pgTable(
+  "comparisons",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    searchA: integer("search_a")
+      .notNull()
+      .references(() => searches.id, { onDelete: "cascade" }),
+    searchB: integer("search_b")
+      .notNull()
+      .references(() => searches.id, { onDelete: "cascade" }),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("comparisons_search_a").on(t.searchA), uniqueIndex("comparisons_search_b").on(t.searchB)],
+);

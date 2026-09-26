@@ -43,6 +43,13 @@
       "when": 1790412924764,
       "tag": "0005_knowledge_history",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790423026733,
+      "tag": "0006_nosy_nova",
+      "breakpoints": true
     }
   ]
 }

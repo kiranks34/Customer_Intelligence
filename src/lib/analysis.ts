@@ -166,7 +166,7 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
 const missingLists = (c: Codebook) => c.competitors === undefined || c.touchpoints === undefined;
 
 /** A random sample of the search's posts for Claude to draft from. */
-async function sampleOf(searchId: number): Promise<{ source: string; text: string }[]> {
+export async function sampleOf(searchId: number): Promise<{ source: string; text: string }[]> {
   return requireDb()
     .select({ source: posts.source, text: posts.text })
     .from(posts)
