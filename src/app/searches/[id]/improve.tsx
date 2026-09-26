@@ -83,7 +83,7 @@ export function Improve(props: Props) {
                   setNote({ ok: r.ok, text: r.message });
                   if (r.ok) router.push(`/searches/${props.searchId}?run=1`);
                 })}>
-                Re-analyze with it
+                Re-analyze
               </button>
             )}
             <Link href={`/products/${k.catalogId}?tab=knowledge`} className={ui.plainSm}>
