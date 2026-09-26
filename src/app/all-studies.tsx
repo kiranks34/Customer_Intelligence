@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import type { StudyRow, StudyStatus } from "@/lib/studies";
 
+import { removeComparisonAction, renameComparisonAction } from "./compare/actions";
 import { clearSearchesAction, renameStudyAction } from "./searches/actions";
 import { dot, ui, type Tone } from "./ui";
 import { LocalTime } from "./local-time";
@@ -67,7 +68,7 @@ export function AllStudies({ rows }: { rows: StudyRow[] }) {
           </div>
           <ul>
             {shown.map((r) => (
-              <Row key={r.id} r={r} onNote={setNote} />
+              <Row key={`${r.kind}-${r.id}`} r={r} onNote={setNote} />
             ))}
           </ul>
         </>
@@ -78,8 +79,19 @@ export function AllStudies({ rows }: { rows: StudyRow[] }) {
 
 function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
   const h = r.headline;
+  const done = r.status.kind === "ready" || r.status.kind === "review" || r.status.kind === "update";
+  const hs = r.sides?.map((x) => x.headline);
   const result =
-    r.status.kind === "ready" || r.status.kind === "review" || r.status.kind === "update" ? (
+    r.kind === "comparison" ? (
+      done && hs?.length === 2 && hs[0] && hs[1] ? (
+        <span>
+          {hs[0].counted} and {hs[1].counted} about them · <b className="font-semibold text-critical">{hs[0].negativePct}%</b> vs{" "}
+          <b className="font-semibold text-critical">{hs[1].negativePct}%</b> negative
+        </span>
+      ) : (
+        <span className="text-muted">{r.posts > 0 ? `${r.posts} posts so far` : "Starting…"}</span>
+      )
+    ) : done ? (
       h ? (
         <span>
           {h.counted} about the product
@@ -100,10 +112,11 @@ function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
   return (
     <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_32px] items-center gap-x-3 gap-y-1.5 border-t border-border px-4 py-3 sm:px-6 md:grid-cols-[minmax(0,1.3fr)_150px_minmax(0,1.6fr)_200px_32px] md:gap-x-4">
       <div className="min-w-0">
-        <Link href={`/searches/${r.id}`} className="font-bold hover:underline">
+        <Link href={r.href} className="font-bold hover:underline">
           {r.title}
         </Link>
         <div className={ui.meta}>
+          {r.kind === "comparison" && "Comparison · "}
           <LocalTime iso={r.createdAt} day />
         </div>
       </div>
@@ -222,10 +235,10 @@ function Menu({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
               className="flex flex-col gap-2 p-1.5"
               onSubmit={(e) => {
                 e.preventDefault();
-                act(() => renameStudyAction(r.id, title));
+                act(() => (r.kind === "comparison" ? renameComparisonAction(r.id, title) : renameStudyAction(r.id, title)));
               }}
             >
-              <input autoFocus value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} aria-label="Study name" className={ui.input} />
+              <input autoFocus value={title} maxLength={r.kind === "comparison" ? 160 : 120} onChange={(e) => setTitle(e.target.value)} aria-label="Study name" className={ui.input} />
               <div className="flex gap-2">
                 <button type="submit" disabled={pending} className={ui.primarySm}>
                   Save
@@ -237,7 +250,7 @@ function Menu({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
             </form>
           ) : (
             <>
-              <Link href={`/searches/${r.id}`} className={item}>
+              <Link href={r.href} className={item}>
                 Open
               </Link>
               <button
@@ -255,7 +268,8 @@ function Menu({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
                 disabled={pending}
                 className={`${item} text-critical`}
                 onClick={() => {
-                  if (window.confirm(`Remove “${r.title}” from All studies? Its posts and costs are kept.`)) act(() => clearSearchesAction([r.id]));
+                  if (window.confirm(`Remove “${r.title}” from Studies? Its posts and costs are kept.`))
+                    act(() => (r.kind === "comparison" ? removeComparisonAction(r.id) : clearSearchesAction([r.id])));
                 }}
               >
                 Remove

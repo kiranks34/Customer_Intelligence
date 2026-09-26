@@ -43,6 +43,11 @@ export const ui = {
   /** Tabs inside a page or card: the selected one is underlined in blue. */
   tab: "-mb-px border-b-2 border-transparent px-3.5 py-3 text-sm font-semibold text-muted hover:text-foreground",
   tabOn: "-mb-px border-b-2 border-accent px-3.5 py-3 text-sm font-semibold text-foreground",
+  /** Product picker button (New study). Side B of a comparison is violet, as in its results. */
+  pickA: "inline-flex h-11 max-w-full items-center gap-3 rounded-[10px] border-[1.5px] border-accent bg-accent/15 px-4 text-[15px] font-semibold",
+  pickB: "inline-flex h-11 max-w-full items-center gap-3 rounded-[10px] border-[1.5px] border-violet bg-violet/15 px-4 text-[15px] font-semibold",
+  /** Adds an optional part, e.g. "+ Compare": dashed, quiet. */
+  addOn: "inline-flex h-11 items-center gap-2 rounded-[10px] border-[1.5px] border-dashed border-border px-4 text-sm font-semibold text-muted hover:border-foreground/50 hover:text-foreground",
   /** Pill choice (period, sources): selected is filled. */
   chip: "inline-flex h-[34px] items-center gap-1.5 rounded-full border border-border px-3.5 text-sm hover:border-foreground/50",
   chipOn: "inline-flex h-[34px] items-center gap-1.5 rounded-full border border-foreground bg-foreground px-3.5 text-sm font-semibold text-background",

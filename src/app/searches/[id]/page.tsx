@@ -3,15 +3,14 @@ import { notFound } from "next/navigation";
 
 import { usdPerCredit } from "@/connectors/reddit";
 import { claudeModel } from "@/lib/ai";
-import { analysisState, draftUsd, analysisSummary, journeyQuotes, latestCodebook, needsLook, resultsVersion, spotCheckAccuracy, spotCheckItems, type AnalysisSummary } from "@/lib/analysis";
-import { jevUsd } from "@/lib/codebook";
-import { factsNotUsed } from "@/lib/knowledge";
-import { estimatePlan } from "@/lib/plan";
+import { draftUsd, latestCodebook, needsLook, spotCheckAccuracy, spotCheckItems } from "@/lib/analysis";
+import { comparisonOf } from "@/lib/compare";
 import { ensureCatalogForSearch, getCatalog, waitingCount } from "@/lib/catalogs";
-import { loadPlan, progress } from "@/lib/collect";
+import { loadPlan } from "@/lib/collect";
 import { knowledgeForSearch } from "@/lib/product-knowledge";
 import { getSearch } from "@/lib/searches";
-import { periodText, saveHeadline } from "@/lib/studies";
+import { periodText } from "@/lib/studies";
+import { loadSide } from "@/lib/study-side";
 
 import { AppShell } from "../../app-shell";
 import { LocalTime } from "../../local-time";
@@ -20,12 +19,10 @@ import { ui } from "../../ui";
 import { Improve } from "./improve";
 import { PlanWorkspace } from "./plan-workspace";
 import { Results } from "./results";
-import { HeaderStep, StudyBar, StudyControl, StudyProgress } from "./study-control";
+import { HeaderStep, StudyBar, StudyControl, StudyProgress, type StudyFacts } from "./study-control";
 
 export const dynamic = "force-dynamic";
 
-/** Jev's input per post, typical (post, context and questions), for the Collect new posts estimate. */
-const JEV_TOKENS_PER_POST = 1_400;
 
 const SOURCE_BADGES = (plan: { youtube: { enabled: boolean }; reddit: { enabled: boolean } }) =>
   [plan.youtube.enabled && "YouTube", plan.reddit.enabled && "Reddit"].filter((x): x is string => !!x);
@@ -42,35 +39,21 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
   if (!latest) notFound();
   const { plan, version } = latest;
 
-  const prog = await progress(id);
-  const locked = !prog.finished || prog.jobs.waiting > 0;
   const catalogId = search.catalogId ?? (await ensureCatalogForSearch(id, plan.subject).catch(() => null));
-  const [analysis, shown, codebook, knowledge, family] = await Promise.all([
-    analysisState(id),
-    resultsVersion(id),
-    latestCodebook(id),
-    knowledgeForSearch(id),
-    catalogId ? familyLine(catalogId) : null,
-  ]);
-  const [summary, look, checkItems, accuracy, quotes] = shown
-    ? await Promise.all([analysisSummary(id, shown), needsLook(id, shown), spotCheckItems(id, shown), spotCheckAccuracy(id, shown), journeyQuotes(id, shown)])
-    : [null, [], [], null, []];
-  const open = accuracy ? accuracy.questions.reduce((n, q) => n + q.open, 0) : 0;
-  if (summary) await saveHeadline(id, headlineOf(summary, open)).catch(() => undefined);
-
-  const notUsed = knowledge && codebook ? factsNotUsed(knowledge.knowledge, codebook.codebook) : 0;
-  const est = estimatePlan(plan, usdPerCredit());
-  const facts = {
-    searchId: id,
+  const [side, codebook, knowledge, family, pair] = await Promise.all([loadSide(id), latestCodebook(id), knowledgeForSearch(id), catalogId ? familyLine(catalogId) : null, comparisonOf(id)]);
+  if (!side) notFound();
+  const { shown, summary, quotes } = side;
+  const prog = side.facts.progress;
+  const locked = !prog.finished || prog.jobs.waiting > 0;
+  const [look, checkItems, accuracy] = shown ? await Promise.all([needsLook(id, shown), spotCheckItems(id, shown), spotCheckAccuracy(id, shown)]) : [[], [], null];
+  const notUsed = side.facts.factsNotUsed;
+  const facts: StudyFacts = {
+    kind: "study",
+    id,
     title: search.query,
-    progress: prog,
-    analysis,
     autorun: run === "1",
-    hasResults: shown !== null,
-    newerCategories: shown !== null && analysis.version !== null && analysis.version > shown ? analysis.version : null,
-    factsNotUsed: notUsed,
-    openAnswers: open,
-    collectUsd: est.usd + jevUsd(est.maxPosts * JEV_TOKENS_PER_POST),
+    sides: [side.facts],
+    ...(pair ? { partOf: { id: pair.id, title: pair.title } } : {}),
   };
   const familyFacts = knowledge ? knowledge.knowledge.facts.filter((f) => f.status === "current") : [];
   const from = `study-${id}` as const;
@@ -79,7 +62,13 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
     <AppShell active="studies">
       <StudyControl facts={facts}>
       <div className="flex flex-col gap-2">
-        <Crumbs path={[{ label: "Studies", href: "/" }, { label: search.query }]} />
+        <Crumbs
+          path={
+            pair
+              ? [{ label: "Studies", href: "/" }, { label: pair.title, href: `/compare/${pair.id}` }, { label: search.query }]
+              : [{ label: "Studies", href: "/" }, { label: search.query }]
+          }
+        />
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="flex min-w-0 flex-col gap-2">
             <h1 id="study-title" className={ui.pageTitle}>
@@ -116,6 +105,16 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
           <HeaderStep />
         </div>
         {plan.question && <p className="mt-1 rounded-r-[10px] border-l-[3px] border-accent bg-surface px-3.5 py-2.5 text-sm">“{plan.question}”</p>}
+        {pair && (
+          <div className={`${ui.noticeInfo} mt-1`}>
+            <span className="min-w-56 flex-1">
+              One side of <b>{pair.title}</b>. Its categories are shared with the other side; new posts are collected for both from the comparison.
+            </span>
+            <Link href={`/compare/${pair.id}`} className={ui.link}>
+              Open the comparison →
+            </Link>
+          </div>
+        )}
       </div>
 
         <StudyBar
@@ -178,20 +177,6 @@ export default async function StudyPage({ params, searchParams }: PageProps<"/se
       </p>
     </AppShell>
   );
-}
-
-/** The one-line result All studies shows (counted base, never all collected posts). */
-function headlineOf(s: AnalysisSummary, toReview: number) {
-  const counted = s.relevance.counted;
-  const n = (key: string) => s.sentiment.find((t) => t.key === key)?.counted ?? 0;
-  const pain = [...s.themes].filter((t) => t.kind === "pain" && t.counted > 0).sort((a, b) => b.counted - a.counted)[0];
-  return {
-    counted,
-    negativePct: counted ? Math.round((n("negative") / counted) * 100) : 0,
-    positivePct: counted ? Math.round((n("positive") / counted) * 100) : 0,
-    topPain: pain ? pain.label : null,
-    toReview,
-  };
 }
 
 async function familyLine(catalogId: number) {

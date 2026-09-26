@@ -23,6 +23,9 @@ first, then used.
 | violet | competitors; side B of a comparison |
 | slate | neutral sentiment |
 
+**Comparisons:** side A is always blue (accent) and side B always violet, in pickers, bars, journey cells and names
+(`SideName`), so a side is recognised by colour and name together.
+
 No hex values in components. Colour never carries meaning alone: a status always has its word, a bar has its number.
 
 ### Type scale

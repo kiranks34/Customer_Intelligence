@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { getComparison } from "@/lib/compare";
 import { getSearch } from "@/lib/searches";
 
 import { ui } from "./ui";
@@ -39,8 +40,8 @@ export function Crumbs({ path }: { path: Crumb[] }) {
   );
 }
 
-/** Where a link came from, carried as `?from=`: a study, or New study on the home page. */
-export type From = `study-${number}` | "new";
+/** Where a link came from, carried as `?from=`: a study, a comparison, or New study on the home page. */
+export type From = `study-${number}` | `compare-${number}` | "new";
 
 export interface Back {
   href: string;
@@ -52,6 +53,12 @@ export interface Back {
 
 export async function backFor(raw: unknown): Promise<Back | null> {
   if (raw === "new") return { href: "/", label: "Back to New study", from: "new" };
+  const c = typeof raw === "string" ? /^compare-(\d{1,9})$/.exec(raw) : null;
+  if (c) {
+    const id = Number(c[1]);
+    const pair = await getComparison(id).catch(() => null);
+    return pair ? { href: `/compare/${id}`, label: "Back to comparison", title: pair.title, from: `compare-${id}` } : null;
+  }
   const m = typeof raw === "string" ? /^study-(\d{1,9})$/.exec(raw) : null;
   if (!m) return null;
   const id = Number(m[1]);

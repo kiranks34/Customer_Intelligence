@@ -39,7 +39,11 @@ export type StudyStatus =
   | { kind: "update"; reason: string };
 
 export interface StudyRow {
+  /** A study, or a comparison of two (D48): its id is the comparison's. */
+  kind: "study" | "comparison";
   id: number;
+  /** Where the row opens. */
+  href: string;
   title: string;
   createdAt: string;
   sources: string[];
@@ -48,10 +52,12 @@ export interface StudyRow {
   headline: Headline | null;
   status: StudyStatus;
   /** For "same study already exists": the pick, sources and period it was started with. */
-  target: { catalogId: number; nodeId: number | null } | null;
+  target: { catalogId: number; nodeId: number | null; label: string } | null;
   periodKey: string;
   /** Started with a question (a question study is never "the same study" as another). */
   hasQuestion: boolean;
+  /** A comparison's two sides: name, and each one's headline once analyzed. */
+  sides?: { label: string; headline: Headline | null }[];
 }
 
 /** No step for this long while work is open means the page that drives it was closed. */
@@ -78,6 +84,8 @@ interface Raw {
   family: unknown;
   /** Set after the query: what the results don't use yet (the study page's "Update ready"), or null. */
   update?: string | null;
+  /** The comparison this study is a side of (D48), if any. */
+  comp: { id: number; title: string; side: "a" | "b"; created: string } | null;
 }
 
 export async function studyRows(limit = 50): Promise<StudyRow[]> {
@@ -97,10 +105,13 @@ export async function studyRows(limit = 50): Promise<StudyRow[]> {
       (select max(version) from codebooks where search_id = s.id) as cb_latest,
       (select json_build_object('productFacts', c.codebook->'productFacts', 'productNotes', c.codebook->'productNotes')
          from codebooks c where c.search_id = s.id order by c.version desc limit 1) as used,
-      (select product_facts from catalogs where id = s.catalog_id) as family
+      (select product_facts from catalogs where id = s.catalog_id) as family,
+      (select json_build_object('id', c.id, 'title', c.title, 'side', case when c.search_a = s.id then 'a' else 'b' end, 'created', c.created_at)
+         from comparisons c where (c.search_a = s.id or c.search_b = s.id) and c.hidden_at is null) as comp
     from searches s
     where s.hidden_at is null
-    order by s.id desc
+    -- A comparison's sides sit together (at its newer side), so the limit can only cut a pair at the very end.
+    order by coalesce((select greatest(c.search_a, c.search_b) from comparisons c where (c.search_a = s.id or c.search_b = s.id) and c.hidden_at is null), s.id) desc, s.id desc
     limit ${limit}`);
   const rows = res.rows as unknown as Raw[];
   // Analyzed studies with no open work: what their results don't use yet, worded as on the study page.
@@ -111,7 +122,48 @@ export async function studyRows(limit = 50): Promise<StudyRow[]> {
       r.update = await updateReason(Number(r.id), r).catch(() => null);
     }),
   );
-  return rows.map(toRow);
+  // A comparison's two sides are one row (D48), placed where its newer side is.
+  const pairs = new Map<number, Raw[]>();
+  for (const r of rows) if (r.comp) pairs.set(r.comp.id, [...(pairs.get(r.comp.id) ?? []), r]);
+  const out: StudyRow[] = [];
+  for (const r of rows) {
+    if (!r.comp) out.push(toRow(r));
+    // A pair the limit cut in half is left out rather than shown as one side.
+    else if (pairs.get(r.comp.id)![0] === r && pairs.get(r.comp.id)!.length === 2) out.push(comparisonRow(pairs.get(r.comp.id)!));
+  }
+  return out;
+}
+
+/** The status that holds a comparison up most, first: work in progress, then problems, then updates, then ready. */
+const ORDER: StudyStatus["kind"][] = ["collecting", "reading", "waiting", "paused", "stopped", "not_analyzed", "update", "review", "ready"];
+
+function comparisonRow(sides: Raw[]): StudyRow {
+  const rows = [...sides].sort((x, y) => (x.comp!.side < y.comp!.side ? -1 : 1)).map(toRow);
+  const first = rows[0];
+  const label = (r: StudyRow) => r.target?.label ?? r.title;
+  const worst = [...rows].sort((x, y) => ORDER.indexOf(x.status.kind) - ORDER.indexOf(y.status.kind))[0];
+  const status = worst.status;
+  // The side that holds things up is named, as in the study bar (D48).
+  const merged: StudyStatus =
+    status.kind === "review"
+      ? { kind: "review", answers: rows.reduce((t, r) => t + (r.status.kind === "review" ? r.status.answers : 0), 0) }
+      : "reason" in status && rows.some((r) => JSON.stringify(r.status) !== JSON.stringify(status))
+        ? { ...status, reason: `${label(worst)}: ${status.reason}` }
+        : status;
+  const comp = sides[0].comp!;
+  return {
+    ...first,
+    kind: "comparison",
+    id: comp.id,
+    href: `/compare/${comp.id}`,
+    title: comp.title,
+    createdAt: new Date(comp.created).toISOString(),
+    posts: rows.reduce((t, r) => t + r.posts, 0),
+    headline: null,
+    status: merged,
+    target: null,
+    sides: rows.map((r) => ({ label: label(r), headline: r.headline })),
+  };
 }
 
 const plural = (k: number, one: string) => `${k} ${k === 1 ? one : `${one}s`}`;
@@ -131,7 +183,9 @@ function toRow(r: Raw): StudyRow {
   const plan = r.plan;
   const sources = plan ? [plan.youtube.enabled && "YouTube", plan.reddit.enabled && "Reddit"].filter((x): x is string => !!x) : [];
   return {
+    kind: "study",
     id: Number(r.id),
+    href: `/searches/${r.id}`,
     title: r.query,
     createdAt: new Date(r.created_at).toISOString(),
     sources,
@@ -139,7 +193,7 @@ function toRow(r: Raw): StudyRow {
     posts: Number(r.posts),
     headline: r.headline,
     status: statusOf(r),
-    target: plan?.target ? { catalogId: plan.target.catalogId, nodeId: plan.target.nodeId } : null,
+    target: plan?.target ? { catalogId: plan.target.catalogId, nodeId: plan.target.nodeId, label: plan.target.label } : null,
     periodKey: plan ? `${plan.timeWindow.label}` : "",
     hasQuestion: plan?.intent === "question",
   };

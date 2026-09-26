@@ -18,6 +18,7 @@ import {
   type AnalysisState,
 } from "@/lib/analysis";
 import { validateCodebook, type Codebook } from "@/lib/codebook";
+import { comparisonOf, getComparison, shareCategories, syncOtherSide } from "@/lib/compare";
 import { factsNotUsed, notesFor } from "@/lib/knowledge";
 import { codebookKnowledge, knowledgeForSearch } from "@/lib/product-knowledge";
 
@@ -29,8 +30,14 @@ export async function startAnalysisAction(searchId: number): Promise<ActionState
   if (denied) return denied;
   if (!validId(searchId)) return { ok: false, message: "Unknown search." };
   try {
+    // A side of a comparison (D48) is read with the categories both sides share, drafted once from both.
+    const link = await comparisonOf(searchId);
+    const pair = link ? await getComparison(link.id) : null;
+    // A side with no posts yet has nothing to read; the shared draft waits until it (or the other side) is read.
+    const shared = pair && (await analysisState(searchId)).totalPosts > 0 ? await shareCategories(pair) : null;
     const r = await startAnalysis(searchId);
     if (!r.started) return { ok: false, message: r.reason };
+    if (shared?.drafted) return { ok: true, message: "Drafted the categories both products share. Jev is reading the posts…" };
     return { ok: true, message: r.drafted ? "Drafted the themes and stages from a sample. Jev is reading the posts…" : "Jev is reading the posts…" };
   } catch (err) {
     return { ok: false, message: `Couldn't start the analysis: ${errorText(err)}` };
@@ -83,11 +90,19 @@ export async function saveCodebookAction(searchId: number, candidate: unknown): 
   const checked = validateCodebook(candidate);
   if (!checked.ok) return { ok: false, message: checked.error };
   try {
-    if (await analysisBusy(searchId)) return { ok: false, message: "Jev is still reading posts. Save your edits when it has finished." };
+    // In a comparison the other side takes the same lists (D48), so it mustn't be mid-read either.
+    const link = await comparisonOf(searchId);
+    if ((await analysisBusy(searchId)) || (link && (await analysisBusy(link.other)))) return { ok: false, message: "Jev is still reading posts. Save your edits when it has finished." };
     const current = await latestCodebook(searchId);
     if (!current) return { ok: false, message: "Analyze the posts first; the codebook is drafted then." };
     if (JSON.stringify(current.codebook) === JSON.stringify(checked.codebook)) return { ok: true, message: "No changes." };
     const version = await saveCodebook(searchId, checked.codebook);
+    // The other side of a comparison takes the same lists, so the two stay comparable (D48).
+    if (link) {
+      await syncOtherSide(searchId);
+      revalidatePath(`/searches/${link.other}`);
+      revalidatePath(`/compare/${link.id}`);
+    }
     revalidatePath(`/searches/${searchId}`);
     const state = await analysisState(searchId);
     return { ok: true, message: `Saved as version ${version}. Re-analyze (top of the page) applies it to all ${state.totalPosts} posts.` };
