@@ -18,6 +18,7 @@ import {
   type AnalysisState,
 } from "@/lib/analysis";
 import { validateCodebook, type Codebook } from "@/lib/codebook";
+import { factsNotUsed, notesFor } from "@/lib/knowledge";
 import { codebookKnowledge, knowledgeForSearch } from "@/lib/product-knowledge";
 
 const validId = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0;
@@ -89,7 +90,7 @@ export async function saveCodebookAction(searchId: number, candidate: unknown): 
     const version = await saveCodebook(searchId, checked.codebook);
     revalidatePath(`/searches/${searchId}`);
     const state = await analysisState(searchId);
-    return { ok: true, message: `Saved as version ${version}. Re-analyze ${state.pending} posts to apply it.` };
+    return { ok: true, message: `Saved as version ${version}. Re-analyze (top of the page) applies it to all ${state.totalPosts} posts.` };
   } catch (err) {
     return { ok: false, message: `Couldn't save: ${errorText(err)}` };
   }
@@ -112,7 +113,7 @@ export async function saveSpotCheckAction(searchId: number, version: number, pos
 
 export type ProposalResult = (ActionState & { ok: true; codebook: Codebook }) | (ActionState & { ok: false });
 
-/** Asks Claude for sharper definitions (a few cents). Returns a proposal for the editor; nothing is saved. */
+/** "Improve rules": asks Claude for clearer rules (a few cents). Returns a proposal for the editor; nothing is saved. */
 export async function proposeCodebookAction(searchId: number): Promise<ProposalResult> {
   const denied = (await authed()) ?? (await budgetBlock());
   if (denied) return { ok: false, message: denied.message };
@@ -123,8 +124,8 @@ export async function proposeCodebookAction(searchId: number): Promise<ProposalR
       ok: true,
       codebook,
       message: mistakes
-        ? `Claude's proposal fixes ${mistakes} ${mistakes === 1 ? "mistake" : "mistakes"} from your spot-check. Review it, then Save changes and Re-analyze.`
-        : "Claude's proposal adds clear rules and real examples. Review it, then Save changes and Re-analyze.",
+        ? `Claude's proposal fixes ${mistakes} ${mistakes === 1 ? "mistake" : "mistakes"} found in Accuracy. Review it, then Save changes.`
+        : "Claude's proposal adds clear rules and real examples. Review it, then Save changes.",
     };
   } catch (err) {
     return { ok: false, message: `Couldn't get a proposal: ${errorText(err)}` };
@@ -158,10 +159,11 @@ export async function reanalyzeWithKnowledgeAction(searchId: number): Promise<Ac
     const current = await latestCodebook(searchId);
     const fam = await knowledgeForSearch(searchId);
     if (!current || !fam) return { ok: false, message: "Analyze the posts first." };
+    // Nothing new to apply: never re-read (and pay for) every post again with the same knowledge.
+    if (factsNotUsed(fam.knowledge, current.codebook) === 0) return { ok: false, message: "This study already uses the latest product knowledge." };
     const { productFacts, productNotes } = codebookKnowledge(fam.knowledge);
-    // Notes typed into this study before knowledge moved to the family (D44) are kept, with your family facts added.
-    const lines = [...(current.codebook.productNotes ?? "").split("\n"), ...productNotes.split("\n")].map((l) => l.trim()).filter(Boolean);
-    const notes = [...new Set(lines)].join("\n").slice(0, 1500);
+    // Notes typed into this study before knowledge moved to the family (D44) are kept after your family facts.
+    const notes = notesFor(productNotes.split("\n"), current.codebook.productNotes ?? "");
     const next: Codebook = { ...current.codebook, productFacts, productNotes: notes || undefined };
     const checked = validateCodebook(next);
     if (!checked.ok) return { ok: false, message: checked.error };

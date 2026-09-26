@@ -27,9 +27,10 @@ export function SpotCheck(props: {
   accuracy: Accuracy;
   claudeModel: string;
   /** Asks Claude to rewrite the categories to fix the mistakes found (shown in Categories). */
-  onImprove: () => void;
+  /** Opens Categories, where "Improve rules" uses the answers judged wrong. */
+  onShowCategories: () => void;
 }) {
-  const { items, accuracy, searchId, claudeModel, onImprove } = props;
+  const { items, accuracy, searchId, claudeModel, onShowCategories } = props;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<string | null>(null);
@@ -71,16 +72,19 @@ export function SpotCheck(props: {
             <span>
               {wrong} of Jev&apos;s sure {wrong === 1 ? "answer was" : "answers were"} judged wrong.
             </span>
-            <button type="button" onClick={onImprove} className={ui.secondarySm}>
-              Improve the categories
-            </button>
-            <span className="text-xs text-muted">Claude rewrites them to fix these (a few cents). You review before saving.</span>
+            <span className="text-muted">
+              Improve rules in{" "}
+              <button type="button" onClick={onShowCategories} className={ui.link}>
+                Categories ↓
+              </button>{" "}
+              uses them.
+            </span>
           </div>
         )}
         {claudeRan && (
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">{all ? `All ${items.length} posts` : `${disputed.length} posts where Claude and Jev disagree`}</span>
-            <button type="button" onClick={() => setAll((v) => !v)} className="text-xs text-muted underline">
+            <button type="button" onClick={() => setAll((v) => !v)} className={ui.link}>
               {all ? "Show only disagreements" : `Show all ${items.length}`}
             </button>
           </div>
@@ -118,7 +122,7 @@ function Score({ accuracy, open }: { accuracy: Accuracy; open: number }) {
                 <span className="text-muted">no sure answers checked yet</span>
               ) : (
                 <>
-                  {q.right} of {q.sure} right <span className={good ? "text-[#2f9e6e]" : "text-critical"}>{good ? "✓ on target" : "below target"}</span>
+                  {q.right} of {q.sure} right <span className={good ? "text-good" : "text-critical"}>{good ? "✓ on target" : "below target"}</span>
                 </>
               )}
             </span>
@@ -186,7 +190,7 @@ function CheckRow({ n, item, searchId, version, codebook }: { n: number; item: C
               </a>
             </>
           )}
-          {item.person && <span className="ml-2 text-[#2f9e6e]">✓ checked</span>}
+          {item.person && <span className="ml-2 text-good">✓ checked</span>}
         </p>
         {item.replyingTo && <p className="mb-1 line-clamp-2 border-l-2 border-border pl-2 text-xs text-muted">Replying to: “{item.replyingTo}”</p>}
         {item.title && <p className="font-medium">{item.title}</p>}
@@ -272,7 +276,7 @@ function CheckRow({ n, item, searchId, version, codebook }: { n: number; item: C
         </div>
       </fieldset>
       <div className="flex items-center gap-3">
-        <button type="button" disabled={pending} onClick={save} className="rounded-md bg-accent px-3 py-1 text-sm font-medium text-white disabled:opacity-50">
+        <button type="button" disabled={pending} onClick={save} className={ui.primarySm}>
           {item.person ? "Save again" : "Save"}
         </button>
         {note && <span className="text-xs text-muted">{note}</span>}

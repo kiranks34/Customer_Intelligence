@@ -8,5 +8,7 @@
   keys only in environment variables, never logged or stored.
 - Every paid API call records a row via `recordCost` (`src/lib/cost.ts`).
 - Pipeline work runs as small resumable steps (`jobs` table) to fit Vercel Hobby limits.
+- UI follows `docs/DESIGN-SYSTEM.md`: styles only from `ui` (`src/app/ui.ts`) and the colour tokens; a new pattern is
+  added to `ui` and to the /design page first. `src/app/design-system.test.ts` enforces the basics.
 - Checks before pushing: `npm run lint && npm run typecheck && npm test && npm run build`.
 - Schema changes: edit `src/db/schema.ts`, then `npm run db:generate` and commit the new file in `drizzle/`.

@@ -59,6 +59,8 @@ const SAMPLE_SIZE = 60;
 const REPLY_CHARS = 600;
 /** Tokens for drafting a codebook (60 posts × 800 characters plus instructions; the answer), rounded up. */
 const DRAFT_TOKENS = { input: 16_000, output: 3_000 };
+/** About what one codebook draft or "Improve rules" call costs (the same Claude call, D40). */
+export const draftUsd = () => tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output);
 
 interface Cursor {
   codebookVersion: number;
@@ -93,6 +95,9 @@ async function pendingStats(searchId: number, version: number): Promise<{ n: num
   const row = res.rows[0] as { n: number; chars: string } | undefined;
   return { n: Number(row?.n ?? 0), chars: Number(row?.chars ?? 0) };
 }
+
+/** Posts the given codebook version hasn't read yet (for All studies' "Update ready"). */
+export const pendingPosts = async (searchId: number, version: number) => (await pendingStats(searchId, version)).n;
 
 export type StartResult = { started: true; drafted: boolean } | { started: false; reason: string };
 
@@ -415,6 +420,8 @@ export interface AnalysisState {
   costUsd: number;
   /** Some posts were read with the older yes/no question and will be read again with the improved one. */
   improved: boolean;
+  /** Cost to read every post again (Re-analyze with new categories or product knowledge). */
+  rereadUsd: number;
 }
 
 export async function analysisState(searchId: number): Promise<AnalysisState> {
@@ -443,7 +450,7 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
     const facts = productKnowledge(await storedFactsFor(searchId).catch(() => ({}))).length / 4;
     const jev = jevUsd(Number(chars) / 4 + (900 + facts) * totalPosts);
     const draft = tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output);
-    return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd, improved: false };
+    return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd, improved: false, rereadUsd: jev + draft };
   }
   // A run in progress is measured against the codebook it is using, even if a newer one was saved meanwhile.
   const running = open && jobVersion > 0;
@@ -479,7 +486,12 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
         sql`(${decisions.question} = ${Q.relevant} or (${decisions.question} = ${Q.aboutProduct} and ${decisions.answer} <> ${QUESTION_SET}))`,
       ),
     );
-  return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved: (legacy?.n ?? 0) > 0 };
+  const [{ chars: allChars } = { chars: "0" }] = await db
+    .select({ chars: sql<string>`coalesce(sum(least(length(${posts.text}) + length(${posts.title}), 3000)), 0)` })
+    .from(posts)
+    .where(eq(posts.searchId, searchId));
+  const rereadUsd = jevUsd(Number(allChars) / 4 + estimateTokens(0, planned, "") * totalPosts);
+  return { version, totalPosts, analyzed: totalPosts - pending.n, pending: pending.n, estimateUsd, status, message, costUsd, improved: (legacy?.n ?? 0) > 0, rereadUsd };
 }
 
 /**

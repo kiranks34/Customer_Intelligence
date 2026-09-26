@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyUpdate, factsForReading, readKnowledge, type Knowledge } from "./knowledge";
+import { applyUpdate, factsForReading, factsNotUsed, readKnowledge, type Knowledge } from "./knowledge";
 
 const page = { url: "https://support.hp.com/doc/1", title: "Install the printheads", snippet: "Install the printheads during setup. You can replace a printhead later if it is damaged." };
 const appPage = { url: "https://www.hp.com/app", title: "HP app", snippet: "The HP app replaces HP Smart. Sign in for full functionality." };
@@ -92,5 +92,24 @@ describe("factsForReading", () => {
       ],
     };
     expect(factsForReading(k)).toEqual({ maker: [{ text: "Printheads go in at setup. (510 series)", url: page.url }], yours: ["Mine"] });
+  });
+});
+
+describe("factsNotUsed", () => {
+  const k: Knowledge = {
+    ...empty,
+    facts: [
+      { id: "a", text: "Printheads go in at setup.", url: page.url, topic: "setup", models: "510 series", source: "maker", status: "current", since: "x" },
+      { id: "b", text: "Old", url: page.url, topic: "setup", source: "maker", status: "not_found", since: "x" },
+      { id: "c", text: "Mine", topic: "setup", source: "you", status: "current", since: "x" },
+    ],
+  };
+  it("counts the family's current facts a study's categories don't carry", () => {
+    expect(factsNotUsed(k, { productFacts: [], productNotes: "" })).toBe(2);
+    expect(factsNotUsed(k, { productFacts: [{ text: "Printheads go in at setup. (510 series)" }], productNotes: "Mine" })).toBe(0);
+    expect(factsNotUsed(k, { productFacts: [{ text: "printheads go in at setup (510 series)" }] })).toBe(1);
+  });
+  it("is zero before a study has categories (its first analysis takes the latest)", () => {
+    expect(factsNotUsed(k, null)).toBe(0);
   });
 });

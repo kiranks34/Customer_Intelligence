@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useImperativeHandle, useRef, useState, useTransition, type Ref } from "react";
+import { useState, useTransition } from "react";
 
 import { CODEBOOK_LIMITS, keyFor, type Code, type Codebook, type Theme } from "@/lib/codebook";
 
+import { aboutUsd } from "../../format";
+import { ui } from "../../ui";
 import { proposeCodebookAction, saveCodebookAction } from "../analysis-actions";
 
 type List = "themes" | "stages" | "segments" | "competitors" | "touchpoints";
@@ -26,31 +28,26 @@ const withDefaults = (c: Codebook): Required<Codebook> => ({
   productFacts: c.productFacts ?? [],
 });
 
-export interface EditorHandle {
-  improve: () => void;
-}
-
 const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
 
 /**
- * Categories: the themes, journey stages, touchpoints, user types and competitors Claude drafted, that Jev sorts posts
- * into. Shown read-only (nothing is needed from you); "Edit" opens the form. Product knowledge lives with the product
- * family (Products) and is kept as it is when you save. Saving makes a new version; posts are re-read with
- * it when you press Analyze (a few cents). `handle.improve()` is how the accuracy check asks for Claude's fixes.
+ * Categories: the themes, journey stages, touchpoints, user types and competitors Jev sorts posts into, each with its
+ * rule (what counts, what doesn't). "Improve rules" asks Claude for clearer rules from the posts and the answers
+ * Accuracy found wrong; "Edit myself" opens the form. Either way nothing changes until you save, which makes a new
+ * version; Re-analyze in the study bar applies it. Product knowledge lives with the product family and is kept as is.
  */
 export function CodebookEditor({
   searchId,
   codebook,
-  version,
-  handle,
-  onReveal,
+  improveUsd,
+  wrong,
 }: {
   searchId: number;
   codebook: Codebook;
-  version: number;
-  handle?: Ref<EditorHandle>;
-  /** Opens the row this editor sits in, so Claude's proposal is visible. */
-  onReveal?: () => void;
+  /** About what one "Improve rules" call costs. */
+  improveUsd: number;
+  /** Sure answers Accuracy judged wrong, which Claude's rules fix. */
+  wrong: number;
 }) {
   const router = useRouter();
   const initial = withDefaults(codebook);
@@ -59,20 +56,11 @@ export function CodebookEditor({
   const [pending, startTransition] = useTransition();
   const [asking, setAsking] = useState(false);
   const [editing, setEditing] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
   const changed = JSON.stringify(draft) !== JSON.stringify(initial);
-
-  useImperativeHandle(handle, () => ({
-    improve() {
-      onReveal?.();
-      setTimeout(() => box.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-      improve();
-    },
-  }));
 
   /** Claude's sharper definitions (from posts about the product and your spot-check corrections) land here unsaved. */
   function improve() {
-    // Also reached from the accuracy check's button, which isn't disabled while a call runs: one paid call at a time.
+    // One paid call at a time.
     if (pending || asking) return;
     if (changed && !window.confirm("Replace your unsaved edits with Claude's proposal? (Save them first to keep them.)")) return;
     setNote(null);
@@ -83,7 +71,6 @@ export function CodebookEditor({
       setNote({ ok: r.ok, text: r.message });
       if (r.ok) {
         setDraft(withDefaults(r.codebook));
-        onReveal?.();
         setEditing(true);
       }
     });
@@ -128,20 +115,25 @@ export function CodebookEditor({
   }
 
   return (
-    <div ref={box} className="flex flex-col gap-5">
-      <p className="text-xs text-muted">What Jev sorts posts into · drafted by Claude from the posts, nothing needed from you · version {version}</p>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-border bg-surface-2 px-4 py-3 text-sm">
+        <span className="min-w-56 flex-1">
+          <b className="font-semibold">Clearer rules for each theme, stage and touchpoint</b> (what counts and what doesn&apos;t). Claude suggests them from the
+          posts{wrong > 0 ? ` and the ${wrong} ${wrong === 1 ? "answer" : "answers"} marked wrong in Accuracy` : ""} ({aboutUsd(improveUsd)}); nothing changes
+          until you save.
+        </span>
+        <button type="button" disabled={pending} onClick={improve} className={ui.secondarySm}>
+          {asking ? "Asking Claude…" : "Improve rules"}
+        </button>
+        {!editing && (
+          <button type="button" onClick={() => setEditing(true)} className={ui.plainSm}>
+            Edit myself
+          </button>
+        )}
+      </div>
       <div className="flex flex-col gap-5">
         {editing ? (
           <>
-            <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2 text-sm">
-              <button type="button" disabled={pending} onClick={improve} className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50">
-                {asking ? "Asking Claude…" : "Improve with Claude"}
-              </button>
-              <span className="text-xs text-muted">
-                Sharper definitions with “counts when / not when” and real examples, fixing mistakes the accuracy check found. A few cents; you review
-                before saving.
-              </span>
-            </div>
             {LISTS.map((list) => (
               <fieldset key={list} className="flex flex-col gap-2">
                 <legend className="mb-1 text-sm font-medium">{TITLES[list]}</legend>
@@ -192,7 +184,7 @@ export function CodebookEditor({
                   </div>
                 ))}
                 {draft[list].length < CODEBOOK_LIMITS[list] && (
-                  <button type="button" onClick={() => add(list)} className="self-start text-sm font-medium text-accent hover:underline">
+                  <button type="button" onClick={() => add(list)} className={`${ui.link} self-start text-sm`}>
                     + Add
                   </button>
                 )}
@@ -207,28 +199,21 @@ export function CodebookEditor({
                 <ul className="flex flex-col gap-1.5">
                   {draft[list].map((c) => (
                     <li key={c.key || c.label} className="text-sm">
-                      <span className="font-medium">{c.label}</span>
+                      <span className="font-semibold">{c.label}</span>
                       {list === "themes" && <span className="text-xs text-muted"> · {(c as Theme).kind}</span>}
-                      <span className="text-muted"> · {c.definition}</span>
-                      {(c.counts || c.excludes) && (
-                        <span className="block text-xs text-muted">
-                          {c.counts && <>Counts when: {c.counts}. </>}
-                          {c.excludes && <>Not when: {c.excludes}.</>}
-                        </span>
-                      )}
+                      <span className="block text-muted">
+                        Counts when: {(c.counts || c.definition).replace(/\.$/, "")}.{c.excludes && <> Not when: {c.excludes.replace(/\.$/, "")}.</>}
+                      </span>
                     </li>
                   ))}
                 </ul>
               </section>
             ))}
-            <button type="button" onClick={() => setEditing(true)} className="self-start text-sm font-medium text-accent hover:underline">
-              Edit definitions
-            </button>
           </>
         )}
         {(changed || note || editing || asking) && (
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
-            <button type="button" disabled={!changed || pending} onClick={save} className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+            <button type="button" disabled={!changed || pending} onClick={save} className={ui.primarySm}>
               {pending && !asking ? "Saving…" : "Save changes"}
             </button>
             {(changed || editing) && (
@@ -238,12 +223,12 @@ export function CodebookEditor({
                   setDraft(initial);
                   setEditing(false);
                 }}
-                className="text-sm text-muted underline"
+                className={ui.plainSm}
               >
                 {changed ? "Undo changes" : "Close editing"}
               </button>
             )}
-            {asking && <span className="text-sm text-muted">Claude is improving the definitions…</span>}
+            {asking && <span className="text-sm text-muted">Claude is writing clearer rules…</span>}
             {note && <span className={`text-sm ${note.ok ? "text-muted" : "text-critical"}`}>{note.text}</span>}
           </div>
         )}

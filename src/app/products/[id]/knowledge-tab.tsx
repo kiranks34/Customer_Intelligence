@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { TOPICS, topicLabel, type Change, type KnowledgeFact } from "@/lib/knowledge";
-import type { FamilyKnowledge } from "@/lib/product-knowledge";
+import type { FamilyKnowledge, FamilyStudy } from "@/lib/product-knowledge";
 
 import { shortDay as day } from "../../format";
 import { ui } from "../../ui";
@@ -23,7 +24,7 @@ const host = (url: string) => {
  * A family's product knowledge (D45): what Pulse knows, grouped by the fixed topics, what the last update changed,
  * and the facts you added. "Update from <site>" runs in two steps of five topics; nothing runs by itself.
  */
-export function KnowledgeTab({ data }: { data: FamilyKnowledge }) {
+export function KnowledgeTab({ data, users }: { data: FamilyKnowledge; users: FamilyStudy[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -96,6 +97,8 @@ export function KnowledgeTab({ data }: { data: FamilyKnowledge }) {
           {note.text}
         </p>
       )}
+
+      {users.length > 0 && <UsedBy users={users} />}
 
       {last && <WhatChanged run={last} older={runs.slice(1)} />}
 
@@ -260,5 +263,37 @@ function WhatChanged({ run, older }: { run: FamilyKnowledge["runs"][number]; old
         </details>
       )}
     </section>
+  );
+}
+
+/**
+ * Which studies read with these facts. A study applies new facts only when you re-analyze it from its own page, so
+ * nothing here spends money on studies you aren't looking at (D47).
+ */
+function UsedBy({ users }: { users: FamilyStudy[] }) {
+  const behind = users.filter((u) => u.notUsed > 0);
+  const n = (k: number) => (k === 1 ? "1 study" : `${k} studies`);
+  return (
+    <div className={behind.length ? ui.noticeInfo : "text-[13px] text-muted"}>
+      <span className="min-w-56 flex-1">
+        <b className="font-semibold">Used by {n(users.length)}.</b>{" "}
+        {behind.length === 0 ? (
+          "All of them read with the latest facts."
+        ) : (
+          <>
+            {behind.length === 1 ? "1 doesn't" : `${behind.length} don't`} use the latest facts yet; re-analyze from the study&apos;s page:{" "}
+            {behind.slice(0, 3).map((u, i) => (
+              <span key={u.id}>
+                {i > 0 && ", "}
+                <Link href={`/searches/${u.id}`} className={ui.link}>
+                  {u.title} →
+                </Link>
+              </span>
+            ))}
+            {behind.length > 3 && ` and ${behind.length - 3} more`}
+          </>
+        )}
+      </span>
+    </div>
   );
 }

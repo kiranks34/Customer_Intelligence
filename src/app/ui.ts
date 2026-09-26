@@ -1,9 +1,15 @@
 /**
- * Shared class names so every page uses the same buttons, links, cards and spacing (UX audit: one pattern per
- * element). Buttons have a fill and an outline; text links are blue and underlined, with → for pages in Pulse and ↗
- * for outside sites.
+ * Pulse's design system in code (docs/DESIGN-SYSTEM.md; every piece is shown at /design). Pages use these names, not
+ * their own classes, so the same element always looks the same. `src/app/design-system.test.ts` fails the build on
+ * the usual drift: raw colours, home-made buttons or links, font sizes off the scale.
  */
 export const ui = {
+  /** Page title (one per page), under the breadcrumb. */
+  pageTitle: "text-[26px] leading-tight font-bold tracking-tight",
+  /** Section title outside a card, e.g. "Improve these results". */
+  sectionTitle: "text-lg font-bold",
+  /** Small caps label over a group of rows or a table column. */
+  eyebrow: "text-[11px] font-bold tracking-wider text-muted uppercase",
   /** Main action: blue fill. 44px tall. */
   primary: "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-accent px-5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-45 disabled:hover:brightness-100",
   /** Second action: tinted fill, blue outline. */
@@ -25,6 +31,18 @@ export const ui = {
   cardBody: "flex flex-col gap-4 px-4 py-5 sm:px-6",
   /** Small grey text: meta, hints. */
   meta: "text-xs text-muted",
+  /** Detail line under a title (sources, dates): 13px grey. */
+  detail: "text-[13px] text-muted",
+  /** Source name (YouTube, Reddit). */
+  sourceBadge: "inline-flex h-[22px] items-center rounded-md border border-border bg-surface-2 px-1.5 text-[11px] font-bold text-muted",
+  /** State badges: verified, needs attention. */
+  badgeGood: "inline-flex h-[22px] items-center rounded-full border border-good/60 px-2 text-xs font-semibold text-good",
+  badgeWarn: "inline-flex h-[22px] items-center rounded-full border border-warning/60 px-2 text-xs font-semibold text-warning",
+  /** "← Back to …" when you arrived from the other section (D47). */
+  back: "inline-flex h-[30px] items-center gap-2 self-start rounded-full border border-accent/40 bg-accent/10 px-3 text-[13px] font-semibold text-accent hover:bg-accent/15",
+  /** Tabs inside a page or card: the selected one is underlined in blue. */
+  tab: "-mb-px border-b-2 border-transparent px-3.5 py-3 text-sm font-semibold text-muted hover:text-foreground",
+  tabOn: "-mb-px border-b-2 border-accent px-3.5 py-3 text-sm font-semibold text-foreground",
   /** Pill choice (period, sources): selected is filled. */
   chip: "inline-flex h-[34px] items-center gap-1.5 rounded-full border border-border px-3.5 text-sm hover:border-foreground/50",
   chipOn: "inline-flex h-[34px] items-center gap-1.5 rounded-full border border-foreground bg-foreground px-3.5 text-sm font-semibold text-background",

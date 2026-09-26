@@ -6,22 +6,23 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import type { StudyRow, StudyStatus } from "@/lib/studies";
 
-import { clearSearchesAction, renameStudyAction, startCollectionAction } from "./searches/actions";
+import { clearSearchesAction, renameStudyAction } from "./searches/actions";
 import { dot, ui, type Tone } from "./ui";
 import { LocalTime } from "./local-time";
 
-type Filter = "ready" | "progress" | "review" | "not_analyzed" | "stopped";
+type Filter = "ready" | "progress" | "review" | "update" | "not_analyzed" | "stopped";
 const FILTERS: { id: Filter; label: string; has: (s: StudyStatus) => boolean }[] = [
   { id: "ready", label: "Ready", has: (s) => s.kind === "ready" },
   { id: "progress", label: "In progress", has: (s) => ["collecting", "reading", "paused", "waiting"].includes(s.kind) },
   { id: "review", label: "To review", has: (s) => s.kind === "review" },
+  { id: "update", label: "Update ready", has: (s) => s.kind === "update" },
   { id: "not_analyzed", label: "Not analyzed", has: (s) => s.kind === "not_analyzed" },
   { id: "stopped", label: "Stopped", has: (s) => s.kind === "stopped" },
 ];
 
 /**
  * All studies (D46): what each covers, its result in one line, and a status that always says what's happening and
- * what to do: a short word, one line of reason, and the button to fix it. ⋯ has Open, Run again, Rename, Remove.
+ * what to do: a short word and one line of reason (D47). ⋯ has Open, Rename, Remove.
  */
 export function AllStudies({ rows }: { rows: StudyRow[] }) {
   const [filter, setFilter] = useState<Filter | null>(null);
@@ -78,7 +79,7 @@ export function AllStudies({ rows }: { rows: StudyRow[] }) {
 function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
   const h = r.headline;
   const result =
-    r.status.kind === "ready" || r.status.kind === "review" ? (
+    r.status.kind === "ready" || r.status.kind === "review" || r.status.kind === "update" ? (
       h ? (
         <span>
           {h.counted} about the product
@@ -109,7 +110,7 @@ function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
       <div className="col-start-1 md:col-start-auto">
         <div className="flex flex-wrap gap-1">
           {r.sources.map((s) => (
-            <span key={s} className="inline-flex h-[22px] items-center rounded-md border border-border bg-surface-2 px-1.5 text-[11px] font-bold text-muted">
+            <span key={s} className={ui.sourceBadge}>
               {s}
             </span>
           ))}
@@ -118,7 +119,7 @@ function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
       </div>
       <div className="col-start-1 text-sm md:col-start-auto">{result}</div>
       <div className="col-start-1 md:col-start-auto">
-        <Status id={r.id} s={r.status} />
+        <Status s={r.status} posts={r.posts} />
       </div>
       <div className="col-start-2 row-start-1 md:col-start-auto md:row-start-auto">
         <Menu r={r} onNote={onNote} />
@@ -136,67 +137,42 @@ function Tag({ tone, children }: { tone: Tone; children: React.ReactNode }) {
   );
 }
 
-function Status({ id, s }: { id: number; s: StudyStatus }) {
-  const open = (label: string, suffix = "") => (
-    <Link href={`/searches/${id}${suffix}`} className={`${ui.secondarySm} mt-1`}>
-      {label}
-    </Link>
+/**
+ * A study's status: one word and why, in the same words as the study's own page (D47). Buttons that start work live
+ * only in the study's bar, so nothing here spends money; the study's name opens it.
+ */
+function Status({ s, posts }: { s: StudyStatus; posts: number }) {
+  const [tone, word, reason]: [Tone, string, string] = (() => {
+    switch (s.kind) {
+      case "ready":
+        return ["good", "Ready", "Results use every post"];
+      case "review":
+        return ["warn", "To review", `${s.answers} ${s.answers === 1 ? "answer" : "answers"} to check`];
+      case "update":
+        return ["warn", "Update ready", s.reason];
+      case "collecting":
+        return ["info", "Collecting", "Keep its page open"];
+      case "reading":
+        return ["info", "Reading posts", "Keep its page open"];
+      case "paused":
+        return ["muted", "Paused", s.reason];
+      case "waiting":
+        return ["warn", "Waiting", s.reason];
+      case "not_analyzed":
+        return ["muted", "Not analyzed", `${posts.toLocaleString("en-US")} ${posts === 1 ? "post" : "posts"} collected, not read yet`];
+      case "stopped":
+        return ["bad", "Stopped", s.reason];
+    }
+  })();
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Tag tone={tone}>{word}</Tag>
+      <span className={ui.meta}>{reason}</span>
+    </div>
   );
-  const line = (text: string) => <span className={ui.meta}>{text}</span>;
-  const box = (children: React.ReactNode) => <div className="flex flex-col items-start gap-1">{children}</div>;
-  switch (s.kind) {
-    case "ready":
-      return box(<Tag tone="good">Ready</Tag>);
-    case "review":
-      return box(
-        <>
-          <Tag tone="warn">To review</Tag>
-          {line(`${s.answers} ${s.answers === 1 ? "answer" : "answers"} to check`)}
-          {open("Check answers", "#improve")}
-        </>,
-      );
-    case "collecting":
-    case "reading":
-      return box(
-        <>
-          <Tag tone="info">{s.kind === "collecting" ? "Collecting" : "Reading posts"}</Tag>
-          {line("Keep its page open")}
-        </>,
-      );
-    case "paused":
-      return box(
-        <>
-          <Tag tone="muted">Paused</Tag>
-          {line("The page was closed")}
-          {open("Resume", "?run=1")}
-        </>,
-      );
-    case "waiting":
-      return box(
-        <>
-          <Tag tone="info">Waiting</Tag>
-          {line(s.reason)}
-        </>,
-      );
-    case "not_analyzed":
-      return box(
-        <>
-          <Tag tone="muted">Not analyzed</Tag>
-          {open("Analyze", "?run=1")}
-        </>,
-      );
-    case "stopped":
-      return box(
-        <>
-          <Tag tone="bad">Stopped</Tag>
-          {line(s.reason)}
-          {open("Open")}
-        </>,
-      );
-  }
 }
 
-/** ⋯: Open, Run again (new posts only), Rename, Remove. */
+/** ⋯: Open, Rename, Remove. New posts are collected from the study's own bar, where the cost shows. */
 function Menu({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -227,6 +203,7 @@ function Menu({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
       const res = await fn();
       onNote(res.message);
       setOpen(false);
+      setRenaming(false);
       if (!res.ok) return;
       if (then) then();
       else router.refresh();
@@ -263,10 +240,14 @@ function Menu({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
               <Link href={`/searches/${r.id}`} className={item}>
                 Open
               </Link>
-              <button type="button" disabled={pending} className={item} onClick={() => act(() => startCollectionAction(r.id), () => router.push(`/searches/${r.id}?run=1`))}>
-                Run again (new posts only)
-              </button>
-              <button type="button" className={item} onClick={() => setRenaming(true)}>
+              <button
+                type="button"
+                className={item}
+                onClick={() => {
+                  setTitle(r.title);
+                  setRenaming(true);
+                }}
+              >
                 Rename
               </button>
               <button

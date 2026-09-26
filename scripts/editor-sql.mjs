@@ -42,10 +42,12 @@ for (const [idx, { tag, when }] of journal.entries.entries()) {
   const sql = readFileSync(`drizzle/${tag}.sql`, "utf8");
   const hash = createHash("sha256").update(sql).digest("hex");
   const safe = idx >= 3;
+  // From 0006 on; earlier files stay byte-for-byte as they were pasted.
+  const quiet = idx >= 6;
   const out = `-- Pulse migration ${tag}. Paste ALL of this into Neon > SQL Editor (branch: main, database: neondb) and click Run.
 -- ${safe ? "Safe to run more than once. If you also use the preview site, run it on the preview branch too." : "Run each file once, in order."} The last query lists the tables so you can confirm it worked.
 
-${safe ? idempotent(sql) : sql.replaceAll("--> statement-breakpoint", "")}
+${quiet ? "-- Hides Postgres' harmless \"already exists, skipping\" notices on a second run.\nSET client_min_messages = warning;\n\n" : ""}${safe ? idempotent(sql) : sql.replaceAll("--> statement-breakpoint", "")}
 
 CREATE SCHEMA IF NOT EXISTS drizzle;
 CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
