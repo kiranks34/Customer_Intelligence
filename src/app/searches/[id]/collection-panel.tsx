@@ -18,9 +18,11 @@ interface Props {
   /** Runs before a new collection starts (e.g. saving plan edits); returns an error message to stop, or null. */
   beforeStart?: () => Promise<string | null>;
   onRunningChange?: (running: boolean) => void;
+  /** Carry on an unfinished run by itself when the page opens. Off where the study's progress card drives it. */
+  autoContinue?: boolean;
 }
 
-export function CollectionPanel({ searchId, initial, beforeStart, onRunningChange }: Props) {
+export function CollectionPanel({ searchId, initial, beforeStart, onRunningChange, autoContinue = true }: Props) {
   const router = useRouter();
   const [p, setP] = useState(initial);
   const [running, setRunning] = useState(false);
@@ -33,7 +35,7 @@ export function CollectionPanel({ searchId, initial, beforeStart, onRunningChang
   // The ref guard keeps a remount (e.g. React Strict Mode) from starting a second loop.
   useEffect(() => {
     stop.current = false;
-    if (!initial.finished) void loop();
+    if (autoContinue && !initial.finished) void loop();
     return () => void (stop.current = true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
   }, []);

@@ -116,10 +116,10 @@ export async function draftCodebook(
   plan: Plan,
   sample: { source: string; text: string }[],
   improve?: { current: Codebook; mistakes: Mistake[] },
-  /** Official facts known before the first draft (the catalog's, D44); when improving, the codebook's own. */
-  facts?: ProductFact[],
+  /** The family's product knowledge before the first draft (D45); when improving, the codebook's own. */
+  known?: { productFacts: ProductFact[]; productNotes: string },
 ): Promise<DraftResult> {
-  const knowledge = productKnowledge(improve ? improve.current : { productFacts: facts });
+  const knowledge = productKnowledge(improve ? improve.current : (known ?? {}));
   if (!process.env.AI_GATEWAY_API_KEY) throw new Error("AI_GATEWAY_API_KEY is not set");
   const model = claudeModel();
   const posts = sample.map((p, i) => `${i + 1}. [${p.source}] ${p.text.replace(/\s+/g, " ").slice(0, SAMPLE_CHARS)}`).join("\n");

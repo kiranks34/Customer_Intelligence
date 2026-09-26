@@ -1,61 +1,121 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
 import { advance, progress, startCollection, type Progress } from "@/lib/collect";
-import { recordCost } from "@/lib/cost";
+import { claudeModel } from "@/lib/ai";
+import { monthToDate, recordCost } from "@/lib/cost";
+import { usdPerCredit } from "@/connectors/reddit";
 import type { Plan } from "@/lib/plan";
 import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
-import { scopeFor, type Scope } from "@/lib/catalog";
-import { ensureCatalogForSearch, getCatalog } from "@/lib/catalogs";
+import { scopeFor } from "@/lib/catalog";
+import { getCatalog } from "@/lib/catalogs";
 import { createSearch, hideSearches, resumeWaiting, savePlanVersion } from "@/lib/searches";
+import { renameSearch, studyRows } from "@/lib/studies";
+import { applyChoices, choicesProblem, estimateStudy, windowFor, type SourceId, type StudyChoices } from "@/lib/study-setup";
 
 export type { ActionState };
 
-export async function createSearchAction(_prev: ActionState | null, form: FormData): Promise<ActionState> {
-  const denied = (await authed()) ?? (await budgetBlock());
-  if (denied) return denied;
-  const q = String(form.get("q") ?? "").trim();
-  if (q.length > 300) return { ok: false, message: "Keep it under 300 characters." };
+export interface StartStudyInput {
+  catalogId: number;
+  /** A series or model in the family, or null for the whole family. */
+  nodeId: number | null;
+  choices: StudyChoices;
+  /** Start even though the same study exists (you chose "Start a new one"). */
+  force?: boolean;
+}
 
-  // A family/series/model picked from the catalog, or free text ("Anything else").
-  const catalogId = Number(form.get("catalogId") ?? 0);
-  let scope: Scope | null = null;
-  if (catalogId) {
-    const rawNode = String(form.get("nodeId") ?? "");
-    const found = await getCatalog(catalogId).catch(() => null);
-    scope = found ? scopeFor(catalogId, found.tree, rawNode ? Number(rawNode) : null) : null;
-    if (!scope) return { ok: false, message: "That product isn't in the catalog any more. Reload the page and pick again." };
-  } else if (q.length < 3) {
-    return { ok: false, message: "Type at least 3 characters." };
+export type StartStudyResult =
+  | { ok: true; id: number }
+  | { ok: false; kind: "duplicate"; id: number; date: string; message: string }
+  | { ok: false; kind: "budget"; needed: number; left: number; message: string }
+  | { ok: false; kind: "claude" | "other"; message: string };
+
+/**
+ * "Start study" (D46): Claude drafts the plan for exactly the pick, your choices (sources, period) replace the plan's,
+ * and collection starts at once. The study page then collects and reads the posts while it's open. Before anything
+ * is spent it checks the budget and whether the same study already exists.
+ */
+export async function startStudyAction(input: StartStudyInput): Promise<StartStudyResult> {
+  const denied = (await authed()) ?? (await budgetBlock());
+  if (denied) return { ok: false, kind: "other", message: denied.message };
+  const catalogId = Number(input?.catalogId);
+  const nodeId = input?.nodeId === null ? null : Number(input?.nodeId);
+  const raw = input?.choices;
+  if (!Number.isInteger(catalogId) || catalogId <= 0 || (nodeId !== null && (!Number.isInteger(nodeId) || nodeId <= 0)) || !raw) {
+    return { ok: false, kind: "other", message: "Pick a product first." };
   }
-  const input = q || `General overview of ${scope!.label}`;
-  const query = scope ? `${scope.label}${q ? ` · ${q}` : ""}` : q;
+  const choices: StudyChoices = {
+    sources: Array.isArray(raw.sources) ? raw.sources.filter((x): x is SourceId => x === "youtube" || x === "reddit") : [],
+    period: raw.period,
+    from: typeof raw.from === "string" ? raw.from : undefined,
+    to: typeof raw.to === "string" ? raw.to : undefined,
+    question: String(raw.question ?? "").trim(),
+  };
+  const problem = choicesProblem(choices);
+  if (problem) return { ok: false, kind: "other", message: problem };
+
+  const found = await getCatalog(catalogId).catch(() => null);
+  const scope = found ? scopeFor(catalogId, found.tree, nodeId) : null;
+  if (!scope) return { ok: false, kind: "other", message: "That product isn't in Products any more. Reload the page and pick again." };
+
+  const window = windowFor(choices);
+  // Only overview studies repeat each other; a question makes its own study.
+  if (!input.force && !choices.question) {
+    const same = (await studyRows(100).catch(() => [])).find(
+      (r) => r.target?.catalogId === catalogId && r.target.nodeId === nodeId && r.periodKey === window?.label && window?.label !== "custom" && sameSources(r.sources, choices.sources) && !r.hasQuestion,
+    );
+    if (same) return { ok: false, kind: "duplicate", id: same.id, date: same.createdAt, message: "You already ran this study." };
+  }
+
+  const estimate = estimateStudy(choices.sources, usdPerCredit(), claudeModel());
+  const spend = await monthToDate();
+  if (spend.state === "ok") {
+    const left = Math.max(0, spend.status.budgetUsd - spend.status.spentUsd);
+    if (estimate.usd > left) return { ok: false, kind: "budget", needed: estimate.usd, left, message: "Not enough budget left this month." };
+  }
 
   let drafted;
   try {
-    drafted = await draftPlan(input, new Date(), scope ?? undefined);
+    drafted = await draftPlan(choices.question || `General overview of ${scope.label}`, new Date(), scope);
   } catch (err) {
     if (err instanceof PlannerError && err.cost) await recordCost({ ...err.cost }).catch(() => undefined);
-    return { ok: false, message: `Couldn't draft a plan: ${errorText(err)}` };
+    return { ok: false, kind: "claude", message: errorText(err) };
   }
-  const { plan, cost } = drafted;
+  const plan = applyChoices(drafted.plan, choices, scope.label);
+  const title = choices.question ? `${scope.label} · ${choices.question}` : scope.label;
   let id: number | undefined;
   try {
-    // A picked product's search uses its family's catalog straight away (saved in the same statement); a typed
-    // topic of a known family (e.g. "hp smart tank printers") is linked to that family's catalog right after.
-    id = await createSearch(query, plan, scope?.catalogId ?? null);
-    if (!scope) await ensureCatalogForSearch(id, plan.subject).catch(() => null);
+    id = await createSearch(title.slice(0, 300), plan, catalogId);
+    const started = await startCollection(id);
+    if (!started.started) return { ok: false, kind: "other", message: started.reason ?? "Couldn't start collecting." };
   } catch (err) {
-    return { ok: false, message: `Couldn't save the search: ${errorText(err)}` };
+    return { ok: false, kind: "other", message: `Couldn't start the study: ${errorText(err)}` };
   } finally {
-    // The tokens were spent either way; attach them to the search when it exists.
-    await recordCost({ searchId: id, provider: cost.provider, operation: cost.operation, units: cost.units, usd: cost.usd }).catch(() => undefined);
+    await recordCost({ searchId: id, ...drafted.cost }).catch(() => undefined);
   }
-  redirect(`/searches/${id}`);
+  revalidatePath("/");
+  return { ok: true, id };
+}
+
+const sameSources = (labels: string[], ids: SourceId[]) =>
+  labels.length === ids.length && ids.every((id) => labels.includes(id === "youtube" ? "YouTube" : "Reddit"));
+
+/** ⋯ › Rename. */
+export async function renameStudyAction(id: number, title: string): Promise<ActionState> {
+  const denied = await authed();
+  if (denied) return denied;
+  const clean = String(title ?? "").trim().replace(/\s+/g, " ");
+  if (!Number.isInteger(id) || id <= 0 || clean.length < 2 || clean.length > 120) return { ok: false, message: "Give it a name of 2 to 120 characters." };
+  try {
+    const ok = await renameSearch(id, clean);
+    revalidatePath("/");
+    return ok ? { ok: true, message: "Renamed." } : { ok: false, message: "That study is gone." };
+  } catch (err) {
+    return { ok: false, message: `Couldn't rename: ${errorText(err)}` };
+  }
 }
 
 export type SavePlanResult = { ok: true; message: string; version: number; plan: Plan } | { ok: false; message: string };
@@ -113,10 +173,7 @@ export async function progressAction(searchId: number): Promise<Progress | Actio
   return progress(searchId);
 }
 
-/**
- * Clears searches from the Recent list by id (the ones on screen, so "Clear all" never hides a search the
- * user hasn't seen, e.g. one just started in another tab). Nothing is deleted.
- */
+/** ⋯ › Remove: takes studies off All studies. Their posts and costs are kept (for an archive view later). */
 export async function clearSearchesAction(ids: number[]): Promise<ActionState> {
   const denied = await authed();
   if (denied) return denied;
@@ -126,8 +183,8 @@ export async function clearSearchesAction(ids: number[]): Promise<ActionState> {
   try {
     const n = await hideSearches(ids);
     revalidatePath("/");
-    return { ok: true, message: n === 1 ? "Cleared 1 search." : `Cleared ${n} searches.` };
+    return { ok: true, message: n === 1 ? "Removed 1 study." : `Removed ${n} studies.` };
   } catch (err) {
-    return { ok: false, message: `Couldn't clear: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't remove: ${errorText(err)}` };
   }
 }

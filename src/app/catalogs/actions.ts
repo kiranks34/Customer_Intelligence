@@ -58,7 +58,7 @@ export async function addNameAction(catalogId: number, nodeId: number, name: str
     }
     await setAliases(nodeId, [...node.aliases, clean]);
     await matchCatalog(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     return { ok: true, message: `Added “${clean}”. Posts were re-linked.` };
   } catch (err) {
     return { ok: false, message: `Couldn't add the name: ${errorText(err)}` };
@@ -76,7 +76,7 @@ export async function removeNameAction(catalogId: number, nodeId: number, name: 
       node.aliases.filter((a) => a !== name),
     );
     await matchCatalog(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     return { ok: true, message: `Removed “${name}”. Posts were re-linked.` };
   } catch (err) {
     return { ok: false, message: `Couldn't remove the name: ${errorText(err)}` };
@@ -91,7 +91,7 @@ export async function setRetiredAction(catalogId: number, nodeId: number, retire
     const node = await catalogNode(catalogId, nodeId);
     if (!node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
     await setRetired(catalogId, nodeId, retired);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     const what = node.level === "series" ? `${node.name} and its models` : node.name;
     return { ok: true, message: retired ? `Retired ${what}. Past posts stay linked.` : `Restored ${what}.` };
   } catch (err) {
@@ -107,7 +107,7 @@ export async function updateCatalogAction(catalogId: number): Promise<ActionStat
   if (denied) return denied;
   try {
     const { reference, posts } = await findProposals(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     const total = reference + posts;
     if (total === 0) return { ok: true, message: "No new models. The catalog has everything in HP's list and every model named in 2+ of your posts." };
     const parts = [reference ? `${reference} from HP's list` : null, posts ? `${posts} from your posts` : null].filter(Boolean).join(" and ");
@@ -147,7 +147,7 @@ export async function approveProposalAction(catalogId: number, nodeId: number, n
     }
     await approveProposal(catalogId, nodeId, clean, parentId, childIds);
     await matchCatalog(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     const models = childIds.length ? ` with ${childIds.length} models` : "";
     const kept = held.length ? ` ${held.join(", ")} stay in the review list because another product already has that name.` : "";
     return { ok: true, message: `Added ${clean}${models}. Posts were re-linked.${kept}` };
@@ -163,7 +163,7 @@ export async function rejectProposalAction(catalogId: number, nodeId: number): P
     const node = await proposalNode(catalogId, nodeId);
     if (!node) return { ok: false, message: "That proposal is no longer waiting." };
     await rejectProposal(catalogId, nodeId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     return { ok: true, message: `Skipped ${node.name}. It won't be suggested again.` };
   } catch (err) {
     return { ok: false, message: `Couldn't skip: ${errorText(err)}` };
@@ -193,7 +193,7 @@ export async function addProductAction(catalogId: number, level: "series" | "mod
     }
     await addNode(catalogId, parentId, level, clean, num ? [num] : []);
     await matchCatalog(catalogId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     return { ok: true, message: `Added ${clean}.` };
   } catch (err) {
     return { ok: false, message: `Couldn't add: ${errorText(err)}` };
@@ -227,7 +227,7 @@ export async function keepAction(catalogId: number, nodeId: number): Promise<Act
     const node = await catalogNode(catalogId, nodeId);
     if (!node || node.level === "family") return { ok: false, message: "That product isn't in this catalog." };
     await markVerified(catalogId, nodeId);
-    revalidatePath(`/catalogs/${catalogId}`);
+    revalidatePath(`/products/${catalogId}`);
     return { ok: true, message: `Kept ${node.name}.` };
   } catch (err) {
     return { ok: false, message: `Couldn't update: ${errorText(err)}` };

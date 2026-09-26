@@ -108,7 +108,8 @@ price_tier(node_id, country, tier[entry|mid|premium], computed_at)    -- Phase 2
   that already has a catalog links to it; no AI call.
 - Drafting: code counts model-like mentions ("Smart Tank 7301") in the search's posts; Claude turns them plus
   its knowledge into family → series → model with aliases, marking unsure nodes unverified. You review on
-  `/catalogs/[id]`: rename, merge duplicates, add models from mentions the catalog doesn't cover, approve.
+  `/products/[id]` (Models tab): rename, add models from mentions the catalog doesn't cover, retire. Its Product
+  knowledge tab holds the family's knowledge base (D45; `catalogs.product_facts`, history in `knowledge_runs`).
 - Social post → series/model by whole-word name/alias match (method `alias`, `src/lib/catalog.ts`), keeping only
   the most specific hit. Short numbers ("580") and years only count right after a family word. Re-linked when
   the catalog is saved and when a collection run finishes. Counts are SQL over `post_product`.
