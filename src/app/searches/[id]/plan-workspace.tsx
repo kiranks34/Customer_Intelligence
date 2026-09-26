@@ -163,7 +163,7 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
         {locked && <p className="text-sm text-muted">The plan is locked until the current collection, including any paused steps, finishes.</p>}
       </section>
 
-      <CollectionPanel searchId={searchId} initial={initialProgress} beforeStart={beforeStart} onRunningChange={setRunning} />
+      <CollectionPanel searchId={searchId} initial={initialProgress} beforeStart={beforeStart} onRunningChange={setRunning} autoContinue={false} />
 
       <details className={`${card} group`}>
         <summary className="cursor-pointer text-sm font-medium select-none">More options (subject, other names, exclusions, exact numbers)</summary>

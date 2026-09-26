@@ -119,11 +119,11 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   try {
     if (!current) {
       try {
-        // The family's official facts, if already found (D44), shape the draft and go with every post.
-        const facts = await storedFactsFor(searchId);
-        const { codebook: draft, cost } = await draftCodebook(plan.plan, await sampleOf(searchId), undefined, facts);
+        // The family's product knowledge (D45) shapes the draft and goes with every post.
+        const { productFacts, productNotes } = await storedFactsFor(searchId);
+        const { codebook: draft, cost } = await draftCodebook(plan.plan, await sampleOf(searchId), undefined, { productFacts, productNotes });
         await recordCost({ searchId, ...cost });
-        const codebook = facts.length ? { ...draft, productFacts: facts } : draft;
+        const codebook = { ...draft, ...(productFacts.length ? { productFacts } : {}), ...(productNotes ? { productNotes } : {}) };
         current = { version: await saveCodebook(searchId, codebook), codebook };
         drafted = true;
       } catch (err) {
@@ -439,8 +439,8 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
       .from(posts)
       .where(eq(posts.searchId, searchId));
     // Questions are unknown until the codebook exists; a typical one adds about 900 tokens per post, plus the
-    // family's official facts, which the first codebook starts with (D44).
-    const facts = productKnowledge({ productFacts: await storedFactsFor(searchId) }).length / 4;
+    // family's product knowledge, which the first codebook starts with (D45).
+    const facts = productKnowledge(await storedFactsFor(searchId).catch(() => ({}))).length / 4;
     const jev = jevUsd(Number(chars) / 4 + (900 + facts) * totalPosts);
     const draft = tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output);
     return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd, improved: false };
@@ -722,6 +722,46 @@ export async function analysisSummary(searchId: number, version: number): Promis
   };
 }
 const pick = (t: { counted: number; uncertain: number }) => ({ counted: t.counted, uncertain: t.uncertain });
+
+/** A post quoted in a journey cell: word for word, with where it's from and how many people liked it. */
+export interface CellQuote {
+  stage: string;
+  type: string;
+  id: number;
+  text: string;
+  source: string;
+  url: string | null;
+  likes: number;
+  postedAt: string | null;
+}
+
+/**
+ * The most-liked posts of each journey cell (stage × post type, both answers sure, posts about the subject), up to
+ * `perCell` each, quoted verbatim by post id (never rewritten).
+ */
+export async function journeyQuotes(searchId: number, version: number, perCell = 3): Promise<CellQuote[]> {
+  const named = await namedNodeIds(searchId);
+  const res = await requireDb().execute(sql`with ${relevanceCte(searchId, version, named)},
+    cells as (
+      select s.answer as stage, t.answer as type, p.id, p.text, p.source, p.url, p.posted_at,
+        coalesce((p.engagement->>'likes')::int, (p.engagement->>'score')::int, 0) as likes,
+        row_number() over (partition by s.answer, t.answer
+          order by coalesce((p.engagement->>'likes')::int, (p.engagement->>'score')::int, 0) desc, p.id) as rank
+      from rel
+      join ${posts} p on p.id = rel.post_id
+      join ${decisions} s on s.post_id = rel.post_id and s.codebook_version = ${version} and s.question = ${Q.stage} and s.confidence >= ${COUNTED}
+      join ${decisions} t on t.post_id = rel.post_id and t.codebook_version = ${version} and t.question = ${Q.postType} and t.confidence >= ${COUNTED}
+      where rel.grp = 'product'
+    )
+    select stage, type, id, text, source, url, posted_at as "postedAt", likes from cells where rank <= ${perCell}
+    order by stage, type, rank`);
+  return (res.rows as unknown as CellQuote[]).map((q) => ({
+    ...q,
+    id: Number(q.id),
+    likes: Number(q.likes),
+    postedAt: q.postedAt ? new Date(q.postedAt).toISOString() : null,
+  }));
+}
 
 // ---- Needs a look ----------------------------------------------------------------------------------------------
 

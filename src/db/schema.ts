@@ -244,3 +244,39 @@ export const jobs = pgTable(
   },
   (t) => [index("jobs_status_run_after").on(t.status, t.runAfter)],
 );
+
+/**
+ * One row per "Update from the maker's site" run for a family (D45): what was found, and what changed compared with
+ * the run before (new, changed, not found again). The catalog keeps the current facts; this is their history.
+ */
+export const knowledgeRuns = pgTable(
+  "knowledge_runs",
+  {
+    id: serial("id").primaryKey(),
+    catalogId: integer("catalog_id")
+      .notNull()
+      .references(() => catalogs.id, { onDelete: "cascade" }),
+    /** Counts per change kind and the topics that found nothing: { new, changed, gone, same, emptyTopics }. */
+    summary: jsonb("summary").notNull(),
+    /** The changes themselves: [{ kind, text, was?, url, topic }]. */
+    changes: jsonb("changes").notNull(),
+    usd: numeric("usd", { precision: 10, scale: 6 }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("knowledge_runs_catalog").on(t.catalogId, t.createdAt)],
+);
+
+/**
+ * The one-line result shown for a study in All studies (counted posts, share negative, top pain), saved when its
+ * results are computed so the list doesn't recompute every study.
+ */
+export const studyHeadlines = pgTable("study_headlines", {
+  searchId: integer("search_id")
+    .primaryKey()
+    .references(() => searches.id, { onDelete: "cascade" }),
+  headline: jsonb("headline").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});

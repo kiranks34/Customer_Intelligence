@@ -1,75 +1,69 @@
-import Link from "next/link";
-
+import { usdPerCredit } from "@/connectors/reddit";
+import { claudeModel } from "@/lib/ai";
+import { catalogStats, getCatalog, listFamilies } from "@/lib/catalogs";
 import { monthToDate } from "@/lib/cost";
-import { catalogStats, getCatalog, listFamilies, waitingCount } from "@/lib/catalogs";
-import { recentSearches } from "@/lib/searches";
+import { studyRows, type StudyRow } from "@/lib/studies";
+import { PERIOD_CHOICES, type PeriodChoice, type SourceId } from "@/lib/study-setup";
 
-import { RecentSearches } from "./recent-searches";
-import { HomeSearch } from "./home-search";
-import type { ListFamily } from "./product-lists";
-import { SpendMeter } from "./spend-meter";
+import { AllStudies } from "./all-studies";
+import { AppShell } from "./app-shell";
+import { NewStudy, type NewStudyDefaults } from "./new-study";
+import type { ListFamily } from "./picker-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+/** Studies (home): start a study, and pick up the ones you have. */
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const { catalog } = await searchParams;
   const spend = await monthToDate();
-  const families = spend.state === "ok" ? await pickerFamilies().catch(() => []) : [];
-  let recent: Awaited<ReturnType<typeof recentSearches>> = [];
-  let recentError: string | null = null;
-  if (spend.state === "ok") {
-    try {
-      recent = await recentSearches();
-    } catch {
-      // Most likely a database migration hasn't been run yet (see drizzle/editor/).
-      recentError = "Couldn't load recent searches. If you just updated Pulse, run the newest SQL file from drizzle/editor/ in Neon.";
-    }
-  }
+  const ok = spend.state === "ok";
+  const [families, rows] = ok ? await Promise.all([pickerFamilies().catch(() => []), studyRows().catch(() => null)]) : [[], null];
+  const left = ok ? Math.max(0, spend.status.budgetUsd - spend.status.spentUsd) : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-10 px-4 py-10">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Pulse</h1>
-          <p className="text-muted">What customers say in public, verified post by post.</p>
-        </div>
-        <SpendMeter spend={spend} />
-      </header>
-
-      <HomeSearch families={families} />
-
-      {recentError ? (
+    <AppShell active="studies">
+      {!ok && (
         <p role="alert" className="text-sm text-critical">
-          {recentError}
+          {spend.state === "unconfigured" ? "The database isn't connected." : "Couldn't read this month's spend, so nothing can start. Check the database connection."}
+        </p>
+      )}
+      <NewStudy families={families} defaults={defaultsFor(families, rows ?? [], Number(catalog) || null)} leftUsd={left} usdPerCredit={usdPerCredit()} claudeModel={claudeModel()} />
+      {rows === null ? (
+        <p role="alert" className="text-sm text-critical">
+          Couldn&apos;t load your studies. If you just updated Pulse, run the newest SQL file from drizzle/editor/ in Neon.
         </p>
       ) : (
-        <RecentSearches items={recent} />
+        <AllStudies rows={rows} />
       )}
-
-      <nav aria-label="Tools" className="text-sm text-muted">
-        <Link href="/sources" className="underline hover:text-foreground">
-          Test data sources →
-        </Link>
-      </nav>
-    </main>
+    </AppShell>
   );
 }
 
+/** New study starts from your last study's choices (or the family you came from in Products). */
+function defaultsFor(families: ListFamily[], rows: StudyRow[], catalogId: number | null): NewStudyDefaults {
+  const last = rows.find((r) => r.target && families.some((f) => f.id === r.target!.catalogId));
+  const sources = (last?.sources ?? ["YouTube", "Reddit"]).map((s) => s.toLowerCase()).filter((s): s is SourceId => s === "youtube" || s === "reddit");
+  const period = (PERIOD_CHOICES.find((p) => p.label === last?.period)?.id ?? "1y") as PeriodChoice;
+  const fromProducts = catalogId && families.some((f) => f.id === catalogId) ? catalogId : null;
+  const pick = fromProducts ? { catalogId: fromProducts, nodeId: null } : last?.target ?? { catalogId: families[0]?.id ?? 0, nodeId: null };
+  return { ...pick, sources: sources.length ? sources : ["youtube", "reddit"], period };
+}
+
 /**
- * Every family with its active (not retired) series and models, and the posts collected so far for each (counted
- * in SQL across all searches), for the home page lists.
+ * Every family with its active (not retired) series and models, and the posts collected so far for each (counted in
+ * SQL across all studies), for the product picker.
  */
 async function pickerFamilies(): Promise<ListFamily[]> {
   const families = await listFamilies();
-  const loaded = await Promise.all(families.map(async (f) => Promise.all([getCatalog(f.id), catalogStats(f.id), waitingCount(f.id)])));
+  const loaded = await Promise.all(families.map(async (f) => Promise.all([getCatalog(f.id), catalogStats(f.id)])));
   return loaded
     .filter(([found]) => found !== null)
-    .map(([found, stats, waiting]) => {
+    .map(([found, stats]) => {
       const { catalog, tree } = found!;
       return {
         id: catalog.id,
         name: catalog.name,
         posts: stats.postsNamingProduct,
-        waiting,
         series: tree.children
           .filter((s) => !s.retired && s.id !== null)
           .map((s) => ({

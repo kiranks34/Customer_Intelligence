@@ -9,6 +9,9 @@
   --accent: #2a78d6;
   --warning: #fab219;
   --critical: #d03b3b;
+  --good: #1f8a5b;
+  --surface-2: #f3f3f1;
+  --faint: #7a7973;
 }
 
 @theme inline {
@@ -20,6 +23,9 @@
   --color-accent: var(--accent);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
+  --color-good: var(--good);
+  --color-surface-2: var(--surface-2);
+  --color-faint: var(--faint);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -32,6 +38,9 @@
     --surface: #232322;
     --border: #383835;
     --accent: #3987e5;
+    --good: #3fae7c;
+    --surface-2: #2b2b29;
+    --faint: #8a8980;
   }
 }
 

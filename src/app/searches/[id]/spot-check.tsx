@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import type { Accuracy, CheckItem } from "@/lib/analysis";
 import { NOT_STATED, OWNERSHIP, POST_TYPES, type Codebook } from "@/lib/codebook";
 
+import { ui } from "../../ui";
 import { autoCheckAction, saveSpotCheckAction } from "../analysis-actions";
 
 const SENTIMENTS = ["positive", "negative", "mixed", "neutral"];
@@ -25,7 +26,7 @@ export function SpotCheck(props: {
   items: CheckItem[];
   accuracy: Accuracy;
   claudeModel: string;
-  /** Asks Claude to rewrite the definitions to fix the mistakes found (shown in "What Jev looks for"). */
+  /** Asks Claude to rewrite the categories to fix the mistakes found (shown in Categories). */
   onImprove: () => void;
 }) {
   const { items, accuracy, searchId, claudeModel, onImprove } = props;
@@ -53,16 +54,9 @@ export function SpotCheck(props: {
   }
 
   return (
-    <details className="rounded-lg border border-border px-4 py-3">
-      <summary className="cursor-pointer text-sm font-medium">
-        Check accuracy{" "}
-        <span className="font-normal text-muted">
-          · {claudeRan ? `${disputed.length} ${disputed.length === 1 ? "post needs" : "posts need"} your call` : "measures how often Jev is right"}
-        </span>
-      </summary>
-      <div className="mt-4 flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2 text-sm">
-          <button type="button" disabled={pending} onClick={autoCheck} className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50">
+    <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-surface-2 px-4 py-3 text-sm">
+          <button type="button" disabled={pending} onClick={autoCheck} className={ui.secondarySm}>
             {pending ? "Claude is checking…" : claudeRan ? "Run the auto-check again" : "Auto-check with Claude"}
           </button>
           <span className="text-xs text-muted">
@@ -77,8 +71,8 @@ export function SpotCheck(props: {
             <span>
               {wrong} of Jev&apos;s sure {wrong === 1 ? "answer was" : "answers were"} judged wrong.
             </span>
-            <button type="button" onClick={onImprove} className="rounded-md border border-accent px-3 py-1 font-medium text-accent">
-              Improve the definitions
+            <button type="button" onClick={onImprove} className={ui.secondarySm}>
+              Improve the categories
             </button>
             <span className="text-xs text-muted">Claude rewrites them to fix these (a few cents). You review before saving.</span>
           </div>
@@ -100,8 +94,7 @@ export function SpotCheck(props: {
             ))}
           </ol>
         )}
-      </div>
-    </details>
+    </div>
   );
 }
 

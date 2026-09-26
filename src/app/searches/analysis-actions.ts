@@ -17,8 +17,8 @@ import {
   startAnalysis,
   type AnalysisState,
 } from "@/lib/analysis";
-import { validateCodebook, type Codebook, type ProductFact } from "@/lib/codebook";
-import { productFactsFor } from "@/lib/product-knowledge";
+import { validateCodebook, type Codebook } from "@/lib/codebook";
+import { codebookKnowledge, knowledgeForSearch } from "@/lib/product-knowledge";
 
 const validId = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0;
 
@@ -146,22 +146,30 @@ export async function autoCheckAction(searchId: number): Promise<ActionState> {
 }
 
 /**
- * "Fill from the maker's pages": the family's official facts (looked up with Claude when there are none yet, or when
- * `fresh`), for you to review in the editor. Nothing is saved to the search until you press Save.
+ * "Re-analyze" from Product knowledge: the study's definitions take the family's latest knowledge (a new version, with
+ * the same themes, stages and lists), then Jev reads the posts again with it.
  */
-export async function productFactsAction(searchId: number, fresh: boolean): Promise<(ActionState & { facts?: ProductFact[] })> {
+export async function reanalyzeWithKnowledgeAction(searchId: number): Promise<ActionState> {
   const denied = (await authed()) ?? (await budgetBlock());
   if (denied) return denied;
   if (!validId(searchId)) return { ok: false, message: "Unknown search." };
   try {
-    const r = await productFactsFor(searchId, fresh === true);
-    if (r.facts.length === 0) return { ok: false, message: `No facts could be confirmed on ${r.domains.join(", ")} this time. Nothing changed.` };
-    return {
-      ok: true,
-      facts: r.facts,
-      message: `${r.facts.length} facts ${r.looked ? "found" : "already found"} on ${r.domains.join(", ")}. Remove any that look wrong, then Save.`,
-    };
+    if (await analysisBusy(searchId)) return { ok: false, message: "The analysis is running; wait for it to finish." };
+    const current = await latestCodebook(searchId);
+    const fam = await knowledgeForSearch(searchId);
+    if (!current || !fam) return { ok: false, message: "Analyze the posts first." };
+    const { productFacts, productNotes } = codebookKnowledge(fam.knowledge);
+    // Notes typed into this study before knowledge moved to the family (D44) are kept, with your family facts added.
+    const lines = [...(current.codebook.productNotes ?? "").split("\n"), ...productNotes.split("\n")].map((l) => l.trim()).filter(Boolean);
+    const notes = [...new Set(lines)].join("\n").slice(0, 1500);
+    const next: Codebook = { ...current.codebook, productFacts, productNotes: notes || undefined };
+    const checked = validateCodebook(next);
+    if (!checked.ok) return { ok: false, message: checked.error };
+    await saveCodebook(searchId, checked.codebook);
+    const r = await startAnalysis(searchId);
+    revalidatePath(`/searches/${searchId}`);
+    return r.started ? { ok: true, message: "Reading the posts again with the latest product knowledge…" } : { ok: false, message: r.reason };
   } catch (err) {
-    return { ok: false, message: `Couldn't read the official pages: ${errorText(err)}` };
+    return { ok: false, message: `Couldn't re-analyze: ${errorText(err)}` };
   }
 }
