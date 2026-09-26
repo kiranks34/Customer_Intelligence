@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
-import { advance, progress, startCollection, type Progress } from "@/lib/collect";
+import { startCollection } from "@/lib/collect";
 import { claudeModel } from "@/lib/ai";
 import { monthToDate, recordCost } from "@/lib/cost";
 import { usdPerCredit } from "@/connectors/reddit";
@@ -12,7 +12,7 @@ import { validatePlan } from "@/lib/plan-edit";
 import { draftPlan, PlannerError } from "@/lib/planner";
 import { scopeFor } from "@/lib/catalog";
 import { getCatalog } from "@/lib/catalogs";
-import { createSearch, hideSearches, resumeWaiting, savePlanVersion } from "@/lib/searches";
+import { createSearch, hideSearches, savePlanVersion } from "@/lib/searches";
 import { renameSearch, studyRows } from "@/lib/studies";
 import { applyChoices, choicesProblem, estimateStudy, windowFor, type SourceId, type StudyChoices } from "@/lib/study-setup";
 
@@ -144,33 +144,6 @@ export async function startCollectionAction(searchId: number): Promise<ActionSta
   } catch (err) {
     return { ok: false, message: `Couldn't start: ${errorText(err)}` };
   }
-}
-
-export async function resumeAction(searchId: number): Promise<ActionState> {
-  const denied = (await authed()) ?? (await budgetBlock());
-  if (denied) return denied;
-  try {
-    await resumeWaiting(searchId);
-    return { ok: true, message: "Resumed." };
-  } catch (err) {
-    return { ok: false, message: `Couldn't resume: ${errorText(err)}` };
-  }
-}
-
-export async function advanceAction(searchId: number): Promise<Progress | ActionState> {
-  const denied = await authed();
-  if (denied) return denied;
-  try {
-    return await advance(searchId);
-  } catch (err) {
-    return { ok: false, message: `Collection step failed: ${errorText(err)}` };
-  }
-}
-
-export async function progressAction(searchId: number): Promise<Progress | ActionState> {
-  const denied = await authed();
-  if (denied) return denied;
-  return progress(searchId);
 }
 
 /** ⋯ › Remove: takes studies off All studies. Their posts and costs are kept (for an archive view later). */

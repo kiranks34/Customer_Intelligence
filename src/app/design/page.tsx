@@ -105,12 +105,9 @@ export default function DesignPage() {
               <span className={ui.detail}>YouTube · Reddit · 1 year · Started Sep 18</span>
             </div>
             <div className="flex items-start gap-3">
-              <span className="flex flex-col items-end pt-1.5 text-right">
-                <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
-                  <span className={`h-2 w-2 rounded-full ${dot.good}`} aria-hidden />
-                  Ready
-                </span>
-                <span className={ui.meta}>Results use every post</span>
+              <span className="inline-flex items-center gap-2 pt-1.5 text-[13px] font-semibold">
+                <span className={`h-2 w-2 rounded-full ${dot.good}`} aria-hidden />
+                Ready
               </span>
               <span className="flex flex-col items-end gap-0.5">
                 <button type="button" className={ui.secondarySm}>
@@ -143,13 +140,15 @@ export default function DesignPage() {
         </nav>
       </Block>
 
-      <Block title="Status" note="A short word and why. The same words in All studies and in a study's bar">
+      <Block title="Status" note="One word, the same in All studies and a study's header. The reason line shows in All studies only">
         <div className="grid gap-4 sm:grid-cols-2">
           {(
             [
-              ["info", "Collecting", "Keep this page open"],
-              ["info", "Reading posts", "Keep this page open"],
-              ["muted", "Paused", "You stopped it, or the page was closed"],
+              ["info", "Collecting", "Runs while Pulse is open"],
+              ["info", "Reading posts", "Runs while Pulse is open"],
+              ["info", "Stopping…", "Finishing the current step"],
+              ["muted", "Paused", "You stopped it"],
+              ["muted", "Not started", "Nothing collected yet"],
               ["warn", "Waiting", "Monthly budget reached"],
               ["muted", "Not analyzed", "200 posts collected, not read yet"],
               ["warn", "Update ready", "20 new product facts not used yet"],
@@ -166,6 +165,25 @@ export default function DesignPage() {
               <span className={ui.meta}>{why}</span>
             </div>
           ))}
+        </div>
+      </Block>
+
+      <Block title="Running and toasts" note="Work runs in any open Pulse tab. A toast is news from elsewhere, never the result of a click on this page">
+        <span className={ui.running}>
+          <span className="h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden />2 running
+        </span>
+        <div className="flex max-w-[380px] flex-col gap-2">
+          <div role="status" className={ui.toast}>
+            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-good" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">Smart Tank 7301 is ready</p>
+              <p className={ui.meta}>52 posts about the product · 63% negative</p>
+              <span className={`${ui.link} text-[13px]`}>Open results →</span>
+            </div>
+            <button type="button" aria-label="Dismiss" className={ui.icon}>
+              ×
+            </button>
+          </div>
         </div>
       </Block>
 

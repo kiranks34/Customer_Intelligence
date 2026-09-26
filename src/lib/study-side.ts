@@ -4,7 +4,7 @@ import { usdPerCredit } from "@/connectors/reddit";
 
 import { analysisState, analysisSummary, journeyQuotes, latestCodebook, resultsVersion, spotCheckAccuracy, type AnalysisState, type AnalysisSummary, type CellQuote } from "./analysis";
 import { jevUsd } from "./codebook";
-import { loadPlan, progress, type Progress } from "./collect";
+import { loadPlan, progress, runFlags, type Progress, type RunFlags } from "./collect";
 import { factsNotUsed } from "./knowledge";
 import { estimatePlan, type Plan } from "./plan";
 import { knowledgeForSearch } from "./product-knowledge";
@@ -31,6 +31,8 @@ export interface SideFacts {
   openAnswers: number;
   /** Cost of Collect new posts: the searches plus reading what they find, at most. */
   collectUsd: number;
+  /** Where its run stands (D49): stopped, driven by a Pulse tab, finishing a stopped step. */
+  run: RunFlags;
 }
 
 export interface Side {
@@ -51,7 +53,7 @@ export async function loadSide(searchId: number): Promise<Side | null> {
   const latest = await loadPlan(searchId);
   if (!latest) return null;
   const { plan, version } = latest;
-  const [prog, analysis, shown, codebook, knowledge] = await Promise.all([progress(searchId), analysisState(searchId), resultsVersion(searchId), latestCodebook(searchId), knowledgeForSearch(searchId)]);
+  const [prog, analysis, shown, codebook, knowledge, run] = await Promise.all([progress(searchId), analysisState(searchId), resultsVersion(searchId), latestCodebook(searchId), knowledgeForSearch(searchId), runFlags(searchId)]);
   const [summary, accuracy, quotes] = shown ? await Promise.all([analysisSummary(searchId, shown), spotCheckAccuracy(searchId, shown), journeyQuotes(searchId, shown)]) : [null, null, []];
   const open = accuracy ? accuracy.questions.reduce((n, q) => n + q.open, 0) : 0;
   if (summary) await saveHeadline(searchId, headlineOf(summary, open)).catch(() => undefined);
@@ -73,6 +75,7 @@ export async function loadSide(searchId: number): Promise<Side | null> {
       factsNotUsed: knowledge && codebook ? factsNotUsed(knowledge.knowledge, codebook.codebook) : 0,
       openAnswers: open,
       collectUsd: est.usd + jevUsd(est.maxPosts * JEV_TOKENS_PER_POST),
+      run,
     },
   };
 }

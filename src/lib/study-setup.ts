@@ -5,15 +5,11 @@
  */
 import { tokenCostUsd } from "./ai";
 import { jevUsd } from "./codebook";
-import { applyDepth } from "./plan-edit";
+import { applyDepth, PERIODS } from "./plan-edit";
 import { isRealDate, type Plan } from "./plan";
 
-export const PERIOD_CHOICES = [
-  { id: "3m", label: "3 months", days: 91 },
-  { id: "6m", label: "6 months", days: 182 },
-  { id: "1y", label: "1 year", days: 365 },
-  { id: "2y", label: "2 years", days: 730 },
-] as const;
+/** New study offers the same periods as Search settings. */
+export const PERIOD_CHOICES = PERIODS;
 export type PeriodChoice = (typeof PERIOD_CHOICES)[number]["id"] | "custom";
 export const SOURCES = [
   { id: "youtube", label: "YouTube" },

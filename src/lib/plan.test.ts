@@ -126,14 +126,14 @@ describe("plan editing helpers", () => {
     const r = validatePlan({ ...base, postCap: 99999 });
     expect(r.ok && r.plan.postCap).toBe(1000);
   });
-  it("applies period presets ending today and recognises them again", () => {
-    const week = applyPeriod(base, "7d", today);
-    expect(week.timeWindow).toEqual({ from: "2026-09-19", to: "2026-09-25", label: "last 7 days" });
-    expect(activePeriod(week, today)).toBe("7d");
-    expect(activePeriod(week, new Date(2026, 9, 20))).toBe("custom");
-    expect(applyPeriod(base, "7d", new Date(2026, 8, 25, 23, 30)).timeWindow.to).toBe("2026-09-25");
-    expect(activePeriod(applyPeriod(base, "all", today))).toBe("all");
+  it("applies period presets with no end and recognises them again", () => {
+    const quarter = applyPeriod(base, "3m", today);
+    expect(quarter.timeWindow).toEqual({ from: "2026-06-27", to: null, label: "3 months" });
+    expect(activePeriod(quarter)).toBe("3m");
+    // New study saves the same shape; older presets and fixed windows show as custom dates.
+    expect(activePeriod({ ...base, timeWindow: { from: "2025-09-26", to: null, label: "1 year" } })).toBe("1y");
     expect(activePeriod({ ...base, timeWindow: { from: "2026-08-01", to: "2026-08-31", label: "last month" } })).toBe("custom");
+    expect(activePeriod({ ...base, timeWindow: { from: null, to: null, label: "all time" } })).toBe("custom");
   });
   it("applies depth presets and reports custom numbers as custom", () => {
     const quick = applyDepth(base, "quick");

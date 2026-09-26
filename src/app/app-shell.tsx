@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { monthToDate } from "@/lib/cost";
 
 import { usd } from "./format";
+import { RunIndicator } from "./runner";
 
 
 /**
@@ -27,7 +28,10 @@ export async function AppShell({ active, children }: { active: "studies" | "prod
           {tab("/", "Studies", active === "studies")}
           {tab("/products", "Products", active === "products")}
         </nav>
-        <SpendLine spend={spend} />
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-1 sm:ml-auto sm:w-auto">
+          <RunIndicator />
+          <SpendLine spend={spend} />
+        </div>
       </header>
       {children}
     </div>
@@ -36,13 +40,13 @@ export async function AppShell({ active, children }: { active: "studies" | "prod
 
 function SpendLine({ spend }: { spend: Awaited<ReturnType<typeof monthToDate>> | { state: "error" } }) {
   if (spend.state !== "ok") {
-    return <span className="text-xs text-muted sm:ml-auto">{spend.state === "unconfigured" ? "Spend: database not connected" : "Spend unavailable"}</span>;
+    return <span className="text-xs text-muted">{spend.state === "unconfigured" ? "Spend: database not connected" : "Spend unavailable"}</span>;
   }
   const { status } = spend;
   const pct = Math.min(100, Math.round(status.fraction * 100));
   const bar = status.level === "over" ? "bg-critical" : status.level === "warning" ? "bg-warning" : "bg-accent";
   return (
-    <div className="flex w-full items-center gap-3 text-[13px] text-muted sm:ml-auto sm:w-auto">
+    <div className="flex items-center gap-3 text-[13px] text-muted">
       <span className="tabular-nums">
         This month {usd(status.spentUsd)} of {usd(status.budgetUsd)}
         {status.level !== "ok" && <span className="font-semibold text-foreground"> · {status.level === "over" ? "over budget" : "near budget"}</span>}

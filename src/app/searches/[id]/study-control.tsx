@@ -10,18 +10,17 @@ import type { SideFacts } from "@/lib/study-side";
 
 import { aboutUsd, usd } from "../../format";
 import { dot, ui, type Tone } from "../../ui";
-import { advanceAction, clearSearchesAction, renameStudyAction, resumeAction, startCollectionAction, type ActionState } from "../actions";
-import { advanceAnalysisAction, reanalyzeWithKnowledgeAction, resumeAnalysisAction, startAnalysisAction } from "../analysis-actions";
+import { clearSearchesAction, renameStudyAction, startCollectionAction, type ActionState } from "../actions";
+import { reanalyzeWithKnowledgeAction, startAnalysisAction } from "../analysis-actions";
+import { useRunner } from "../../runner";
+import { resumeRunsAction, stopRunsAction } from "../../runs-actions";
 import { removeComparisonAction, renameComparisonAction } from "../../compare/actions";
 
-const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-const isProgress = (r: Progress | ActionState): r is Progress => "jobs" in r;
-const isState = (r: AnalysisState | ActionState): r is AnalysisState => "pending" in r;
 const SOURCE_LABELS: Record<string, string> = { youtube: "YouTube", reddit: "Reddit" };
-const MAX_RETRIES = 3;
 const n = (k: number, one: string, many = `${one}s`) => `${k.toLocaleString("en-US")} ${k === 1 ? one : many}`;
 
-type Phase = "idle" | "collecting" | "reading";
+type Phase = "idle" | "collecting" | "reading" | "stopping";
+type StepState = "done" | "now" | "todo" | "bad";
 
 /**
  * Opens what an in-page link points at: Search settings, or a row of Improve these results (which listens for
@@ -88,282 +87,134 @@ const useStudy = () => {
 };
 
 const unfinished = (p: Progress) => !p.finished && p.jobs.waiting === 0;
+const everCollected = (p: Progress) => p.totalPosts > 0 || p.jobs.queued + p.jobs.running + p.jobs.done + p.jobs.failed + p.jobs.waiting > 0;
 
 /**
- * A study's work and its one next step (D47), for one study or both sides of a comparison (D48). The page drives the
- * work while it is open: collect each side, then read what's new on each (a comparison's sides share their
- * categories, drafted once from both). Paid work starts only from the study bar's button (or `?run=1` right after
- * you started it elsewhere); a reload or Stop leaves open work waiting for Resume.
+ * A study's status and its one next step (D47), for one study or both sides of a comparison (D48). The work itself
+ * runs in any open Pulse tab (the runner, D49): this page starts, stops and resumes it and shows the runner's live
+ * state. Paid work starts only from the study bar's button.
  */
 export function StudyControl({ facts, children }: { facts: StudyFacts; children: React.ReactNode }) {
   const router = useRouter();
+  const runner = useRunner();
   const ids = facts.sides.map((x) => x.searchId);
-  const [ps, setPs] = useState(facts.sides.map((x) => x.progress));
-  const [as, setAs] = useState(facts.sides.map((x) => x.analysis));
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [current, setCurrent] = useState(0);
+  const key = ids.join(",");
   const [message, setMessage] = useState<string | null>(null);
-  const [stopped, setStopped] = useState(false);
-  // From a click until the run owns the work (and while the page refreshes after it): buttons stay locked, so a
-  // double click or a stale status can't start paid work twice.
+  // From a click until the page shows the work it started: buttons stay locked, so a double click or a stale status
+  // can't start paid work twice.
   const [starting, setStarting] = useState(false);
   const [refreshing, startRefresh] = useTransition();
-  const stop = useRef(false);
-  const busy = useRef(false);
-  const setP = (i: number, p: Progress) => setPs((xs) => xs.map((x, k) => (k === i ? p : x)));
-  const setA = (i: number, a: AnalysisState | ((x: AnalysisState) => AnalysisState)) =>
-    setAs((xs) => xs.map((x, k) => (k === i ? (typeof a === "function" ? a(x) : a) : x)));
+  // Stop shows at once, before the server confirms it (D49).
+  const [halting, setHalting] = useState(false);
 
-  // Fresh server data (after saving categories, keeping a post, a finished run) is taken while nothing runs; a run in
-  // progress keeps its own, newer state. Done during render, React's way to follow props.
-  const [seen, setSeen] = useState(facts.sides);
-  if (seen !== facts.sides) {
-    setSeen(facts.sides);
-    if (phase === "idle" && !starting) {
-      setPs(facts.sides.map((x) => x.progress));
-      setAs(facts.sides.map((x) => x.analysis));
-      if (facts.sides.every((x) => x.progress.finished && x.progress.jobs.waiting === 0 && x.analysis.status !== "running")) setStopped(false);
-    }
-  }
-
+  const watch = runner?.watch;
+  useEffect(() => watch?.(key.split(",").map(Number)), [watch, key]);
   useEffect(() => {
-    stop.current = false;
-    if (facts.autorun) {
-      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
-      const collect = facts.sides.map((x) => unfinished(x.progress));
-      const reading = facts.sides.map((x) => x.analysis.status === "running");
-      const readNew = facts.sides.some((x) => x.analysis.pending > 0 && (x.analysis.status === "none" || x.analysis.status === "done"));
-      if (collect.some(Boolean) || reading.some(Boolean) || readNew) void run(collect, reading);
-    }
-    return () => void (stop.current = true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
-  }, []);
+    // `?run=1` after New study: the run already started on the server; the URL is tidied.
+    if (facts.autorun) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, [facts.autorun]);
 
-  /**
-   * Collect the sides that have collection work, then read whatever is new on each (`reading`: already under way).
-   * `note` keeps a message from the button that started it (one side couldn't start).
-   */
-  async function run(collect: boolean[], reading: boolean[] = [], note: string | null = null) {
-    if (busy.current) return;
-    busy.current = true;
-    stop.current = false;
-    setStopped(false);
-    setMessage(note);
-    try {
-      for (let i = 0; i < ids.length; i++) {
-        if (!collect[i]) continue;
-        if (!(await collectSide(i)) || stop.current) return;
-      }
-      for (let i = 0; i < ids.length; i++) {
-        if (!(await readSide(i, reading[i] ?? false)) || stop.current) return;
-      }
-    } finally {
-      busy.current = false;
-      setPhase("idle");
-      setStarting(false);
-      if (!stop.current) startRefresh(() => router.refresh());
-    }
-  }
+  // The runner's copy when it is newer than the page's (a run in progress), else the page's.
+  const live = facts.sides.map((x) => {
+    const r = runner?.states[x.searchId];
+    return r && r.at > x.run.at ? r : null;
+  });
+  const ps = facts.sides.map((x, i) => live[i]?.progress ?? x.progress);
+  const as = facts.sides.map((x, i) => live[i]?.analysis ?? x.analysis);
+  const runs = facts.sides.map((x, i) => live[i] ?? x.run);
+  const runnerNote = ids.map((id, i) => (runner?.messages[id] ? `${who(facts, i)}${runner.messages[id]}` : null)).find(Boolean) ?? null;
 
-  const who = (i: number) => (facts.kind === "comparison" ? `${facts.sides[i].label}: ` : "");
+  const working = (i: number) => runs[i].driven && !runs[i].stopped;
+  const collecting = ps.findIndex((p, i) => unfinished(p) && working(i));
+  // Reading also covers the moment between collecting and the first batch (the runner starts it next).
+  const reading = as.findIndex((a, i) => (a.status === "running" || (runs[i].readNext && ps[i].finished && ps[i].jobs.waiting === 0 && ps[i].totalPosts > 0)) && working(i));
+  const confirmed = runs.every((r) => r.stopped && !r.stopping);
+  if (halting && confirmed) setHalting(false);
+  const phase: Phase = (halting && !confirmed) || runs.some((r) => r.stopping) ? "stopping" : collecting >= 0 ? "collecting" : reading >= 0 ? "reading" : "idle";
+  const current = Math.max(0, phase === "collecting" ? collecting : reading);
 
-  async function collectSide(i: number): Promise<boolean> {
-    setPhase("collecting");
-    setCurrent(i);
-    setStarting(false);
-    let failures = 0;
-    while (!stop.current) {
-      let r: Progress | ActionState;
-      try {
-        r = await advanceAction(ids[i]);
-        failures = 0;
-      } catch (err) {
-        if (++failures > MAX_RETRIES) {
-          setMessage(`${who(i)}${err instanceof Error ? err.message : "Connection lost"}. Press Resume to carry on.`);
-          return false;
-        }
-        await sleep(3000 * failures);
-        continue;
-      }
-      if (!isProgress(r)) {
-        setMessage(`${who(i)}${r.message}`);
-        return false;
-      }
-      setP(i, r);
-      if (r.finished) {
-        // Failed searches don't stop the run (the rest is read), but they must never pass silently.
-        if (r.jobs.failed > 0) setMessage(`${who(i)}${r.jobs.failed} of the searches failed: ${r.lastErrors[0] ?? "no reason given"}`);
-        return r.jobs.waiting === 0;
-      }
-      if (r.jobs.running === 0) await sleep(3000);
-    }
-    return false;
-  }
-
-  /** Reads one side's new posts. False stops the run (an error, or Stop). */
-  async function readSide(i: number, running: boolean): Promise<boolean> {
-    setCurrent(i);
-    if (!running) {
-      const started = await startAnalysisAction(ids[i]);
-      // Nothing new to read is fine: that side is up to date.
-      if (!started.ok) {
-        if (started.message.startsWith("Every post")) return true;
-        // In a comparison, a side that found no posts doesn't hold up reading the other.
-        if (facts.kind === "comparison" && started.message.startsWith("Collect some posts")) {
-          setMessage(`${who(i)}no posts found, so nothing to read.`);
-          return true;
-        }
-        setMessage(`${who(i)}${started.message}`);
-        return false;
-      }
-    }
-    setPhase("reading");
-    setStarting(false);
-    let failures = 0;
-    while (!stop.current) {
-      let r: AnalysisState | ActionState;
-      try {
-        r = await advanceAnalysisAction(ids[i]);
-        failures = 0;
-      } catch (err) {
-        if (++failures > MAX_RETRIES) {
-          setMessage(`${who(i)}${err instanceof Error ? err.message : "Connection lost"}. Press Resume to carry on.`);
-          return false;
-        }
-        await sleep(3000 * failures);
-        continue;
-      }
-      if (!isState(r)) {
-        setMessage(`${who(i)}${r.message}`);
-        return false;
-      }
-      setA(i, r);
-      if (r.status !== "running") {
-        if (r.status !== "done" && r.message) {
-          setMessage(`${who(i)}${r.message}`);
-          return false;
-        }
-        return true;
-      }
-      await sleep(1500);
-    }
-    return false;
-  }
-
-  /** Runs a button's first server calls with the buttons locked; the run loop takes over from there. */
-  async function begin(first: () => Promise<boolean>) {
-    if (busy.current || starting || refreshing) return;
+  /** Runs a button's server calls with the buttons locked, then lets the runner take over. */
+  async function begin(first: () => Promise<string | null>) {
+    if (starting || refreshing) return;
     setStarting(true);
     setMessage(null);
+    runner?.clear(ids);
     try {
-      if (!(await first())) setStarting(false);
+      const note = await first();
+      setMessage(note);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Connection lost. Try again.");
+    } finally {
+      runner?.kick();
+      startRefresh(() => router.refresh());
       setStarting(false);
     }
   }
-  const fail = (m: string) => {
-    setMessage(m);
-    return false;
-  };
 
-  /**
-   * After a multi-side button: whatever started is driven even if another side failed to start, so no side is left
-   * with work queued and nothing running it. False (buttons unlocked) only when nothing started.
-   */
-  const drive = (started: boolean, collect: boolean[], reading: boolean[], note: string | null) => {
-    if (!started) return fail(note ?? "Nothing to do.");
-    void run(collect, reading, note);
-    return true;
-  };
+  /** Every side's call in turn; a side that couldn't start is named, the others go ahead (D48). */
+  async function eachSide(sides: number[], call: (id: number) => Promise<ActionState>, skip: (m: string) => boolean = () => false) {
+    let note: string | null = null;
+    for (const i of sides) {
+      const r = await call(ids[i]);
+      if (!r.ok && !skip(r.message)) note ??= `${who(facts, i)}${r.message}`;
+    }
+    return note;
+  }
 
+  const all = ids.map((_, i) => i);
+  const collectNew = () => begin(() => eachSide(all, startCollectionAction));
+  const analyze = () =>
+    begin(() =>
+      eachSide(
+        all.filter((i) => as[i].pending > 0 || !facts.sides[i].hasResults),
+        startAnalysisAction,
+        // Nothing new on a side is fine; in a comparison, a side with no posts doesn't hold up the other.
+        (m) => m.startsWith("Every post") || (facts.kind === "comparison" && m.startsWith("Collect some posts")),
+      ),
+    );
+  const reanalyzeWithFacts = () => begin(() => eachSide(all.filter((i) => facts.sides[i].factsNotUsed > 0), reanalyzeWithKnowledgeAction));
   const resume = () =>
     begin(async () => {
-      const reading = as.map((a) => a.status === "running");
-      // Paused searches join once resumed; a side that couldn't resume stays as it is.
-      const collect = ps.map((p) => !p.finished && p.jobs.waiting === 0);
-      let note: string | null = null;
-      for (let i = 0; i < ids.length; i++) {
-        if (ps[i].jobs.waiting > 0) {
-          const r = await resumeAction(ids[i]);
-          if (!r.ok) {
-            note = `${who(i)}${r.message}`;
-            break;
-          }
-          collect[i] = true;
-        }
-        if (as[i].status === "paused" || as[i].status === "failed") {
-          const r = await resumeAnalysisAction(ids[i]);
-          if (!r.ok) {
-            note = `${who(i)}${r.message}`;
-            break;
-          }
-          setA(i, (x) => ({ ...x, status: "running" }));
-          reading[i] = true;
-        }
-      }
-      return drive(collect.some(Boolean) || reading.some(Boolean), collect, reading, note);
+      const r = await resumeRunsAction(ids);
+      return r.ok ? null : r.message;
     });
-
-  /** New product facts: each side that lacks them saves them into its categories and reads every post again. */
-  const reanalyzeWithFacts = () =>
-    begin(async () => {
-      const reading = ids.map(() => false);
-      let note: string | null = null;
-      for (let i = 0; i < ids.length; i++) {
-        if (facts.sides[i].factsNotUsed === 0) continue;
-        const r = await reanalyzeWithKnowledgeAction(ids[i]);
-        if (!r.ok) {
-          note = `${who(i)}${r.message}`;
-          break;
-        }
-        setA(i, (x) => ({ ...x, status: "running" }));
-        reading[i] = true;
-      }
-      return drive(reading.some(Boolean), ids.map(() => false), reading, note);
-    });
-
-  const collectNew = () =>
-    begin(async () => {
-      const collect = ids.map(() => false);
-      let note: string | null = null;
-      for (let i = 0; i < ids.length; i++) {
-        const r = await startCollectionAction(ids[i]);
-        if (!r.ok) {
-          note = `${who(i)}${r.message}`;
-          break;
-        }
-        setPs((xs) => xs.map((x, k) => (k === i ? { ...x, finished: false } : x)));
-        collect[i] = true;
-      }
-      return drive(collect.some(Boolean), collect, [], note);
-    });
-
-  const analyze = () =>
-    begin(async () => {
-      void run(ids.map(() => false));
-      return true;
-    });
-
+  // Stop never waits for another click's refresh: it always goes out at once.
   const halt = () => {
-    stop.current = true;
-    setStopped(true);
+    setHalting(true);
+    setMessage(null);
+    stopRunsAction(ids)
+      .then((r) => {
+        if (!r.ok) {
+          setHalting(false);
+          setMessage(r.message);
+        }
+      })
+      .catch(() => {
+        setHalting(false);
+        setMessage("Connection lost. Press Stop again.");
+      })
+      .finally(() => {
+        runner?.kick();
+        startRefresh(() => router.refresh());
+      });
   };
 
-  const status = statusOf({ facts, phase, current, ps, as, stopped, analyze, resume, halt, reanalyzeWithFacts, collectNew });
+  const status = statusOf({ facts, phase, current, ps, as, runs, analyze, resume, halt, reanalyzeWithFacts, collectNew });
   const locked = starting || refreshing;
   return (
-    <StudyContext.Provider value={{ facts, phase, current, ps, as, message, status, busy: phase !== "idle" || locked, locked, collectNew: () => void collectNew() }}>
+    <StudyContext.Provider value={{ facts, phase, current, ps, as, message: message ?? runnerNote, status, busy: phase !== "idle" || locked, locked, collectNew: () => void collectNew() }}>
       {children}
     </StudyContext.Provider>
   );
 }
 
+const who = (facts: StudyFacts, i: number) => (facts.kind === "comparison" ? `${facts.sides[i].label}: ` : "");
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
 /**
- * The status in one word, why, and the one button that moves it on (the same words as All studies). For a
- * comparison, the side that holds things up is named.
+ * The status in one word and the one button that moves it on (the same words as All studies). The header shows the
+ * word only; the detail sits where it belongs (Progress, the Improve rows). For a comparison, the side that holds
+ * things up is named in the reason All studies shows.
  */
 function statusOf(s: {
   facts: StudyFacts;
@@ -371,22 +222,23 @@ function statusOf(s: {
   current: number;
   ps: Progress[];
   as: AnalysisState[];
-  stopped: boolean;
+  runs: { stopped: boolean; driven: boolean; stopping: boolean; readNext: boolean }[];
   analyze: () => Promise<void>;
   resume: () => Promise<void>;
   halt: () => void;
   reanalyzeWithFacts: () => Promise<void>;
   collectNew: () => Promise<void>;
 }): Status {
-  const { facts, phase, ps, as } = s;
+  const { facts, phase, ps, as, runs } = s;
   const sides = facts.sides;
   const pair = facts.kind === "comparison";
   const name = (i: number) => (pair ? `${sides[i].label}: ` : "");
   const stopBtn: Action = { label: "Stop", primary: false, onClick: s.halt };
   const resumeBtn: Action = { label: "Resume", primary: true, onClick: () => void s.resume() };
-  const keepOpen = pair ? `${sides[s.current].label} · keep this page open` : "Keep this page open";
-  if (phase === "collecting") return { tone: "info", word: "Collecting", reason: keepOpen, action: stopBtn };
-  if (phase === "reading") return { tone: "info", word: "Reading posts", reason: keepOpen, action: stopBtn };
+  const collectUsd = sum(sides.map((x) => x.collectUsd));
+  if (phase === "stopping") return { tone: "info", word: "Stopping…", reason: "Finishing the current step", action: null };
+  if (phase === "collecting") return { tone: "info", word: "Collecting", reason: pair ? sides[s.current].label : "", action: stopBtn };
+  if (phase === "reading") return { tone: "info", word: "Reading posts", reason: pair ? sides[s.current].label : "", action: stopBtn };
   const waiting = ps.findIndex((p) => p.jobs.waiting > 0);
   if (waiting >= 0)
     return {
@@ -397,21 +249,22 @@ function statusOf(s: {
     };
   const paused = as.findIndex((a) => a.status === "paused" || a.status === "failed");
   if (paused >= 0) return { tone: "muted", word: "Paused", reason: name(paused) + (as[paused].message ?? "Reading stopped before the end"), action: resumeBtn };
-  if (s.stopped || ps.some((p) => !p.finished) || as.some((a) => a.status === "running"))
-    return { tone: "muted", word: "Paused", reason: "You stopped it, or the page was closed", action: resumeBtn };
+  // Open work nobody is driving: you stopped it, or every Pulse tab was closed (D49).
+  const open = sides.findIndex((_, i) => !ps[i].finished || as[i].status === "running");
+  if (open >= 0) return { tone: "muted", word: "Paused", reason: name(open) + (runs[open].stopped ? "You stopped it" : "No Pulse tab was open"), action: resumeBtn };
+  const never = ps.findIndex((p) => !everCollected(p));
+  if (never >= 0)
+    return { tone: "muted", word: "Not started", reason: name(never) + "Nothing collected yet", action: { label: "Collect posts", cost: collectUsd, primary: true, onClick: () => void s.collectNew() } };
   const empty = ps.findIndex((p) => p.totalPosts === 0);
-  if (empty >= 0) {
-    const p = ps[empty];
-    const ran = p.jobs.queued + p.jobs.running + p.jobs.done + p.jobs.failed + p.jobs.waiting > 0;
+  if (empty >= 0)
     return {
       tone: "bad",
       word: "Stopped",
-      reason: name(empty) + (ran ? "No posts found" : "Nothing collected yet"),
+      reason: name(empty) + "No posts found",
       action: pair
         ? { label: "Change its search settings", primary: false, href: `/searches/${sides[empty].searchId}#settings` }
         : { label: "Change search settings", primary: false, href: "#settings" },
     };
-  }
   if (sides.some((x) => !x.hasResults))
     return {
       tone: "muted",
@@ -448,7 +301,7 @@ function statusOf(s: {
     };
   }
   if (facts.partOf) return { tone: "good", word: "Ready", reason: "Results use every post", action: { label: "Open the comparison", primary: false, href: `/compare/${facts.partOf.id}` } };
-  return { tone: "good", word: "Ready", reason: "Results use every post", action: { label: "Collect new posts", cost: sum(sides.map((x) => x.collectUsd)), primary: false, onClick: () => void s.collectNew() } };
+  return { tone: "good", word: "Ready", reason: "Results use every post", action: { label: "Collect new posts", cost: collectUsd, primary: false, onClick: () => void s.collectNew() } };
 }
 
 /**
@@ -457,10 +310,19 @@ function statusOf(s: {
  * title has scrolled away, so it is always in reach and never shown twice.
  */
 export function NextStep() {
-  const { facts, ps, status, message, busy, locked, collectNew } = useStudy();
+  const { facts, status, message, busy, locked, collectNew } = useStudy();
   const act = status.action;
   const cls = act ? (act.primary ? ui.primarySm : ui.secondarySm) : "";
-  const showCollect = !busy && !facts.partOf && status.word !== "Ready" && !["Paused", "Waiting"].includes(status.word);
+  const cost = facts.sides.reduce((t, x) => t + x.collectUsd, 0);
+  // ⋯ offers collecting only where it isn't the bar's own button and adds to something (never on Not analyzed).
+  const menuCollect =
+    busy || facts.partOf
+      ? null
+      : status.word === "Stopped"
+        ? { label: "Collect again", note: "runs the same searches again", cost, run: collectNew }
+        : ["Update ready", "To review"].includes(status.word)
+          ? { label: "Collect new posts", note: "searches again, then reads what's new", cost, run: collectNew }
+          : null;
   return (
     <div className="flex min-w-0 items-start gap-3">
       <div className="flex min-w-0 flex-col items-end pt-1.5 text-right" role="status">
@@ -468,7 +330,8 @@ export function NextStep() {
           <span className={`h-2 w-2 shrink-0 rounded-full ${dot[status.tone]}`} aria-hidden />
           {status.word}
         </span>
-        <span className={`text-xs ${message ? "text-critical" : "text-muted"}`}>{message ?? status.reason}</span>
+        {/* The word only: the reason is shown where it belongs (Progress, the Improve rows). Problems do show. */}
+        {message && <span className="text-xs text-critical">{message}</span>}
       </div>
       {act && (
         <div className="flex shrink-0 flex-col items-end gap-0.5">
@@ -488,14 +351,7 @@ export function NextStep() {
           {act.cost !== undefined && <span className={ui.meta}>{aboutUsd(act.cost)}</span>}
         </div>
       )}
-      <StudyMenu
-        facts={facts}
-        collect={
-          showCollect
-            ? { label: ps.every((p) => p.totalPosts > 0) ? "Collect new posts" : "Collect posts", cost: facts.sides.reduce((t, x) => t + x.collectUsd, 0), run: collectNew }
-            : null
-        }
-      />
+      <StudyMenu facts={facts} collect={menuCollect} />
     </div>
   );
 }
@@ -552,7 +408,7 @@ export function StudyBar({ sections }: { sections: [string, string][] }) {
  * ⋯: Collect new posts (when it isn't the bar's button), Rename, Search settings (a comparison: each side's study,
  * where its settings, Needs a look and Accuracy live), Remove.
  */
-function StudyMenu({ facts, collect }: { facts: StudyFacts; collect: { label: string; cost: number; run: () => void } | null }) {
+function StudyMenu({ facts, collect }: { facts: StudyFacts; collect: { label: string; note: string; cost: number; run: () => void } | null }) {
   const { id, title } = facts;
   const pair = facts.kind === "comparison";
   const router = useRouter();
@@ -627,7 +483,9 @@ function StudyMenu({ facts, collect }: { facts: StudyFacts; collect: { label: st
                   }}
                 >
                   {collect.label}
-                  <span className="block text-xs text-muted">{aboutUsd(collect.cost)} · searches again, then reads what&apos;s new</span>
+                  <span className="block text-xs text-muted">
+                    {aboutUsd(collect.cost)} · {collect.note}
+                  </span>
                 </button>
               )}
               <button
@@ -696,12 +554,13 @@ function StudyMenu({ facts, collect }: { facts: StudyFacts; collect: { label: st
  */
 export function StudyProgress() {
   const { facts, phase, current, ps, as, status } = useStudy();
-  const working = phase !== "idle" || ["Paused", "Waiting", "Not analyzed", "Stopped"].includes(status.word);
+  const working = phase !== "idle" || ["Paused", "Waiting", "Not analyzed", "Stopped", "Not started"].includes(status.word);
   if (!working) return null;
   const pair = facts.kind === "comparison";
   const total = (p: Progress) => p.jobs.queued + p.jobs.running + p.jobs.done + p.jobs.failed + p.jobs.waiting;
   const pctOf = (p: Progress) => (p.finished ? 100 : total(p) ? Math.round(((p.jobs.done + p.jobs.failed) / total(p)) * 100) : 0);
-  const collectState = phase === "collecting" || ps.some((p) => !p.finished) ? "now" : "done";
+  const collectState: StepState =
+    status.word === "Stopped" ? "bad" : phase === "collecting" || ps.some((p) => !p.finished || !everCollected(p)) ? "now" : "done";
   const readState =
     phase === "reading" || as.some((a) => a.status === "paused" || a.status === "failed") || (collectState === "done" && facts.sides.some((x) => !x.hasResults))
       ? "now"
@@ -714,10 +573,12 @@ export function StudyProgress() {
       {text}
     </span>
   );
-  const step = (k: number, title: string, state: "done" | "now" | "todo", body: React.ReactNode) => (
-    <div className={`flex flex-col gap-1.5 rounded-xl border px-4 py-3.5 ${state === "now" ? "border-accent bg-accent/10" : "border-border"} ${state === "todo" ? "text-faint" : ""}`}>
+  const step = (k: number, title: string, state: StepState, body: React.ReactNode) => (
+    <div className={`flex flex-col gap-1.5 rounded-xl border px-4 py-3.5 ${state === "now" ? "border-accent bg-accent/10" : state === "bad" ? "border-critical" : "border-border"} ${state === "todo" ? "text-faint" : ""}`}>
       <div className="flex items-center gap-2 font-bold">
-        <span className={`grid size-[22px] place-items-center rounded-full border text-xs font-extrabold ${state === "done" ? "border-good bg-good text-background" : state === "now" ? "border-accent bg-accent text-background" : "border-border bg-surface-2"}`}>
+        <span
+          className={`grid size-[22px] place-items-center rounded-full border text-xs font-extrabold ${state === "done" ? "border-good bg-good text-background" : state === "now" ? "border-accent bg-accent text-background" : state === "bad" ? "border-critical bg-critical text-background" : "border-border bg-surface-2"}`}
+        >
           {state === "done" ? "✓" : k}
         </span>
         {title}
@@ -749,9 +610,13 @@ export function StudyProgress() {
             {ps.map((p, i) =>
               line(
                 i,
-                Object.entries(sources(p))
-                  .map(([src, k]) => `${SOURCE_LABELS[src] ?? src} ${k}${p.runCap ? ` of ${p.runCap}` : ""}`)
-                  .join(" · ") || "Nothing yet",
+                !everCollected(p)
+                  ? "Not started"
+                  : p.finished && p.totalPosts === 0
+                    ? "No posts found"
+                    : Object.entries(sources(p))
+                        .map(([src, k]) => `${SOURCE_LABELS[src] ?? src} ${k}${p.runCap ? ` of ${p.runCap}` : ""}`)
+                        .join(" · ") || "Nothing yet",
               ),
             )}
           </>,
@@ -769,7 +634,15 @@ export function StudyProgress() {
         )}
         {step(3, "Results", readState === "done" && collectState === "done" ? "done" : "todo", <span className="text-xs text-muted">{pair ? "Side by side: themes, journey, quotes" : "Journey map, themes, quotes"}</span>)}
       </div>
-      <p className="px-4 pb-5 text-[13px] text-muted sm:px-6">Spent on this {pair ? "comparison" : "study"}: {usd(ps.reduce((t, p) => t + p.costUsd, 0))}</p>
+      <p className="px-4 pb-5 text-[13px] text-muted sm:px-6">
+        {/* Why it waits: the header shows only the word (D47). */}
+        {["Paused", "Waiting"].includes(status.word) && (
+          <b className="font-semibold text-foreground">
+            {status.word}: {status.reason.charAt(0).toLowerCase() + status.reason.slice(1)}.{" "}
+          </b>
+        )}
+        Spent on this {pair ? "comparison" : "study"}: {usd(ps.reduce((t, p) => t + p.costUsd, 0))}
+      </p>
     </section>
   );
 }
