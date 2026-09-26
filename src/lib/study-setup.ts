@@ -42,7 +42,7 @@ export function windowFor(c: Pick<StudyChoices, "period" | "from" | "to">, today
   const p = PERIOD_CHOICES.find((x) => x.id === c.period);
   if (!p) return null;
   const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (p.days - 1));
-  // Open-ended, so "Run again" still finds posts from after the study started.
+  // Open-ended, so "Collect new posts" still finds posts from after the study started.
   return { from: iso(from), to: null, label: p.label };
 }
 

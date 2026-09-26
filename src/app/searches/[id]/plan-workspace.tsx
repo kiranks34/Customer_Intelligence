@@ -2,13 +2,12 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
-import type { Progress } from "@/lib/collect";
 import { estimatePlan, LIMITS, type Plan } from "@/lib/plan";
 import { activeDepth, activePeriod, addAsSearch, applyDepth, applyPeriod, DEPTHS, isSearched, PERIODS, planSummary, planWarnings, type PeriodId } from "@/lib/plan-edit";
 
 import { ChipField } from "../../chip-field";
+import { ui } from "../../ui";
 import { savePlanAction } from "../actions";
-import { CollectionPanel } from "./collection-panel";
 
 const field = "rounded-lg border border-border bg-background px-3 py-2 text-sm";
 const label = "flex flex-col gap-1 text-sm";
@@ -19,19 +18,17 @@ interface Props {
   plan: Plan;
   version: number;
   usdPerCredit: number;
-  initialProgress: Progress;
   /** A collection is part-way through; the plan can't change until it finishes. */
   locked: boolean;
 }
 
 /**
- * The search screen: a one-line summary, one-click choices for period, depth and sources, and the Run button.
- * Everything else sits under "More options". Pressing Run saves any edits first, so there is no separate save step.
+ * Search settings: a one-line summary, one-click choices for period, depth and sources; everything else under "More
+ * options". Saving changes what the next "Collect new posts" (in the study bar, D47) searches for.
  */
-export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialProgress, locked }: Props) {
+export function PlanWorkspace({ searchId, plan, version, usdPerCredit, locked }: Props) {
   const [saved, setSaved] = useState({ plan, version });
   const [draft, setDraft] = useState(plan);
-  const [running, setRunning] = useState(false);
   const [customDates, setCustomDates] = useState(activePeriod(plan) === "custom");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -48,7 +45,7 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
   const warnings = useMemo(() => planWarnings(draft), [draft]);
   const period = customDates ? "custom" : activePeriod(draft);
   const depth = activeDepth(draft);
-  const disabled = locked || running || saving;
+  const disabled = locked || saving;
   const update = (patch: Partial<Plan>) => setDraft((d) => ({ ...d, ...patch }));
 
   const save = useCallback(async (): Promise<string | null> => {
@@ -64,8 +61,6 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
       setSaving(false);
     }
   }, [searchId, draft]);
-
-  const beforeStart = useCallback(async () => (dirty ? save() : null), [dirty, save]);
 
   async function saveOnly() {
     const err = await save().catch(() => "Couldn't save the plan. Try again.");
@@ -88,7 +83,6 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
           <p className="text-base">{planSummary(draft, est)}</p>
           <p className="text-xs text-muted">
             {est.redditCredits} Reddit credits · {est.youtubeQuotaUnits} YouTube units (free up to 10,000 a day)
-            {dirty && " · unsaved changes are saved when you start a run"}
           </p>
         </div>
 
@@ -163,8 +157,6 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
         {locked && <p className="text-sm text-muted">The plan is locked until the current collection, including any paused steps, finishes.</p>}
       </section>
 
-      <CollectionPanel searchId={searchId} initial={initialProgress} beforeStart={beforeStart} onRunningChange={setRunning} autoContinue={false} />
-
       <details className={`${card} group`}>
         <summary className="cursor-pointer text-sm font-medium select-none">More options (subject, other names, exclusions, exact numbers)</summary>
         <fieldset disabled={disabled} className="mt-2 flex flex-col gap-4">
@@ -232,17 +224,18 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, initialPr
             <input value={draft.notes} onChange={(e) => update({ notes: e.target.value })} className={field} />
           </label>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={saveOnly} disabled={!dirty} className="rounded-lg border border-border px-4 py-2 text-sm font-medium disabled:opacity-50">
-              {saving ? "Saving…" : "Save without running"}
-            </button>
-            <button type="button" onClick={() => setDraft(saved.plan)} disabled={!dirty} className="text-sm text-muted underline disabled:opacity-50">
-              Undo changes
-            </button>
-            <span className="text-xs text-muted">Plan v{saved.version}</span>
-          </div>
         </fieldset>
       </details>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={saveOnly} disabled={!dirty || disabled} className={ui.primarySm}>
+          {saving ? "Saving…" : "Save settings"}
+        </button>
+        <button type="button" onClick={() => setDraft(saved.plan)} disabled={!dirty || disabled} className={ui.plainSm}>
+          Undo changes
+        </button>
+        <span className="text-xs text-muted">{dirty ? "Unsaved changes" : `Version ${saved.version}`} · used by the next Collect new posts</span>
+      </div>
 
       {note && (
         <p role="status" className={`text-sm ${note.ok ? "text-muted" : "text-critical"}`}>

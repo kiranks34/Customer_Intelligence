@@ -34,6 +34,14 @@ type Notice = Exclude<StartStudyResult, { ok: true }> | null;
  * period and question. Filled in with your last choices. Problems are caught before anything is spent: not enough
  * budget (with a cheaper option), the same study already run (open it or collect new posts), Claude unavailable.
  */
+/** Opens the calendar on a click anywhere in the field, not only on its small icon. */
+const openPicker = (e: React.MouseEvent<HTMLInputElement>) => {
+  try {
+    e.currentTarget.showPicker?.();
+  } catch {
+    // Some browsers refuse without a direct user gesture; typing the date still works.
+  }
+};
 const dateInput = "h-[34px] w-40 rounded-[10px] border border-accent bg-background px-3 text-sm";
 
 export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeModel }: Props) {
@@ -90,7 +98,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
         <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
           <h3 className="text-base font-bold">Add the product you want to hear about</h3>
           <p className="max-w-md text-sm text-muted">Pulse finds what people say about it on YouTube and Reddit and maps it onto the customer journey.</p>
-          <Link href="/products" className={ui.primary}>
+          <Link href="/products?from=new" className={ui.primary}>
             Add a product family
           </Link>
           <span className={ui.meta}>For example HP Smart Tank or Epson EcoTank</span>
@@ -134,7 +142,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
                   </button>
                 );
               })}
-              <Link href="/products?tab=sources" className={`${ui.chip} border-dashed text-muted`}>
+              <Link href="/products?tab=sources&from=new" className={`${ui.chip} border-dashed text-muted`}>
                 + Add source
               </Link>
             </Field>
@@ -150,9 +158,9 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
                 </button>
                 {period === "custom" && (
                   <span className="flex basis-full flex-wrap items-center gap-2 text-sm">
-                    <input type="date" aria-label="From" value={from} max={to || today} onChange={(e) => change(setFrom)(e.target.value)} className={dateInput} />
+                    <input type="date" aria-label="From" value={from} max={to || today} onChange={(e) => change(setFrom)(e.target.value)} onClick={openPicker} className={dateInput} />
                     to
-                    <input type="date" aria-label="To (empty means today)" value={to} min={from || undefined} max={today} onChange={(e) => change(setTo)(e.target.value)} className={dateInput} />
+                    <input type="date" aria-label="To (empty means today)" value={to} min={from || undefined} max={today} onChange={(e) => change(setTo)(e.target.value)} onClick={openPicker} className={dateInput} />
                   </span>
                 )}
               </div>
@@ -174,10 +182,11 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
           <div className={ui.noticeWarn} role="status">
             <span className="min-w-56 flex-1">
               <b>Not enough budget left this month.</b> This study needs {aboutUsd(est.usd)}; ${(leftUsd ?? 0).toFixed(2)} is left.
+              {cheaper && ` With ${cheaper.label} only it's ${aboutUsd(cheaper.usd)}.`}
             </span>
             {cheaper && (
               <button type="button" onClick={() => setSources([cheaper.id])} className={ui.plainSm}>
-                Use {cheaper.label} only · {aboutUsd(cheaper.usd)}
+                Use {cheaper.label} only
               </button>
             )}
           </div>
@@ -191,7 +200,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
               Open it →
             </Link>
             <button type="button" disabled={pending} onClick={() => collectNew(notice.id)} className={ui.plainSm}>
-              Collect new posts only
+              Collect new posts
             </button>
             <button type="button" disabled={pending} onClick={() => start(true)} className={ui.plainSm}>
               Start a new one
@@ -342,7 +351,7 @@ function ProductPicker({ families, pick, label, onPick }: { families: ListFamily
           </div>
           <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-[13px]">
             <span className="text-muted">Missing a product?</span>
-            <Link href="/products" className={ui.link}>
+            <Link href="/products?from=new" className={ui.link}>
               Manage products →
             </Link>
           </div>

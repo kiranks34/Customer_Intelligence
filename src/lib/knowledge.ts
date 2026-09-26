@@ -210,3 +210,35 @@ export function factsForReading(k: Knowledge): { maker: { text: string; url: str
     yours: k.facts.filter((f) => f.source === "you").map((f) => f.text),
   };
 }
+
+/** The codebook's notes field holds at most this much (CodebookSchema). */
+export const NOTES_CHARS = 1500;
+
+/**
+ * A study's notes: your family facts first, then the study's own older notes (D44), whole lines only, as many as fit.
+ */
+export function notesFor(yours: string[], older = ""): string {
+  const out: string[] = [];
+  let len = 0;
+  for (const line of [...yours, ...older.split("\n")].map((l) => l.trim()).filter(Boolean)) {
+    if (out.includes(line)) continue;
+    const add = line.length + (out.length ? 1 : 0);
+    if (len + add > NOTES_CHARS) continue;
+    out.push(line);
+    len += add;
+  }
+  return out.join("\n");
+}
+
+/**
+ * How many of the family's current facts a study's categories don't carry yet (D45): each maker fact as Jev reads it
+ * (with its models) and each of your own that fits in the notes. A study that has none yet takes the latest when it
+ * is first analyzed. Only facts a Re-analyze would really add are counted, so "Update ready" always clears.
+ */
+export function factsNotUsed(k: Knowledge, used: { productFacts?: { text: string }[]; productNotes?: string } | null): number {
+  if (!used) return 0;
+  const have = new Set([...(used.productFacts ?? []).map((f) => factKey(f.text)), ...(used.productNotes ?? "").split("\n").map(factKey)]);
+  const { maker, yours } = factsForReading(k);
+  const fits = notesFor(yours).split("\n").filter(Boolean);
+  return [...maker.slice(0, MAKER_FACTS_MAX).map((f) => f.text), ...fits].filter((t) => !have.has(factKey(t))).length;
+}

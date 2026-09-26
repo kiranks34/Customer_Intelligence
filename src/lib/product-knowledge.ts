@@ -12,6 +12,9 @@ import {
   applyUpdate,
   factKey,
   factsForReading,
+  factsNotUsed,
+  MAKER_FACTS_MAX,
+  notesFor,
   FACT_CHARS,
   newFactId,
   readKnowledge,
@@ -187,11 +190,38 @@ export async function knowledgeForSearch(searchId: number): Promise<FamilyKnowle
 /** What a study's codebook takes from its family: maker facts (with pages) and your facts as notes. */
 export function codebookKnowledge(k: Knowledge): { productFacts: ProductFact[]; productNotes: string } {
   const { maker, yours } = factsForReading(k);
-  return { productFacts: maker.slice(0, 40), productNotes: yours.join("\n").slice(0, 1500) };
+  return { productFacts: maker.slice(0, MAKER_FACTS_MAX), productNotes: notesFor(yours) };
 }
 
 /** Facts to start a study's first codebook with: the family's current ones (no lookup, no cost). */
 export async function storedFactsFor(searchId: number): Promise<{ productFacts: ProductFact[]; productNotes: string }> {
   const fam = await knowledgeForSearch(searchId);
   return fam ? codebookKnowledge(fam.knowledge) : { productFacts: [], productNotes: "" };
+}
+
+export interface FamilyStudy {
+  id: number;
+  title: string;
+  /** Family facts this study's latest categories don't carry yet. */
+  notUsed: number;
+}
+
+/** The studies of a family (not removed), and whether each reads with the family's latest facts. */
+export async function familyStudies(catalogId: number): Promise<FamilyStudy[]> {
+  const db = requireDb();
+  const [fam] = await db.select({ facts: catalogs.productFacts }).from(catalogs).where(eq(catalogs.id, catalogId));
+  if (!fam) return [];
+  const k = readKnowledge(fam.facts);
+  const res = await db.execute(sql`
+    select s.id, s.query,
+      (select json_build_object('productFacts', c.codebook->'productFacts', 'productNotes', c.codebook->'productNotes')
+         from codebooks c where c.search_id = s.id order by c.version desc limit 1) as used
+    from ${searches} s
+    where s.catalog_id = ${catalogId} and s.hidden_at is null
+    order by s.id desc`);
+  return (res.rows as { id: number; query: string; used: { productFacts: { text: string }[] | null; productNotes: string | null } | null }[]).map((r) => ({
+    id: Number(r.id),
+    title: r.query,
+    notUsed: factsNotUsed(k, r.used ? { productFacts: r.used.productFacts ?? [], productNotes: r.used.productNotes ?? "" } : null),
+  }));
 }

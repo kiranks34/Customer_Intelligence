@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import type { Accuracy, CheckItem, LookPost } from "@/lib/analysis";
 import type { Codebook } from "@/lib/codebook";
 
 import { ui } from "../../ui";
-import { reanalyzeWithKnowledgeAction, reviewAction } from "../analysis-actions";
-import { CodebookEditor, type EditorHandle } from "./codebook-editor";
+import { reviewAction } from "../analysis-actions";
+import { CodebookEditor } from "./codebook-editor";
 import { SpotCheck } from "./spot-check";
 
 const SOURCE_LABELS: Record<string, string> = { youtube: "YouTube", reddit: "Reddit" };
@@ -23,94 +23,177 @@ interface Props {
   summaryCodebook: Codebook;
   codebook: { version: number; codebook: Codebook } | null;
   claudeModel: string;
-  knowledge: { catalogId: number; facts: number; updatedAt: string | null; newSince: number } | null;
+  /** About what one "Improve rules" call costs. */
+  improveUsd: number;
+  /** The family's product knowledge: where it lives, how many facts, and how many this study doesn't use yet. */
+  knowledge: { href: string; facts: number; site: string | null; notUsed: number } | null;
 }
 
-type RowKey = "look" | "check" | "categories";
+type RowKey = "needs-look" | "accuracy" | "categories";
 
 /**
- * "Improve these results" (D46): optional, numbered, one line each with its status and one action; a row opens in
- * place. 1 Needs a look · 2 Check accuracy · 3 Categories · 4 Product knowledge.
+ * "Improve these results" (D47): optional. Check answers (Needs a look, Accuracy), then update what posts are read
+ * with (Categories, Product knowledge). Rows only show their state and open in place; Re-analyze lives in the study
+ * bar, the one place that starts paid work.
  */
 export function Improve(props: Props) {
-  const router = useRouter();
   const [openRow, setOpenRow] = useState<RowKey | null>(null);
-  const [pending, startTransition] = useTransition();
-  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
-  const editor = useRef<EditorHandle>(null);
   const toggle = (k: RowKey) => setOpenRow((o) => (o === k ? null : k));
-  const open = props.check ? props.check.accuracy.questions.reduce((n, q) => n + q.open, 0) : 0;
+  const acc = props.check?.accuracy;
+  const answers = acc ? acc.questions.reduce((n, q) => n + q.open, 0) : 0;
+  const sure = acc ? acc.questions.reduce((n, q) => n + q.sure, 0) : 0;
+  const right = acc ? acc.questions.reduce((n, q) => n + q.right, 0) : 0;
+  const wrong = sure - right;
+  const claudeRan = props.check?.items.some((i) => i.claude) ?? false;
   const k = props.knowledge;
 
+  // "Check answers" in the study bar, and links between rows, open a row and bring it into view.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const target = (e as CustomEvent<string>).detail as RowKey;
+      if (!["needs-look", "accuracy", "categories"].includes(target)) return;
+      setOpenRow(target);
+      setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    };
+    window.addEventListener("pulse:open", onOpen);
+    return () => window.removeEventListener("pulse:open", onOpen);
+  }, []);
+
+  const opener = (key: RowKey, label: string) => (
+    <button type="button" aria-expanded={openRow === key} aria-controls={`${key}-body`} onClick={() => toggle(key)} className={ui.secondarySm}>
+      {openRow === key ? "Close ▴" : `${label} ▾`}
+    </button>
+  );
+
   return (
-    <section id="improve" aria-labelledby="improve-heading" className="flex flex-col gap-3">
+    <section id="improve" aria-labelledby="improve-heading" className="flex scroll-mt-32 flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-x-3">
-        <h2 id="improve-heading" className="text-lg font-bold">
+        <h2 id="improve-heading" className={ui.sectionTitle}>
           Improve these results
         </h2>
-        <span className={ui.meta}>Optional. Pulse already did the work; these make it more accurate.</span>
+        <span className={ui.meta}>Optional.</span>
       </div>
 
-      <Row n={1} title="Needs a look" status={props.lookTotal ? `${props.lookTotal} posts Jev wasn't sure about` : "Nothing to look at"} open={openRow === "look"}
-        action={props.lookTotal > 0 ? <button type="button" onClick={() => toggle("look")} className={ui.secondarySm}>{openRow === "look" ? "Close" : "Review"}</button> : null}>
+      <h3 className={`${ui.eyebrow} mt-1`}>Check answers</h3>
+      <Row
+        id="needs-look"
+        title="Needs a look"
+        status={
+          props.lookTotal ? (
+            <>
+              <b className="font-semibold text-foreground">{props.lookTotal} {props.lookTotal === 1 ? "post" : "posts"}</b> Jev wasn&apos;t sure about · not counted until you keep them
+            </>
+          ) : (
+            "Nothing waiting"
+          )
+        }
+        action={props.lookTotal > 0 ? opener("needs-look", "Review") : null}
+        open={openRow === "needs-look"}
+      >
         <NeedsLook searchId={props.searchId} version={props.version} posts={props.look} total={props.lookTotal} />
       </Row>
 
       {props.check && props.check.items.length > 0 && (
-        <Row n={2} title="Check accuracy"
-          status={props.check.items.some((i) => i.claude) ? `Claude checked ${props.check.items.length} posts · ${open} ${open === 1 ? "answer" : "answers"} to check` : "Measures how often Jev is right"}
-          open={openRow === "check"}
-          action={<button type="button" onClick={() => toggle("check")} className={ui.secondarySm}>{openRow === "check" ? "Close" : open ? "Check answers" : "Open"}</button>}>
-          <SpotCheck searchId={props.searchId} version={props.version} codebook={props.summaryCodebook} items={props.check.items} accuracy={props.check.accuracy} claudeModel={props.claudeModel} onImprove={() => editor.current?.improve()} />
+        <Row
+          id="accuracy"
+          title="Accuracy"
+          status={
+            claudeRan ? (
+              <>
+                Claude checked {props.check.items.length} posts · <b className="font-semibold text-foreground">Jev agrees on {sure ? Math.round((right / sure) * 100) : 100}%</b> ·{" "}
+                {answers} {answers === 1 ? "answer" : "answers"} to check
+              </>
+            ) : (
+              "Not checked yet · Claude can check 20 posts against Jev"
+            )
+          }
+          action={opener("accuracy", answers ? "Check answers" : "Open")}
+          open={openRow === "accuracy"}
+        >
+          <SpotCheck
+            searchId={props.searchId}
+            version={props.version}
+            codebook={props.summaryCodebook}
+            items={props.check.items}
+            accuracy={props.check.accuracy}
+            claudeModel={props.claudeModel}
+            onShowCategories={() => window.dispatchEvent(new CustomEvent("pulse:open", { detail: "categories" }))}
+          />
         </Row>
       )}
 
+      <h3 className={`${ui.eyebrow} mt-3`}>Update categories and product knowledge</h3>
       {props.codebook && (
-        <Row n={3} title="Categories" status={`Themes, stages, touchpoints · version ${props.codebook.version}`} open={openRow === "categories"}
-          action={<button type="button" onClick={() => toggle("categories")} className={ui.plainSm}>{openRow === "categories" ? "Close" : "Open"}</button>}>
-          <CodebookEditor key={props.codebook.version} searchId={props.searchId} codebook={props.codebook.codebook} version={props.codebook.version} handle={editor} onReveal={() => setOpenRow("categories")} />
+        <Row
+          id="categories"
+          title="Categories"
+          status={
+            <>
+              {listSizes(props.codebook.codebook)} · <b className="font-semibold text-foreground">version {props.codebook.version}</b>
+            </>
+          }
+          action={opener("categories", "Open")}
+          open={openRow === "categories"}
+        >
+          <CodebookEditor key={props.codebook.version} searchId={props.searchId} codebook={props.codebook.codebook} improveUsd={props.improveUsd} wrong={claudeRan ? wrong : 0} />
         </Row>
       )}
 
-      <Row n={4} title="Product knowledge"
-        status={!k ? "This study has no product family" : `${k.facts} facts${k.newSince ? ` · ${k.newSince} new since this study` : ""}`}
-        action={k && (
-          <>
-            {k.newSince > 0 && (
-              <button type="button" disabled={pending} className={ui.secondarySm}
-                onClick={() => startTransition(async () => {
-                  const r = await reanalyzeWithKnowledgeAction(props.searchId);
-                  setNote({ ok: r.ok, text: r.message });
-                  if (r.ok) router.push(`/searches/${props.searchId}?run=1`);
-                })}>
-                Re-analyze
-              </button>
-            )}
-            <Link href={`/products/${k.catalogId}?tab=knowledge`} className={ui.plainSm}>
-              Open →
+      <Row
+        id="product-knowledge"
+        title="Product knowledge"
+        status={
+          !k ? (
+            "This study has no product family"
+          ) : (
+            <>
+              {k.facts} {k.facts === 1 ? "fact" : "facts"}
+              {k.site ? ` from ${k.site}` : ""}
+              {k.notUsed > 0 && (
+                <>
+                  {" · "}
+                  <b className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
+                    {k.notUsed} not used in this study yet
+                  </b>
+                </>
+              )}
+            </>
+          )
+        }
+        action={
+          k && (
+            <Link href={k.href} className={ui.link}>
+              Open in Products →
             </Link>
-          </>
-        )}
-        open={false}>
+          )
+        }
+        open={false}
+      >
         {null}
       </Row>
-      {note && <p role="status" className={`text-sm ${note.ok ? "text-muted" : "text-critical"}`}>{note.text}</p>}
     </section>
   );
 }
 
-function Row(props: { n: number; title: string; status: string; action: React.ReactNode; open: boolean; children: React.ReactNode }) {
+const listSizes = (c: Codebook) => {
+  const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+  return [n(c.themes.length, "theme"), n(c.stages.length, "stage"), c.touchpoints?.length ? n(c.touchpoints.length, "touchpoint") : null].filter(Boolean).join(" · ");
+};
+
+function Row(props: { id: string; title: string; status: React.ReactNode; action: React.ReactNode; open: boolean; children: React.ReactNode }) {
   return (
-    <div className={ui.card}>
+    <div id={props.id} className={`${ui.card} scroll-mt-32`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4 sm:px-6">
-        <span className="grid size-[26px] place-items-center rounded-lg border border-border bg-surface-2 text-[13px] font-bold text-muted">{props.n}</span>
-        <h3 className="text-base font-bold">{props.title}</h3>
-        <span className="text-[13px] text-muted sm:ml-auto">{props.status}</span>
-        <span className="flex flex-wrap gap-2">{props.action}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h4 className="text-base font-bold">{props.title}</h4>
+          <span className="text-[13px] text-muted">{props.status}</span>
+        </div>
+        {props.action}
       </div>
-      {/* Kept mounted while closed: the accuracy check reaches the categories editor through its handle. */}
+      {/* Kept mounted while closed, so an answer you started isn't lost. */}
       {props.children && (
-        <div hidden={!props.open} className="border-t border-border px-4 py-5 sm:px-6">
+        <div id={`${props.id}-body`} hidden={!props.open} className="border-t border-border px-4 py-5 sm:px-6">
           {props.children}
         </div>
       )}

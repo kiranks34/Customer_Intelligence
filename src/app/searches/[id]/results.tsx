@@ -8,7 +8,7 @@ import { NOT_STATED, NOT_SURE } from "@/lib/codebook";
 import { ui } from "../../ui";
 
 const SOURCE_LABELS: Record<string, string> = { youtube: "YouTube", reddit: "Reddit" };
-const SENTIMENT_COLORS: Record<string, string> = { positive: "bg-good", negative: "bg-critical", mixed: "bg-warning", neutral: "bg-[#6f86b8]", [NOT_SURE]: "bg-border" };
+const SENTIMENT_COLORS: Record<string, string> = { positive: "bg-good", negative: "bg-critical", mixed: "bg-warning", neutral: "bg-slate", [NOT_SURE]: "bg-border" };
 const MUTED = new Set([NOT_SURE, NOT_STATED]);
 const KIND: Record<string, string> = { pain: "pain", delight: "delight", need: "need", topic: "topic" };
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
@@ -36,7 +36,7 @@ export function Results({ summary, subject, quotes }: { summary: AnalysisSummary
             <Stacked
               parts={[
                 { key: "p", label: "Product", n: r.counted, color: "bg-accent" },
-                { key: "c", label: "Competitors", n: r.competitors, color: "bg-[#8f7cc9]" },
+                { key: "c", label: "Competitors", n: r.competitors, color: "bg-violet" },
                 { key: "h", label: "Chat", n: r.chat, color: "bg-faint/50" },
                 { key: "o", label: "Off-topic", n: r.notRelevant, color: "bg-faint" },
                 { key: "u", label: "Unclear", n: r.needsLook, color: "bg-warning" },

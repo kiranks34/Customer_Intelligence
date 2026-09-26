@@ -8,14 +8,20 @@ const base = { posts: 100, coll_open: 0, coll_waiting: 0, coll_stale: false, wai
 describe("statusOf", () => {
   it("names what's happening and what to do", () => {
     expect(statusOf({ ...base, coll_open: 3 })).toEqual({ kind: "collecting" });
-    expect(statusOf({ ...base, coll_open: 3, coll_stale: true })).toEqual({ kind: "paused", what: "collecting" });
+    expect(statusOf({ ...base, coll_open: 3, coll_stale: true })).toEqual({ kind: "paused", reason: "You stopped it, or the page was closed" });
     expect(statusOf({ ...base, coll_waiting: 1, wait_reason: "Paused: monthly budget reached." })).toEqual({ kind: "waiting", reason: "monthly budget reached" });
     expect(statusOf({ ...base, analysis: { status: "running", stale: false, error: null } })).toEqual({ kind: "reading" });
-    expect(statusOf({ ...base, analysis: { status: "queued", stale: true, error: null } })).toEqual({ kind: "paused", what: "reading" });
-    expect(statusOf({ ...base, analysis: { status: "failed", stale: false, error: "Jev failed 3 times" } })).toEqual({ kind: "stopped", reason: "Jev failed 3 times" });
+    expect(statusOf({ ...base, analysis: { status: "queued", stale: true, error: null } })).toEqual({ kind: "paused", reason: "You stopped it, or the page was closed" });
+    expect(statusOf({ ...base, analysis: { status: "failed", stale: false, error: "Jev failed 3 times", version: 2 } })).toEqual({ kind: "paused", reason: "Jev failed 3 times" });
+    expect(statusOf({ ...base, analyzed: false, analysis: { status: "failed", stale: false, error: "Claude is down", version: 0 } })).toEqual({ kind: "not_analyzed" });
+    expect(statusOf({ ...base, analysis: { status: "waiting", stale: false, error: "Monthly budget reached" } })).toEqual({ kind: "paused", reason: "Monthly budget reached" });
     expect(statusOf({ ...base, posts: 0, analyzed: false })).toEqual({ kind: "stopped", reason: "No posts found" });
     expect(statusOf({ ...base, analyzed: false })).toEqual({ kind: "not_analyzed" });
     expect(statusOf({ ...base, headline: { counted: 1, negativePct: 0, positivePct: 0, topPain: null, toReview: 2 } })).toEqual({ kind: "review", answers: 2 });
+    expect(statusOf({ ...base, update: "3 new posts not read yet", headline: { counted: 1, negativePct: 0, positivePct: 0, topPain: null, toReview: 2 } })).toEqual({
+      kind: "update",
+      reason: "3 new posts not read yet",
+    });
     expect(statusOf(base)).toEqual({ kind: "ready" });
   });
 });

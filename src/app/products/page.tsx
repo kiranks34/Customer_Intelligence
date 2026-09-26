@@ -10,8 +10,9 @@ import { familyKnowledge } from "@/lib/product-knowledge";
 import { AppShell } from "../app-shell";
 import { SourceCard } from "../sources/source-card";
 import { ui } from "../ui";
-import { AddFamily } from "./add-family";
 import { LocalTime } from "../local-time";
+import { BackLink, backFor, withFrom } from "../nav";
+import { AddFamily } from "./add-family";
 
 export const dynamic = "force-dynamic";
 
@@ -22,27 +23,30 @@ const SOURCES = [
 
 /** Products: the families Pulse listens for (their models and product knowledge), and the sources it reads. */
 export default async function ProductsPage({ searchParams }: PageProps<"/products">) {
-  const { tab } = await searchParams;
+  const { tab, from } = await searchParams;
   const onSources = tab === "sources";
+  const back = await backFor(from);
+  const go = (href: string) => withFrom(href, back?.from);
   const families = onSources ? [] : await familyCards();
   const tabLink = (href: string, label: string, on: boolean) => (
-    <Link href={href} aria-current={on ? "page" : undefined} className={`-mb-px border-b-2 px-3.5 py-3 text-sm font-semibold ${on ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"}`}>
+    <Link href={href} aria-current={on ? "page" : undefined} className={on ? ui.tabOn : ui.tab}>
       {label}
     </Link>
   );
 
   return (
     <AppShell active="products">
+      {back && <BackLink back={back} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-[26px] font-bold tracking-tight">Products</h1>
+          <h1 className={ui.pageTitle}>Products</h1>
           <p className="text-[13px] text-muted">The products Pulse listens for, and what it knows about them.</p>
         </div>
         {!onSources && families.length > 0 && <AddFamily compact />}
       </div>
       <nav aria-label="Products sections" className="-mt-2 flex gap-1 border-b border-border">
-        {tabLink("/products", "Product families", !onSources)}
-        {tabLink("/products?tab=sources", "Sources", onSources)}
+        {tabLink(go("/products"), "Product families", !onSources)}
+        {tabLink(go("/products?tab=sources"), "Sources", onSources)}
       </nav>
 
       {onSources ? (
@@ -63,15 +67,15 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
           {families.map((f) => (
             <section key={f.id} className={`${ui.card} flex flex-col gap-4 px-6 py-5`}>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[17px] font-bold">
-                  <Link href={`/products/${f.id}`} className="hover:underline">
+                <h2 className="text-lg font-bold">
+                  <Link href={go(`/products/${f.id}`)} className="hover:underline">
                     {f.name}
                   </Link>
                 </h2>
                 {f.verified ? (
-                  <span className="inline-flex h-[22px] items-center rounded-full border border-good/60 px-2 text-xs font-semibold text-good">✓ Verified</span>
+                  <span className={ui.badgeGood}>✓ Verified</span>
                 ) : (
-                  <span className="inline-flex h-[22px] items-center rounded-full border border-warning/60 px-2 text-xs font-semibold text-warning">Not verified yet</span>
+                  <span className={ui.badgeWarn}>Not verified yet</span>
                 )}
               </div>
               <div className="flex flex-wrap gap-x-7 gap-y-2 text-[13px] text-muted">
@@ -99,16 +103,16 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
               {!f.checkedAt && f.canUpdate && (
                 <div className={ui.noticeWarn}>
                   <span className="min-w-48 flex-1">Studies of {f.name} are read without product knowledge.</span>
-                  <Link href={`/products/${f.id}?tab=knowledge`} className={ui.secondarySm}>
+                  <Link href={go(`/products/${f.id}?tab=knowledge`)} className={ui.secondarySm}>
                     Update from {f.site} →
                   </Link>
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/products/${f.id}`} className={ui.plainSm}>
+                <Link href={go(`/products/${f.id}`)} className={ui.plainSm}>
                   Models
                 </Link>
-                <Link href={`/products/${f.id}?tab=knowledge`} className={ui.plainSm}>
+                <Link href={go(`/products/${f.id}?tab=knowledge`)} className={ui.plainSm}>
                   Product knowledge
                 </Link>
                 <span className="flex-1" />

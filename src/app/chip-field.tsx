@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
+import { ui } from "./ui";
 
 export interface ChipAction {
   label: string;
@@ -34,7 +35,7 @@ export function ChipField(props: { label: string; hint: string; note?: string; v
           <span key={v} className="inline-flex items-center gap-1 rounded-full bg-border/60 py-0.5 pr-1 pl-2.5">
             {v}
             {chipAction && !chipAction.done(v) && (
-              <button type="button" onClick={() => chipAction.run(v)} aria-label={`Add ${v} as a search`} className="rounded-full px-1.5 text-xs text-accent hover:underline">
+              <button type="button" onClick={() => chipAction.run(v)} aria-label={`Add ${v} as a search`} className={`${ui.link} px-1.5 text-xs`}>
                 {chipAction.label}
               </button>
             )}

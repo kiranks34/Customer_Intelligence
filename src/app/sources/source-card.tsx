@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { runSourceTest, type SourceKey, type TestResult } from "./actions";
 import { DEFAULT_QUERY } from "./constants";
+import { ui } from "../ui";
 
 interface Props {
   source: SourceKey;
@@ -46,7 +47,7 @@ export function SourceCard({ source, title, via, costNote, missing, takesQuery }
         <button
           type="submit"
           disabled={!configured || pending}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className={ui.primarySm}
         >
           {pending ? "Testing…" : "Run test"}
         </button>
