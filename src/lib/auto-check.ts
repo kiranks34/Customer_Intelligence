@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { CallCost } from "@/connectors/types";
 
 import { claudeErrorText, claudeModel, tokenCostUsd } from "./ai";
-import { criterion, MAX_POST_CHARS, NOT_STATED, OWNERSHIP, POST_TYPES, type Code, type Codebook } from "./codebook";
+import { criterion, MAX_POST_CHARS, productKnowledge, NOT_STATED, OWNERSHIP, POST_TYPES, type Code, type Codebook } from "./codebook";
 
 /**
  * Claude as a second reader for the accuracy check (D41): it answers the same questions as Jev for the 20 sample
@@ -76,7 +76,7 @@ export async function claudeCheck(subject: string, codebook: Codebook, posts: Ch
   });
   const prompt = [
     `Product: ${subject}`,
-    codebook.productNotes ? `How the product works (from the user; trust it over your own assumptions): ${codebook.productNotes}` : null,
+    productKnowledge(codebook) ? `How the product works (trust this over your own assumptions):\n${productKnowledge(codebook)}` : null,
     `Sentiment toward ${subject}: positive, negative, mixed or neutral.`,
     `Journey stage (one):\n${list(codebook.stages)}\n  - not_stated: the post doesn't show where they are.`,
     codebook.segments.length ? `Who is posting (one):\n${list(codebook.segments)}\n  - not_stated` : "Who is posting: always null.",

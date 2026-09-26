@@ -22,6 +22,7 @@ import {
   POST_TYPES,
   QUESTION_SET,
   orderOf,
+  productKnowledge,
   Q,
   questionsFor,
   readAnswers,
@@ -38,6 +39,7 @@ import { CodebookError, draftCodebook, type Mistake } from "./codebook-drafter";
 import { loadPlan } from "./collect";
 import { paidWorkBlockedReason, recordCost } from "./cost";
 import { removeDuplicatePosts } from "./posts";
+import { storedFactsFor } from "./product-knowledge";
 
 /**
  * Step 5: Jev answers the codebook's questions for every post (docs/JEV.md). Like collection, it runs as a job
@@ -117,8 +119,11 @@ export async function startAnalysis(searchId: number): Promise<StartResult> {
   try {
     if (!current) {
       try {
-        const { codebook, cost } = await draftCodebook(plan.plan, await sampleOf(searchId));
+        // The family's official facts, if already found (D44), shape the draft and go with every post.
+        const facts = await storedFactsFor(searchId);
+        const { codebook: draft, cost } = await draftCodebook(plan.plan, await sampleOf(searchId), undefined, facts);
         await recordCost({ searchId, ...cost });
+        const codebook = facts.length ? { ...draft, productFacts: facts } : draft;
         current = { version: await saveCodebook(searchId, codebook), codebook };
         drafted = true;
       } catch (err) {
@@ -314,7 +319,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
     return analysisState(searchId);
   }
   const questions = questionsFor(cb.codebook as Codebook, plan.plan.subject);
-  const productNotes = (cb.codebook as Codebook).productNotes ?? null;
+  const productNotes = productKnowledge(cb.codebook as Codebook) || null;
 
   // Failures in a row; a batch that works resets it, so a long run isn't failed by scattered hiccups.
   let attempts = job.attempts;
@@ -433,8 +438,10 @@ export async function analysisState(searchId: number): Promise<AnalysisState> {
       .select({ chars: sql<string>`coalesce(sum(least(length(${posts.text}) + length(${posts.title}), 3000)), 0)` })
       .from(posts)
       .where(eq(posts.searchId, searchId));
-    // Questions are unknown until the codebook exists; a typical one adds about 900 tokens per post.
-    const jev = jevUsd(Number(chars) / 4 + 900 * totalPosts);
+    // Questions are unknown until the codebook exists; a typical one adds about 900 tokens per post, plus the
+    // family's official facts, which the first codebook starts with (D44).
+    const facts = productKnowledge({ productFacts: await storedFactsFor(searchId) }).length / 4;
+    const jev = jevUsd(Number(chars) / 4 + (900 + facts) * totalPosts);
     const draft = tokenCostUsd(claudeModel(), DRAFT_TOKENS.input, DRAFT_TOKENS.output);
     return { version: null, totalPosts, analyzed: 0, pending: totalPosts, estimateUsd: jev + draft, status: open ? "running" : "none", message: lastJob?.status === "failed" ? lastJob.lastError : null, costUsd, improved: false };
   }
@@ -1009,9 +1016,9 @@ export async function proposeCodebook(searchId: number): Promise<{ codebook: Cod
   try {
     const { codebook, cost } = await draftCodebook(plan.plan, sample, { current: current.codebook, mistakes });
     await recordCost({ searchId, ...cost });
-    // Your product notes are yours: Claude reads them but never rewrites or drops them.
-    const notes = current.codebook.productNotes;
-    return { codebook: notes ? { ...codebook, productNotes: notes } : codebook, mistakes: mistakes.length };
+    // Your notes and the official facts are kept as they are: Claude reads them but never rewrites or drops them.
+    const { productNotes, productFacts } = current.codebook;
+    return { codebook: { ...codebook, ...(productNotes ? { productNotes } : {}), ...(productFacts?.length ? { productFacts } : {}) }, mistakes: mistakes.length };
   } catch (err) {
     if (err instanceof CodebookError && err.cost) await recordCost({ searchId, ...err.cost }).catch(() => undefined);
     throw err;

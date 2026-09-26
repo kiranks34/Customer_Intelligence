@@ -5,7 +5,7 @@ import { useImperativeHandle, useRef, useState, useTransition, type Ref } from "
 
 import { CODEBOOK_LIMITS, keyFor, type Code, type Codebook, type Theme } from "@/lib/codebook";
 
-import { proposeCodebookAction, saveCodebookAction } from "../analysis-actions";
+import { productFactsAction, proposeCodebookAction, saveCodebookAction } from "../analysis-actions";
 
 type List = "themes" | "stages" | "segments" | "competitors" | "touchpoints";
 const LISTS: List[] = ["themes", "stages", "touchpoints", "segments", "competitors"];
@@ -17,6 +17,23 @@ const TITLES: Record<List, string> = {
   competitors: "Competitors (brands people compare with)",
 };
 const KINDS: Theme["kind"][] = ["pain", "delight", "need", "topic"];
+/** Lists and notes that older codebooks may not have, filled in so the form can edit them. */
+const withDefaults = (c: Codebook): Required<Codebook> => ({
+  ...c,
+  competitors: c.competitors ?? [],
+  touchpoints: c.touchpoints ?? [],
+  productNotes: c.productNotes ?? "",
+  productFacts: c.productFacts ?? [],
+});
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "source";
+  }
+};
+
 export interface EditorHandle {
   improve: () => void;
 }
@@ -28,16 +45,29 @@ const input = "rounded-md border border-border bg-background px-2 py-1 text-sm";
  * read-only (nothing is needed from you); "Edit" opens the form. Saving makes a new version; posts are re-read with
  * it when you press Analyze (a few cents). `handle.improve()` is how the accuracy check asks for Claude's fixes.
  */
-export function CodebookEditor({ searchId, codebook, version, handle }: { searchId: number; codebook: Codebook; version: number; handle?: Ref<EditorHandle> }) {
+export function CodebookEditor({
+  searchId,
+  codebook,
+  version,
+  handle,
+  facts,
+}: {
+  searchId: number;
+  codebook: Codebook;
+  version: number;
+  handle?: Ref<EditorHandle>;
+  /** Where official facts come from (the maker's sites), when Pulse knows them for this family. */
+  facts: { domains: string[]; checkedAt: string | null } | null;
+}) {
   const router = useRouter();
-  // Codebooks saved before competitors existed have none.
-  const initial = { ...codebook, competitors: codebook.competitors ?? [], touchpoints: codebook.touchpoints ?? [], productNotes: codebook.productNotes ?? "" };
+  const initial = withDefaults(codebook);
   const [draft, setDraft] = useState<Required<Codebook>>(initial);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [finding, setFinding] = useState(false);
   const box = useRef<HTMLDetailsElement>(null);
   const changed = JSON.stringify(draft) !== JSON.stringify(initial);
 
@@ -61,10 +91,25 @@ export function CodebookEditor({ searchId, codebook, version, handle }: { search
       setAsking(false);
       setNote({ ok: r.ok, text: r.message });
       if (r.ok) {
-        setDraft({ ...r.codebook, competitors: r.codebook.competitors ?? [], touchpoints: r.codebook.touchpoints ?? [], productNotes: r.codebook.productNotes ?? "" });
+        setDraft(withDefaults(r.codebook));
         setOpen(true);
         setEditing(true);
       }
+    });
+  }
+
+  /** The family's official facts into the draft (looked up with Claude when there are none yet, or `fresh`). */
+  function fillFacts(fresh: boolean) {
+    if (pending || asking || finding) return;
+    setNote(null);
+    setFinding(true);
+    startTransition(async () => {
+      const r = await productFactsAction(searchId, fresh);
+      setFinding(false);
+      setNote({ ok: r.ok, text: r.message });
+      if (r.ok && r.facts) setDraft((d) => ({ ...d, productFacts: r.facts! }));
+      // A lookup updates the family's "last looked" date.
+      if (r.ok) router.refresh();
     });
   }
 
@@ -97,7 +142,7 @@ export function CodebookEditor({ searchId, codebook, version, handle }: { search
       }),
     ) as unknown as Codebook;
     const notes = draft.productNotes.trim();
-    const withNotes: Codebook = { ...withKeys, ...(notes ? { productNotes: notes } : {}) };
+    const withNotes: Codebook = { ...withKeys, ...(notes ? { productNotes: notes } : {}), ...(draft.productFacts.length ? { productFacts: draft.productFacts } : {}) };
     setNote(null);
     startTransition(async () => {
       const r = await saveCodebookAction(searchId, withNotes);
@@ -112,13 +157,54 @@ export function CodebookEditor({ searchId, codebook, version, handle }: { search
         What Jev looks for <span className="font-normal text-muted">· drafted by Claude from the posts, nothing needed from you · version {version}</span>
       </summary>
       <div className="mt-4 flex flex-col gap-5">
+        <section className="flex flex-col gap-2 text-sm">
+          <h3 className="font-medium">Teach Pulse about the product</h3>
+          <p className="text-xs text-muted">
+            The more Pulse knows about how the product works, the more accurately Jev and Claude read posts. Uploading manuals and video links comes
+            later.
+          </p>
+          {facts && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md bg-accent/5 px-3 py-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => fillFacts(draft.productFacts.length > 0)}
+                className="rounded-md border border-accent px-3 py-1 font-medium text-accent disabled:opacity-50"
+              >
+                {finding ? "Reading the official pages…" : draft.productFacts.length ? "Look again" : `Fill from ${facts.domains.join(", ")}`}
+              </button>
+              <span className="text-xs text-muted">
+                Claude reads only {facts.domains.join(", ")} and keeps a fact only when its page says it (a few cents
+                {facts.checkedAt ? `; last looked ${facts.checkedAt}` : ""}). You review before saving.
+              </span>
+            </div>
+          )}
+          {draft.productFacts.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {draft.productFacts.map((f, i) => (
+                <li key={`${f.url}-${i}`} className="flex items-start justify-between gap-3">
+                  <span>
+                    {f.text}{" "}
+                    <a href={f.url} target="_blank" rel="noreferrer noopener" className="text-xs whitespace-nowrap text-muted underline">
+                      {hostOf(f.url)} ↗
+                    </a>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDraft((d) => ({ ...d, productFacts: d.productFacts.filter((_, j) => j !== i) }))}
+                    aria-label="Remove this fact"
+                    className="px-2 text-muted hover:text-critical"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Teach Pulse about the product</span>
-          <span className="text-xs text-muted">
-            The more Pulse knows about how the product works, the more accurately Jev and Claude read posts. Add facts from manuals, setup guides or
-            the support site, e.g. “Printheads are installed during setup and can be replaced later if damaged.” Uploading manuals and video links
-            comes later.
-          </span>
+          <span className="font-medium">Your notes (optional)</span>
+          <span className="text-xs text-muted">Anything else Jev and Claude should know, e.g. “Printheads are installed during setup and can be replaced later if damaged.”</span>
           <textarea
             value={draft.productNotes}
             onChange={(e) => setDraft((d) => ({ ...d, productNotes: e.target.value }))}

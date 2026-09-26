@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { CallCost } from "@/connectors/types";
 
 import { claudeErrorText, claudeModel, tokenCostUsd } from "./ai";
-import { CODEBOOK_LIMITS, CodeSchema, ThemeSchema, validateCodebook, type Codebook } from "./codebook";
+import { CODEBOOK_LIMITS, CodeSchema, productKnowledge, ThemeSchema, validateCodebook, type Codebook, type ProductFact } from "./codebook";
 import { exampleFrom } from "./codebook-example";
 import type { Plan } from "./plan";
 
@@ -33,7 +33,7 @@ For every stage, segment, theme, competitor and touchpoint write:
 - excludes: the look-alikes that do NOT count, especially neighbouring stages or themes.
 Stages are about the writer's situation (how long they've had it, whether it worked before), never about which
 part or topic is mentioned: the same part can come up at setup and much later. Do not assume how the product works
-beyond the product notes (if given) and what the posts say.
+beyond "How the product works" (if given) and what the posts say.
 - example_post: the number of one post from the sample that clearly fits, and example_quote: a short phrase copied
   exactly from that post. Use null when no post fits.
 Stages must not overlap: every post should fit exactly one, or none. Labels are short and plain. Never invent
@@ -116,7 +116,10 @@ export async function draftCodebook(
   plan: Plan,
   sample: { source: string; text: string }[],
   improve?: { current: Codebook; mistakes: Mistake[] },
+  /** Official facts known before the first draft (the catalog's, D44); when improving, the codebook's own. */
+  facts?: ProductFact[],
 ): Promise<DraftResult> {
+  const knowledge = productKnowledge(improve ? improve.current : { productFacts: facts });
   if (!process.env.AI_GATEWAY_API_KEY) throw new Error("AI_GATEWAY_API_KEY is not set");
   const model = claudeModel();
   const posts = sample.map((p, i) => `${i + 1}. [${p.source}] ${p.text.replace(/\s+/g, " ").slice(0, SAMPLE_CHARS)}`).join("\n");
@@ -129,7 +132,7 @@ export async function draftCodebook(
         `Subject: ${plan.subject}`,
         plan.question ? `The user's question: ${plan.question}` : null,
         plan.focus.length ? `Focus: ${plan.focus.join(", ")}` : null,
-        improve?.current.productNotes ? `How the product works (from the user; trust this over your own knowledge):\n${improve.current.productNotes}` : null,
+        knowledge ? `How the product works (trust this over your own knowledge):\n${knowledge}` : null,
         improve ? `Current codebook (JSON):\n${JSON.stringify(improve.current)}` : null,
         improve?.mistakes.length
           ? `Mistakes found by the spot-check:\n${improve.mistakes

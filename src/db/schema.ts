@@ -108,6 +108,8 @@ export const catalogs = pgTable("catalogs", {
   name: text("name").notNull(),
   status: catalogStatus("status").notNull().default("draft"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  // How the family works, from the maker's official pages (D44), shared by every search of the family.
+  productFacts: jsonb("product_facts"),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

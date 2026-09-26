@@ -17,7 +17,8 @@ import {
   startAnalysis,
   type AnalysisState,
 } from "@/lib/analysis";
-import { validateCodebook, type Codebook } from "@/lib/codebook";
+import { validateCodebook, type Codebook, type ProductFact } from "@/lib/codebook";
+import { productFactsFor } from "@/lib/product-knowledge";
 
 const validId = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0;
 
@@ -141,5 +142,26 @@ export async function autoCheckAction(searchId: number): Promise<ActionState> {
     return { ok: true, message: `Claude checked ${posts} posts. Look at the ones where it disagrees with Jev.` };
   } catch (err) {
     return { ok: false, message: `Couldn't run the auto-check: ${errorText(err)}` };
+  }
+}
+
+/**
+ * "Fill from the maker's pages": the family's official facts (looked up with Claude when there are none yet, or when
+ * `fresh`), for you to review in the editor. Nothing is saved to the search until you press Save.
+ */
+export async function productFactsAction(searchId: number, fresh: boolean): Promise<(ActionState & { facts?: ProductFact[] })> {
+  const denied = (await authed()) ?? (await budgetBlock());
+  if (denied) return denied;
+  if (!validId(searchId)) return { ok: false, message: "Unknown search." };
+  try {
+    const r = await productFactsFor(searchId, fresh === true);
+    if (r.facts.length === 0) return { ok: false, message: `No facts could be confirmed on ${r.domains.join(", ")} this time. Nothing changed.` };
+    return {
+      ok: true,
+      facts: r.facts,
+      message: `${r.facts.length} facts ${r.looked ? "found" : "already found"} on ${r.domains.join(", ")}. Remove any that look wrong, then Save.`,
+    };
+  } catch (err) {
+    return { ok: false, message: `Couldn't read the official pages: ${errorText(err)}` };
   }
 }

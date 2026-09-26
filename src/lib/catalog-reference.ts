@@ -43,6 +43,8 @@ export const ReferenceSchema = z
     key: z.string().min(1),
     checkedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     familyAliases: z.array(z.string()),
+    /** The maker's own sites (e.g. hp.com): the only pages "Teach Pulse about the product" reads (D44). */
+    makerDomains: z.array(z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/)).default([]),
     series: z.array(z.object({ name: z.string().min(1), sources: z.array(SourceSchema), models: z.array(ModelSchema) })),
     inkTank: z.array(z.object({ name: z.string(), number: z.string(), regions: z.array(z.string()), sources: z.array(SourceSchema) })).default([]),
     sharedNumbers: z.array(z.string()).default([]),

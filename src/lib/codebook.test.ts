@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { criterion, estimateTokens, QUESTION_SET, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
+import { criterion, estimateTokens, productKnowledge, QUESTION_SET, jevUsd, keyFor, NOT_STATED, orderOf, questionsFor, readAnswers, stateFor, themeQuestion, validateCodebook, type Codebook } from "./codebook";
 
 const codebook: Codebook = {
   stages: [
@@ -188,5 +188,21 @@ describe("orderOf", () => {
   it("orders stages as written, with 'not stated' last", () => {
     const o = orderOf(codebook.stages);
     expect([NOT_STATED, "use", "buy"].sort((a, b) => o.get(a)! - o.get(b)!)).toEqual(["buy", "use", NOT_STATED]);
+  });
+});
+
+describe("productKnowledge", () => {
+  it("puts official facts before your notes, and is empty when there is nothing", () => {
+    expect(productKnowledge({})).toBe("");
+    expect(productKnowledge({ productNotes: "  " })).toBe("");
+    expect(productKnowledge({ productFacts: [{ text: "Printheads go in at setup.", url: "https://support.hp.com/a" }], productNotes: "Ink lasts two years." })).toBe(
+      "From the maker's official pages:\n- Printheads go in at setup.\nFrom the user:\nInk lasts two years.",
+    );
+  });
+  it("rejects facts without a real address", () => {
+    const base = { stages: [{ key: "setup", label: "Set up", definition: "Setting it up." }, { key: "use", label: "Use", definition: "Using it daily." }], segments: [], themes: [1, 2, 3].map((i) => ({ key: `theme_${i}`, label: `Theme ${i}`, definition: "Mentions it.", kind: "pain" as const })) };
+    expect(validateCodebook({ ...base, productFacts: [{ text: "x", url: "https://hp.com/a" }] }).ok).toBe(true);
+    expect(validateCodebook({ ...base, productFacts: [{ text: "x", url: "not a url" }] }).ok).toBe(false);
+    for (const url of ["javascript:alert(1)", "data:text/html,x", "http://hp.com/a"]) expect(validateCodebook({ ...base, productFacts: [{ text: "x", url }] }).ok).toBe(false);
   });
 });
