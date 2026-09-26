@@ -21,7 +21,7 @@ const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
 export function Results({ summary, subject, quotes }: { summary: AnalysisSummary; subject: string; quotes: CellQuote[] }) {
   const r = summary.relevance;
   const counted = r.counted;
-  const collected = r.counted + r.competitors + r.chat + r.notRelevant + r.needsLook + r.skipped;
+  const collected = r.counted + r.competitors + r.chat + r.notRelevant + (r.language ?? 0) + r.needsLook + r.skipped;
   const neg = summary.sentiment.find((s) => s.key === "negative")?.counted ?? 0;
   const pos = summary.sentiment.find((s) => s.key === "positive")?.counted ?? 0;
   const topPain = [...summary.themes].filter((t) => t.kind === "pain").sort((a, b) => b.counted - a.counted)[0];
@@ -39,7 +39,8 @@ export function Results({ summary, subject, quotes }: { summary: AnalysisSummary
                 { key: "c", label: "Competitors", n: r.competitors, color: "bg-violet" },
                 { key: "h", label: "Chat", n: r.chat, color: "bg-faint/50" },
                 { key: "o", label: "Off-topic", n: r.notRelevant, color: "bg-faint" },
-                { key: "u", label: "Unclear", n: r.needsLook, color: "bg-warning" },
+                { key: "l", label: "Other language", n: r.language ?? 0, color: "bg-slate" },
+                { key: "u", label: "Uncertain", n: r.needsLook, color: "bg-warning" },
                 { key: "s", label: "Skipped", n: r.skipped, color: "bg-border" },
               ]}
               total={collected}

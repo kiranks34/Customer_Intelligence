@@ -22,7 +22,7 @@ export interface ImproveSide {
 
 /**
  * "Improve these results" for a comparison (D48). Categories are shared by both sides, so they are improved here and
- * saved to both. Answers (Needs a look, Accuracy) and product knowledge belong to each side, so each row opens that
+ * saved to both. Answers (Uncertain posts, Accuracy) and product knowledge belong to each side, so each row opens that
  * side's own page. Re-analyze stays in the bar at the top.
  */
 export function CompareImprove(props: { compareId: number; sides: ImproveSide[]; codebook: { searchId: number; codebook: Codebook; version: number } | null; improveUsd: number }) {
@@ -45,7 +45,7 @@ export function CompareImprove(props: { compareId: number; sides: ImproveSide[];
           title={<SideName i={i} label={s.label} />}
           status={
             <>
-              {s.needsLook} {s.needsLook === 1 ? "post needs" : "posts need"} a look · {s.agrees === null ? "accuracy not checked yet" : `Jev agrees on ${s.agrees}%`}
+              {s.needsLook} uncertain {s.needsLook === 1 ? "post" : "posts"} · {s.agrees === null ? "accuracy not checked yet" : `Jev agrees on ${s.agrees}%`}
               {s.answers > 0 && ` · ${s.answers} ${s.answers === 1 ? "answer" : "answers"} to check`}
             </>
           }

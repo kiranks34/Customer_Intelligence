@@ -64,6 +64,7 @@ describe("questionsFor", () => {
       "about:subject",
       "about:competitor",
       "about:chat",
+      "about:english",
       "post_type",
       "ownership",
       "first_hand",
@@ -77,6 +78,9 @@ describe("questionsFor", () => {
       "theme:print_quality",
     ]);
     expect(q["about:subject"]).toMatchObject({ type: "boolean" });
+    // D50: comments only about the video are chat; another language is asked apart.
+    expect(q["about:chat"].instructions).toContain("only about the video");
+    expect(q["about:english"]).toMatchObject({ type: "boolean" });
     expect(JSON.stringify(q["about:subject"])).toContain("HP Smart Tank 7301");
     expect(q.severity).toMatchObject({ type: "score" });
     expect(Object.keys((q.post_type as { criteria: object }).criteria)).toEqual(["question", "complaint", "praise", "advice", "comparison", "decision", "other"]);

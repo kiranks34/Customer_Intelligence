@@ -5,7 +5,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { requireDb } from "@/db/client";
 import { searches, studyHeadlines } from "@/db/schema";
 
-import { pendingPosts, resultsVersion } from "./analysis";
+import { olderAnswers, pendingPosts, resultsVersion } from "./analysis";
 import { factsNotUsed, readKnowledge } from "./knowledge";
 import type { Plan } from "./plan";
 
@@ -180,7 +180,9 @@ async function updateReason(id: number, r: Raw): Promise<string | null> {
   const pending = await pendingPosts(id, latest);
   if (pending === 0) return null;
   const shown = await resultsVersion(id);
-  return shown !== null && latest > shown ? `Categories version ${latest} not used yet` : `${plural(pending, "new post")} not read yet`;
+  if (shown !== null && latest > shown) return `Categories version ${latest} not used yet`;
+  // Same words as the study page (D50): posts read with older questions are read again with the clearer rules.
+  return (await olderAnswers(id, latest)) ? "Jev reads posts with clearer rules" : `${plural(pending, "new post")} not read yet`;
 }
 
 function toRow(r: Raw): StudyRow {

@@ -71,9 +71,10 @@ export type Codebook = z.input<typeof CodebookSchema>;
 export const NOT_STATED = "not_stated";
 /**
  * Version of the questions Jev is asked, stored as the answer of the "about:product" row. Posts read with an older
- * set are read again (D39: competitors). Bump it whenever the questions change in a way results depend on.
+ * set are read again (D39: competitors; D50: chat about the video, and the post's language). Bump it whenever the
+ * questions change in a way results depend on.
  */
-export const QUESTION_SET = "q41";
+export const QUESTION_SET = "q50";
 
 /** Reserved answers for the competitor question. */
 export const OTHER_BRAND = "other_brand";
@@ -137,6 +138,8 @@ export const Q = {
   subject: "about:subject",
   mentionsCompetitor: "about:competitor",
   chat: "about:chat",
+  /** D50: posts in another language are set aside (the study covers North America in English). */
+  english: "about:english",
   /** D41: what the post does, and the journey anchors. */
   postType: "post_type",
   ownership: "ownership",
@@ -213,7 +216,12 @@ export function questionsFor(codebook: Codebook, subject: string): Record<string
     },
     [Q.chat]: {
       type: "boolean",
-      instructions: "Is the post only thanks or praise for the video or poster, a greeting, a joke or off-topic talk, with no experience, question or opinion about a product?",
+      instructions:
+        "Is the post only about the video, its creator or the channel (thanks, praise, a request or a critique of the video, e.g. \"great tutorial\", \"show more practical handling\"), a greeting, a joke or off-topic talk, with no experience, question or opinion about a product?",
+    },
+    [Q.english]: {
+      type: "boolean",
+      instructions: "Is the post written in English? Another language, or one written in Latin letters (e.g. Hindi as \"bhai ye bahut sasti hai\"), is not English. A few foreign words in an English post still count as English.",
     },
     [Q.postType]: {
       type: "choice",

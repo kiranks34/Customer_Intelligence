@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
-import type { Accuracy, CheckItem, LookPost } from "@/lib/analysis";
+import type { Accuracy, CheckItem, LookPost, PlacedGroup } from "@/lib/analysis";
 import type { Codebook } from "@/lib/codebook";
 
 import { ui } from "../../ui";
@@ -19,6 +19,11 @@ interface Props {
   version: number;
   look: LookPost[];
   lookTotal: number;
+  /** What the rules placed without asking (D50), and the posts set aside as another language. */
+  placed: PlacedGroup[];
+  languagePosts: LookPost[];
+  /** The study's product, as the "why" bars name it. */
+  subject: string;
   check: { items: CheckItem[]; accuracy: Accuracy } | null;
   summaryCodebook: Codebook;
   codebook: { version: number; codebook: Codebook } | null;
@@ -32,7 +37,7 @@ interface Props {
 type RowKey = "needs-look" | "accuracy" | "categories";
 
 /**
- * "Improve these results" (D47): optional. Check answers (Needs a look, Accuracy), then update what posts are read
+ * "Improve these results" (D47): optional. Check answers (Uncertain posts, Accuracy), then update what posts are read
  * with (Categories, Product knowledge). Rows only show their state and open in place; Re-analyze lives in the study
  * bar, the one place that starts paid work.
  */
@@ -77,20 +82,22 @@ export function Improve(props: Props) {
       <h3 className={`${ui.eyebrow} mt-1`}>Check answers</h3>
       <Row
         id="needs-look"
-        title="Needs a look"
+        title="Uncertain posts"
         status={
           props.lookTotal ? (
             <>
-              <b className="font-semibold text-foreground">{props.lookTotal} {props.lookTotal === 1 ? "post" : "posts"}</b> Jev wasn&apos;t sure about · not counted until you keep them
+              <b className="font-semibold text-foreground">{props.lookTotal} {props.lookTotal === 1 ? "post" : "posts"}</b> Jev wasn&apos;t sure about · not counted until you
+              keep {props.lookTotal === 1 ? "it" : "them"}
             </>
           ) : (
             "Nothing waiting"
           )
         }
-        action={props.lookTotal > 0 ? opener("needs-look", "Review") : null}
+        action={props.lookTotal > 0 || props.placed.some((g) => g.posts > 0) ? opener("needs-look", props.lookTotal > 0 ? "Review" : "Open") : null}
         open={openRow === "needs-look"}
       >
-        <NeedsLook searchId={props.searchId} version={props.version} posts={props.look} total={props.lookTotal} />
+        <NeedsLook searchId={props.searchId} version={props.version} posts={props.look} total={props.lookTotal} subject={props.subject} />
+        <Placed searchId={props.searchId} version={props.version} placed={props.placed} languagePosts={props.languagePosts} subject={props.subject} />
       </Row>
 
       {props.check && props.check.items.length > 0 && (
@@ -201,13 +208,94 @@ export function Row(props: { id: string; title: React.ReactNode; status: React.R
   );
 }
 
-function NeedsLook({ searchId, version, posts, total }: { searchId: number; version: number; posts: LookPost[]; total: number }) {
+/** One uncertain (or set-aside) post: its context and words, why Jev wasn't sure, Keep and Drop. */
+function PostRow({ post, subject, onDecide, pending, why = true }: { post: LookPost; subject: string; onDecide: (keep: boolean) => void; pending: boolean; why?: boolean }) {
+  return (
+    <li className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4">
+      <div className="min-w-0 text-sm">
+        {post.thread && <p className="mb-1 text-xs text-muted">Under: “{post.thread}”</p>}
+        {post.replyingTo && <p className="mb-1 line-clamp-2 border-l-2 border-border pl-2 text-xs text-muted">Replying to: “{post.replyingTo}”</p>}
+        {post.title && <p className="font-medium break-words">{post.title}</p>}
+        <p className="line-clamp-3 break-words">“{post.text}”</p>
+        <p className="mt-1 text-xs text-muted">
+          {SOURCE_LABELS[post.source] ?? post.source}
+          {post.url && (
+            <>
+              {" · "}
+              <a href={post.url} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-accent">
+                open ↗
+              </a>
+            </>
+          )}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-2 sm:items-start">
+        <button type="button" disabled={pending} onClick={() => onDecide(true)} className={ui.secondarySm}>
+          Keep
+        </button>
+        <button type="button" disabled={pending} onClick={() => onDecide(false)} className={ui.plainSm}>
+          Drop
+        </button>
+      </div>
+      {why && post.pSubject !== null && <Why post={post} subject={subject} />}
+    </li>
+  );
+}
+
+/**
+ * Why Jev wasn't sure (D50): how likely it thought the post is about the product, another brand, only chat, each
+ * against the 80% a post needs to count (the line on each bar).
+ */
+function Why({ post, subject }: { post: LookPost; subject: string }) {
+  const s = Math.round((post.pSubject ?? 0) * 100);
+  const b = Math.round((post.pBrand ?? 0) * 100);
+  const c = Math.round((post.pChat ?? 0) * 100);
+  const short = subject.replace(/^HP /, "");
+  const verdict =
+    s >= 50 && b >= 50
+      ? `about ${short} and another brand`
+      : s >= 50 && c >= 35
+        ? `leans ${short}, but could be only chat`
+        : s >= 50 && !post.names
+          ? `leans ${short}, but doesn't name it`
+          : s >= 50
+            ? `leans ${short}, not sure enough to count`
+            : b >= 50
+              ? "leans another brand"
+              : c >= 50
+                ? "leans only chat"
+                : "unclear what it's about";
+  const lead = Math.max(s, b, c);
+  const meter = (label: string, v: number, color: string) => (
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 text-xs ${v === lead ? "font-semibold text-foreground" : "text-muted"}`}>
+      <span className="truncate">{label}</span>
+      <span className="text-foreground tabular-nums">{v}%</span>
+      <span className="relative col-span-2 block h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
+        <span className={`absolute inset-y-0 left-0 block rounded-full ${color}`} style={{ width: `${v}%` }} />
+        <span className="absolute inset-y-0 left-[80%] block w-px bg-muted" />
+      </span>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-2 rounded-[10px] bg-surface-2 px-3 py-2.5 sm:col-span-2" role="group" aria-label={`Why Jev wasn't sure: ${verdict}; about ${short} ${s}%, another brand ${b}%, only chat ${c}%`}>
+      <span className={ui.meta}>
+        Why Jev wasn&apos;t sure: <b className="font-semibold text-foreground">{verdict}</b>
+      </span>
+      <div className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+        {meter(`About ${short}`, s, "bg-accent")}
+        {meter("Another brand", b, "bg-violet")}
+        {meter("Only chat", c, "bg-faint")}
+      </div>
+    </div>
+  );
+}
+
+/** Keep or Drop a post; it leaves the list at once and every count follows. */
+function useDecide(searchId: number, version: number) {
   const router = useRouter();
   const [done, setDone] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const shown = posts.filter((p) => !done.includes(p.id));
-
   function decide(post: LookPost, keep: boolean) {
     setError(null);
     setDone((d) => [...d, post.id]);
@@ -219,11 +307,17 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
       } else router.refresh();
     });
   }
+  return { done, error, pending, decide };
+}
 
+function NeedsLook({ searchId, version, posts, total, subject }: { searchId: number; version: number; posts: LookPost[]; total: number; subject: string }) {
+  const { done, error, pending, decide } = useDecide(searchId, version);
+  const shown = posts.filter((p) => !done.includes(p.id));
+  if (total === 0) return null;
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-muted">
-        Jev couldn&apos;t tell if these are feedback on the product, so they aren&apos;t counted unless you keep them.
+        A post counts when Jev is at least 80% sure it&apos;s about {subject} (the line on each bar). These fell short. Keep counts it; Drop leaves it out.
         {total > posts.length && ` Showing the first ${posts.length}.`}
       </p>
       {error && (
@@ -236,33 +330,60 @@ function NeedsLook({ searchId, version, posts, total }: { searchId: number; vers
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {shown.map((p) => (
-            <li key={p.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-              <div className="min-w-0 text-sm">
-                {p.thread && <p className="mb-1 text-xs text-muted">Under: “{p.thread}”</p>}
-                {p.replyingTo && <p className="mb-1 line-clamp-2 border-l-2 border-border pl-2 text-xs text-muted">Replying to: “{p.replyingTo}”</p>}
-                {p.title && <p className="font-medium break-words">{p.title}</p>}
-                <p className="line-clamp-3 break-words">{p.text}</p>
-                <p className="mt-1 text-xs text-muted">
-                  {SOURCE_LABELS[p.source] ?? p.source}
-                  {p.url && (
-                    <>
-                      {" · "}
-                      <a href={p.url} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-accent">
-                        open ↗
-                      </a>
-                    </>
-                  )}
-                </p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button type="button" disabled={pending} onClick={() => decide(p, true)} className={ui.secondarySm}>
-                  Keep
-                </button>
-                <button type="button" disabled={pending} onClick={() => decide(p, false)} className={ui.plainSm}>
-                  Drop
-                </button>
-              </div>
-            </li>
+            <PostRow key={p.id} post={p} subject={subject} pending={pending} onDecide={(keep) => decide(p, keep)} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const PLACED: Record<PlacedGroup["group"], { color: string; what: (n: number) => string; where: string }> = {
+  chat: { color: "bg-faint/50", what: (n) => `${n} only about the video, its creator or chat`, where: "Chat" },
+  competitor: { color: "bg-violet", what: (n) => `${n} about another brand only`, where: "Competitors" },
+  language: { color: "bg-slate", what: (n) => `${n} in another language`, where: "Set aside" },
+};
+
+/**
+ * What the rules placed without asking you (D50), each with an example, so you can see the rules at work. Posts in
+ * another language aren't counted (the study covers North America in English): Show lists them, and Keep counts one.
+ */
+function Placed({ searchId, version, placed, languagePosts, subject }: { searchId: number; version: number; placed: PlacedGroup[]; languagePosts: LookPost[]; subject: string }) {
+  const [open, setOpen] = useState(false);
+  const { done, error, pending, decide } = useDecide(searchId, version);
+  const groups = placed.filter((g) => g.posts > 0);
+  if (groups.length === 0) return null;
+  const language = languagePosts.filter((p) => !done.includes(p.id));
+  return (
+    <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+      <h4 className="text-[13px] font-semibold">Placed by the rules, not waiting for you</h4>
+      {groups.map((g) => (
+        <div key={g.group} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-2.5 text-sm">
+          <span className={`size-2.5 rounded-sm ${PLACED[g.group].color}`} aria-hidden />
+          <span className="min-w-0">
+            {PLACED[g.group].what(g.posts)} {g.example && <span className={ui.meta}>(“{g.example}”)</span>}
+          </span>
+          {g.group === "language" && language.length > 0 ? (
+            <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`${ui.link} text-[13px]`}>
+              {open ? "Hide ▴" : "Show ▾"}
+            </button>
+          ) : (
+            <span className={ui.meta}>{PLACED[g.group].where}</span>
+          )}
+        </div>
+      ))}
+      {groups.some((g) => g.group === "language") && (
+        <p className={ui.meta}>Posts in another language aren&apos;t counted: this study covers North America in English. Show lists them so you can check; Keep still counts one.</p>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-critical">
+          {error}
+        </p>
+      )}
+      {open && (
+        <ul className="flex flex-col divide-y divide-border">
+          {language.map((p) => (
+            <PostRow key={p.id} post={p} subject={subject} pending={pending} why={false} onDecide={(keep) => decide(p, keep)} />
           ))}
         </ul>
       )}
