@@ -152,7 +152,8 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
                 placeholder="Pick one to compare"
                 side="b"
                 startOpen={!other}
-                blocked={(p) => compareConflict(families, pick, p)}
+                hide={(p) => !!compareConflict(families, pick, p)}
+                hiddenNote={label ? `because they overlap with ${label}` : undefined}
                 onPick={change(setOther)}
               />
               <button type="button" aria-label="Stop comparing" onClick={() => change(setOther)(undefined)} className={ui.icon}>
@@ -289,7 +290,7 @@ export function NewStudy({ families, defaults, leftUsd, usdPerCredit, claudeMode
           )}
           <span className="flex-1" />
           <span>
-            {problem ?? `${aboutUsd(est.usd)} · about ${est.minutes} min · keep the ${comparing ? "comparison" : "study"}'s page open`}
+            {problem ?? `${aboutUsd(est.usd)} · about ${est.minutes} min · runs while any Pulse page is open`}
           </span>
         </div>
       </div>
@@ -319,7 +320,8 @@ function ProductPicker({
   placeholder = "Pick a product",
   side = "a",
   startOpen = false,
-  blocked,
+  hide,
+  hiddenNote,
 }: {
   families: ListFamily[];
   pick: Pick;
@@ -329,8 +331,9 @@ function ProductPicker({
   /** Side B of a comparison: violet, as in its results. */
   side?: "a" | "b";
   startOpen?: boolean;
-  /** Why a product can't be picked here (comparing), shown in place of its post count. */
-  blocked?: (p: Pick) => string | null;
+  /** Products that can't be picked here (comparing, D48): left out of the list, with one line saying how many. */
+  hide?: (p: Pick) => boolean;
+  hiddenNote?: string;
 }) {
   const [open, setOpen] = useState(startOpen);
   const [q, setQ] = useState("");
@@ -349,10 +352,19 @@ function ProductPicker({
     };
   }, [open]);
 
-  const family = families.find((f) => f.id === familyId) ?? families[0];
+  const shown = (catalogId: number, nodeId: number | null) => !hide?.({ catalogId, nodeId });
+  const anyShown = (f: ListFamily) => shown(f.id, null) || f.series.some((s) => shown(f.id, s.id) || s.models.some((m) => shown(f.id, m.id)));
+  const choices = hide ? families.filter(anyShown) : families;
+  const hiddenCount = hide
+    ? families.reduce((t, f) => t + [null, ...f.series.flatMap((s) => [s.id, ...s.models.map((m) => m.id)])].filter((id) => !shown(f.id, id)).length, 0)
+    : 0;
+  const family = choices.find((f) => f.id === familyId) ?? choices[0] ?? families[0];
   const needle = q.trim().toLowerCase();
   const hit = (name: string) => !needle || name.toLowerCase().includes(needle);
-  const series = [...family.series].sort(byPostsThenName).filter((s) => hit(s.name) || s.models.some((m) => hit(m.name)));
+  const series = [...family.series]
+    .sort(byPostsThenName)
+    .filter((s) => shown(family.id, s.id) || s.models.some((m) => shown(family.id, m.id)))
+    .filter((s) => hit(s.name) || s.models.some((m) => hit(m.name)));
   const max = Math.max(1, family.posts);
   const choose = (nodeId: number | null) => {
     onPick({ catalogId: family.id, nodeId });
@@ -361,29 +373,20 @@ function ProductPicker({
   };
   const option = (nodeId: number | null, name: string, posts: number, indent = false) => {
     const on = pick.catalogId === family.id && pick.nodeId === nodeId;
-    const why = blocked?.({ catalogId: family.id, nodeId }) ?? null;
     return (
       <button
         key={nodeId ?? "all"}
         type="button"
         role="option"
         aria-selected={on}
-        aria-disabled={!!why}
-        disabled={!!why}
         onClick={() => choose(nodeId)}
-        className={`grid w-full grid-cols-[minmax(0,1fr)_64px_40px] items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm sm:grid-cols-[minmax(0,1fr)_96px_44px] ${on ? `${side === "b" ? "bg-violet/15 outline-violet" : "bg-accent/15 outline-accent"} font-semibold outline-[1.5px] outline-solid` : why ? "text-faint" : "hover:bg-surface-2"} ${indent ? "pl-6" : ""}`}
+        className={`grid w-full grid-cols-[minmax(0,1fr)_64px_40px] items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm sm:grid-cols-[minmax(0,1fr)_96px_44px] ${on ? `${side === "b" ? "bg-violet/15 outline-violet" : "bg-accent/15 outline-accent"} font-semibold outline-[1.5px] outline-solid` : "hover:bg-surface-2"} ${indent ? "pl-6" : ""}`}
       >
         <span className="truncate">{name}</span>
-        {why ? (
-          <span className="col-span-2 text-right text-xs text-faint">{why}</span>
-        ) : (
-          <>
-            <span className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
-              <span className={`block h-full rounded-full ${side === "b" ? "bg-violet" : "bg-accent"}`} style={{ width: `${Math.round((posts / max) * 100)}%` }} />
-            </span>
-            <span className="text-right text-[13px] text-muted tabular-nums">{posts}</span>
-          </>
-        )}
+        <span className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
+          <span className={`block h-full rounded-full ${side === "b" ? "bg-violet" : "bg-accent"}`} style={{ width: `${Math.round((posts / max) * 100)}%` }} />
+        </span>
+        <span className="text-right text-[13px] text-muted tabular-nums">{posts}</span>
       </button>
     );
   };
@@ -405,9 +408,14 @@ function ProductPicker({
       {open && (
         <div className="absolute top-[52px] left-0 z-20 w-[min(560px,calc(100vw-2rem))] rounded-[14px] border border-border bg-surface shadow-[0_16px_48px_rgba(0,0,0,.45)]">
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a series or model…" aria-label="Find a series or model" className={`${ui.input} m-3 w-[calc(100%-1.5rem)]`} />
-          {families.length > 1 && (
+          {hiddenCount > 0 && (
+            <p className="-mt-1 px-4 pb-2.5 text-xs text-muted">
+              {hiddenCount} hidden {hiddenNote ?? "because they can't be picked here"}
+            </p>
+          )}
+          {choices.length > 1 && (
             <div className="flex flex-wrap gap-1.5 border-b border-border px-3 pb-3">
-              {families.map((f) => (
+              {choices.map((f) => (
                 <button key={f.id} type="button" onClick={() => setFamilyId(f.id)} className={`h-7 rounded-full border px-3 text-[13px] ${f.id === family.id ? "border-foreground bg-foreground font-semibold text-background" : "border-border"}`}>
                   {f.name}
                 </button>
@@ -415,15 +423,18 @@ function ProductPicker({
             </div>
           )}
           <div role="listbox" aria-label="Products" className="max-h-80 overflow-y-auto p-1.5">
-            {!needle && option(null, `All of ${family.name}`, family.posts)}
+            {!needle && shown(family.id, null) && option(null, `All of ${family.name}`, family.posts)}
             {series.map((s) => (
               <div key={s.id}>
                 <div className="px-2.5 pt-2.5 pb-1 text-[11px] font-bold tracking-wider text-muted uppercase">{shortName(s.name, family.name)}</div>
-                {hit(s.name) && option(s.id, `Whole ${shortName(s.name, family.name)}`, s.posts)}
-                {[...s.models].sort(byPostsThenName).filter((m) => hit(m.name) || hit(s.name)).map((m) => option(m.id, shortName(m.name, family.name), m.posts, true))}
+                {hit(s.name) && shown(family.id, s.id) && option(s.id, `Whole ${shortName(s.name, family.name)}`, s.posts)}
+                {[...s.models]
+                  .sort(byPostsThenName)
+                  .filter((m) => shown(family.id, m.id) && (hit(m.name) || hit(s.name)))
+                  .map((m) => option(m.id, shortName(m.name, family.name), m.posts, true))}
               </div>
             ))}
-            {series.length === 0 && needle && <p className="px-3 py-4 text-sm text-muted">Nothing matches “{q}”.</p>}
+            {series.length === 0 && (needle || !shown(family.id, null)) && <p className="px-3 py-4 text-sm text-muted">{needle ? `Nothing matches “${q}”.` : "Nothing here can be compared with it."}</p>}
           </div>
           <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-[13px]">
             <span className="text-muted">Missing a product?</span>

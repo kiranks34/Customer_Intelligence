@@ -36,6 +36,7 @@ export type StudyStatus =
   | { kind: "waiting"; reason: string }
   | { kind: "stopped"; reason: string }
   | { kind: "not_analyzed" }
+  | { kind: "not_started" }
   | { kind: "update"; reason: string };
 
 export interface StudyRow {
@@ -57,11 +58,9 @@ export interface StudyRow {
   /** Started with a question (a question study is never "the same study" as another). */
   hasQuestion: boolean;
   /** A comparison's two sides: name, and each one's headline once analyzed. */
-  sides?: { label: string; headline: Headline | null }[];
+  sides?: { searchId: number; label: string; headline: Headline | null }[];
 }
 
-/** No step for this long while work is open means the page that drives it was closed. */
-const STALE_SECONDS = 90;
 
 interface Raw {
   id: number;
@@ -71,11 +70,14 @@ interface Raw {
   posts: number;
   coll_open: number;
   coll_waiting: number;
-  coll_stale: boolean;
+  /** The run (D49): Stop pressed; a Pulse tab drove it in the last 90 s; reading starts once collecting is done. */
+  stopped: boolean;
+  driven: boolean;
+  read_next: boolean;
   wait_reason: string | null;
   coll_jobs: number;
   /** The latest analysis job; `version` 0 means its first draft of the categories never finished. */
-  analysis: { status: string; stale: boolean; error: string | null; version?: number } | null;
+  analysis: { status: string; error: string | null; version?: number } | null;
   analyzed: boolean;
   headline: Headline | null;
   /** The latest categories: version, and the product knowledge they carry. */
@@ -96,9 +98,11 @@ export async function studyRows(limit = 50): Promise<StudyRow[]> {
       (select count(*)::int from jobs where search_id = s.id and step <> 'analyze' and status in ('queued', 'running')) as coll_open,
       (select count(*)::int from jobs where search_id = s.id and step <> 'analyze' and status = 'waiting') as coll_waiting,
       (select count(*)::int from jobs where search_id = s.id and step <> 'analyze') as coll_jobs,
-      coalesce((select max(updated_at) < now() - make_interval(secs => ${STALE_SECONDS}) from jobs where search_id = s.id and step <> 'analyze' and status in ('queued', 'running')), false) as coll_stale,
+      s.stopped_at is not null as stopped,
+      coalesce(s.driven_at > now() - interval '90 seconds', false) as driven,
+      s.auto_read as read_next,
       (select last_error from jobs where search_id = s.id and step <> 'analyze' and status = 'waiting' order by id desc limit 1) as wait_reason,
-      (select json_build_object('status', status, 'stale', updated_at < now() - make_interval(secs => ${STALE_SECONDS}), 'error', last_error, 'version', coalesce((cursor->>'codebookVersion')::int, 0))
+      (select json_build_object('status', status, 'error', last_error, 'version', coalesce((cursor->>'codebookVersion')::int, 0))
          from jobs where search_id = s.id and step = 'analyze' order by id desc limit 1) as analysis,
       exists (select 1 from decisions d join posts p on p.id = d.post_id where p.search_id = s.id) as analyzed,
       (select headline from study_headlines where search_id = s.id) as headline,
@@ -135,7 +139,7 @@ export async function studyRows(limit = 50): Promise<StudyRow[]> {
 }
 
 /** The status that holds a comparison up most, first: work in progress, then problems, then updates, then ready. */
-const ORDER: StudyStatus["kind"][] = ["collecting", "reading", "waiting", "paused", "stopped", "not_analyzed", "update", "review", "ready"];
+const ORDER: StudyStatus["kind"][] = ["collecting", "reading", "waiting", "paused", "stopped", "not_started", "not_analyzed", "update", "review", "ready"];
 
 function comparisonRow(sides: Raw[]): StudyRow {
   const rows = [...sides].sort((x, y) => (x.comp!.side < y.comp!.side ? -1 : 1)).map(toRow);
@@ -162,7 +166,7 @@ function comparisonRow(sides: Raw[]): StudyRow {
     headline: null,
     status: merged,
     target: null,
-    sides: rows.map((r) => ({ label: label(r), headline: r.headline })),
+    sides: rows.map((r) => ({ searchId: r.id, label: label(r), headline: r.headline })),
   };
 }
 
@@ -199,18 +203,23 @@ function toRow(r: Raw): StudyRow {
   };
 }
 
-export function statusOf(r: Pick<Raw, "posts" | "coll_open" | "coll_waiting" | "coll_stale" | "wait_reason" | "coll_jobs" | "analysis" | "analyzed" | "headline" | "update">): StudyStatus {
+export function statusOf(
+  r: Pick<Raw, "posts" | "coll_open" | "coll_waiting" | "stopped" | "driven" | "read_next" | "wait_reason" | "coll_jobs" | "analysis" | "analyzed" | "headline" | "update">,
+): StudyStatus {
   const a = r.analysis;
   if (r.coll_waiting > 0) return { kind: "waiting", reason: (r.wait_reason ?? "Paused").replace(/^Paused:\s*/, "").replace(/\.$/, "") };
-  const closed = "You stopped it, or the page was closed";
-  if (r.coll_open > 0) return r.coll_stale ? { kind: "paused", reason: closed } : { kind: "collecting" };
-  if (a && (a.status === "queued" || a.status === "running")) return a.stale ? { kind: "paused", reason: closed } : { kind: "reading" };
+  // Open work goes on while a Pulse tab drives it (D49); otherwise it waits for Resume.
+  const idle = r.stopped ? "You stopped it" : !r.driven ? "No Pulse tab was open" : null;
+  if (r.coll_open > 0) return idle ? { kind: "paused", reason: idle } : { kind: "collecting" };
+  if (a && (a.status === "queued" || a.status === "running")) return idle ? { kind: "paused", reason: idle } : { kind: "reading" };
+  if (r.read_next && !idle && r.posts > 0) return { kind: "reading" };
   // Same words as the study bar (study-control.tsx statusOf): a paused or failed reading run is Paused (Resume); a
   // first draft that failed leaves nothing to resume, so the study is Not analyzed.
   if (a?.status === "waiting") return { kind: "paused", reason: a.error ?? "Reading stopped before the end" };
   if (a?.status === "failed" && a.version) return { kind: "paused", reason: a.error ?? "Reading stopped before the end" };
-  if (r.coll_jobs > 0 && r.posts === 0) return { kind: "stopped", reason: "No posts found" };
-  if (!r.analyzed) return r.posts > 0 ? { kind: "not_analyzed" } : { kind: "stopped", reason: "Nothing collected yet" };
+  if (r.coll_jobs === 0 && r.posts === 0) return { kind: "not_started" };
+  if (r.posts === 0) return { kind: "stopped", reason: "No posts found" };
+  if (!r.analyzed) return { kind: "not_analyzed" };
   if (r.update) return { kind: "update", reason: r.update };
   if (r.headline && r.headline.toReview > 0) return { kind: "review", answers: r.headline.toReview };
   return { kind: "ready" };

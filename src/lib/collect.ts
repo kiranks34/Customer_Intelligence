@@ -7,7 +7,7 @@ import * as reddit from "@/connectors/reddit";
 import { ConnectorError, type CallCost, type RawPost } from "@/connectors/types";
 import * as youtube from "@/connectors/youtube";
 import { requireDb } from "@/db/client";
-import { costEvents, jobs, plans, posts } from "@/db/schema";
+import { costEvents, jobs, plans, posts, searches } from "@/db/schema";
 
 import { ensureCatalogForSearch, findProposals, matchSearch } from "./catalogs";
 import { paidWorkBlockedReason, recordCost } from "./cost";
@@ -16,9 +16,9 @@ import { inWindow, isExcluded, redditTimeframe, roomFor, type Plan } from "./pla
 import { savePosts } from "./posts";
 
 /**
- * Collection runs as small jobs in the `jobs` table (docs/ARCHITECTURE.md §7). The search page calls `advance`
- * repeatedly; each call works for a bounded time, so no request comes near Vercel Hobby limits, and a closed tab
- * simply pauses the run.
+ * Collection runs as small jobs in the `jobs` table (docs/ARCHITECTURE.md §7). Any open Pulse tab calls `advance`
+ * repeatedly (src/lib/runs.ts, D49); each call works for a bounded time, so no request comes near Vercel Hobby limits,
+ * and closing every Pulse tab simply pauses the run.
  */
 
 type Step = "yt.search" | "yt.comments" | "rd.search" | "rd.comments";
@@ -78,7 +78,8 @@ export async function startCollection(searchId: number): Promise<{ started: bool
     ...(plan.reddit.enabled ? plan.reddit.queries : []).map((query) => ({ searchId, step: "rd.search", cursor: { ...base, query } })),
   ];
   if (seeds.length === 0) return { started: false, reason: "The plan has no enabled sources with queries." };
-  await db.insert(jobs).values(seeds);
+  // Collecting is always followed by reading what's new (D49): any open Pulse tab now drives the run.
+  await db.batch([db.insert(jobs).values(seeds), db.update(searches).set({ drivenAt: sql`now()`, stoppedAt: null, autoRead: true }).where(eq(searches.id, searchId))]);
   return { started: true };
 }
 
@@ -256,8 +257,42 @@ export async function progress(searchId: number): Promise<Progress> {
   };
 }
 
+/** Stop was pressed and Resume hasn't been (D49). */
+export async function isStopped(searchId: number): Promise<boolean> {
+  const [row] = await requireDb().select({ at: searches.stoppedAt }).from(searches).where(eq(searches.id, searchId));
+  return !!row?.at;
+}
+
+export interface RunFlags {
+  /** Stop was pressed (and Resume hasn't been). */
+  stopped: boolean;
+  /** A Pulse tab worked on it in the last 90 seconds (D49). */
+  driven: boolean;
+  /** Stop was pressed and a search or a batch of posts is still finishing. */
+  stopping: boolean;
+  /** Collecting is done and reading the new posts starts at the next step. */
+  readNext: boolean;
+  /** When these were read (ms), so the newer of the page's and the runner's copy wins. */
+  at: number;
+}
+
+/** Where a study's run stands (D49); the runner's live copy (src/lib/runs.ts) has the same fields. */
+export async function runFlags(searchId: number): Promise<RunFlags> {
+  const [row] = await requireDb()
+    .select({
+      stopped: sql<boolean>`${searches.stoppedAt} is not null`,
+      driven: sql<boolean>`coalesce(${searches.drivenAt} > now() - interval '90 seconds', false)`,
+      stopping: sql<boolean>`${searches.stoppedAt} is not null and exists (
+        select 1 from ${jobs} where search_id = ${searchId} and status = 'running' and updated_at > now() - interval '2 minutes')`,
+      readNext: searches.autoRead,
+    })
+    .from(searches)
+    .where(eq(searches.id, searchId));
+  return { stopped: !!row?.stopped, driven: !!row?.driven, stopping: !!row?.stopping, readNext: !!row?.readNext, at: Date.now() };
+}
+
 /** Work through queued jobs for up to `budgetMs`, then report progress. */
-export async function advance(searchId: number, budgetMs = 20_000): Promise<Progress> {
+export async function advance(searchId: number, budgetMs = 20_000): Promise<Progress & { claimed: number }> {
   const d = requireDb();
   const started = Date.now();
   // Jobs left "running" by a killed request go back to the queue (that attempt still counts).
@@ -270,10 +305,14 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
   // One budget check per call: a single ~20 s cycle can't move spend meaningfully.
   let paidBlocked: string | null | undefined;
   let counts = await postCounts(searchId);
+  let claimed = 0;
 
   while (Date.now() - started < budgetMs) {
+    // Stop (D49) takes effect before the next search: the one under way finishes, nothing new starts.
+    if (await isStopped(searchId)) break;
     const job = await claimJob(searchId);
     if (!job) break;
+    claimed++;
 
     let plan = plansByVersion.get(job.cursor.planVersion);
     if (!plan) {
@@ -315,7 +354,7 @@ export async function advance(searchId: number, budgetMs = 20_000): Promise<Prog
   }
   const prog = await progress(searchId);
   if (prog.finished) await linkToCatalog(searchId);
-  return prog;
+  return { ...prog, claimed };
 }
 
 /**

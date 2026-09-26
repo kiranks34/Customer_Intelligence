@@ -10,14 +10,16 @@ import { removeComparisonAction, renameComparisonAction } from "./compare/action
 import { clearSearchesAction, renameStudyAction } from "./searches/actions";
 import { dot, ui, type Tone } from "./ui";
 import { LocalTime } from "./local-time";
+import { useRunner } from "./runner";
 
-type Filter = "ready" | "progress" | "review" | "update" | "not_analyzed" | "stopped";
+type Filter = "ready" | "progress" | "review" | "update" | "not_analyzed" | "not_started" | "stopped";
 const FILTERS: { id: Filter; label: string; has: (s: StudyStatus) => boolean }[] = [
   { id: "ready", label: "Ready", has: (s) => s.kind === "ready" },
   { id: "progress", label: "In progress", has: (s) => ["collecting", "reading", "paused", "waiting"].includes(s.kind) },
   { id: "review", label: "To review", has: (s) => s.kind === "review" },
   { id: "update", label: "Update ready", has: (s) => s.kind === "update" },
   { id: "not_analyzed", label: "Not analyzed", has: (s) => s.kind === "not_analyzed" },
+  { id: "not_started", label: "Not started", has: (s) => s.kind === "not_started" },
   { id: "stopped", label: "Stopped", has: (s) => s.kind === "stopped" },
 ];
 
@@ -77,12 +79,35 @@ export function AllStudies({ rows }: { rows: StudyRow[] }) {
   );
 }
 
+/** A run in progress, as the runner sees it now (D49): fresher than the list the page was loaded with. */
+function useLive(r: StudyRow): { status: [Tone, string, string]; posts: number } | null {
+  const runner = useRunner();
+  if (!runner) return null;
+  const ids = r.kind === "comparison" ? (r.sides ?? []).map((x) => x.searchId) : [r.id];
+  if (!runner.active.some((a) => ids.includes(a.searchId))) return null;
+  const lives = ids.map((id) => runner.states[id]).filter((x) => x !== undefined);
+  if (lives.length === 0) return null;
+  const posts = lives.reduce((t, l) => t + l.progress.totalPosts, 0);
+  if (lives.some((l) => l.stopping)) return { status: ["info", "Stopping…", "Finishing the current step"], posts };
+  const collecting = lives.filter((l) => !l.progress.finished && !l.stopped);
+  if (collecting.length) return { status: ["info", "Collecting", `${collecting.reduce((t, l) => t + l.progress.runPosts, 0)} new posts so far`], posts };
+  const reading = lives.filter((l) => l.analysis.status === "running");
+  if (reading.length) {
+    const read = reading.reduce((t, l) => t + l.analysis.analyzed, 0);
+    const total = reading.reduce((t, l) => t + l.analysis.totalPosts, 0);
+    return { status: ["info", "Reading posts", `${read.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} read`], posts };
+  }
+  return null;
+}
+
 function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
+  const live = useLive(r);
   const h = r.headline;
   const done = r.status.kind === "ready" || r.status.kind === "review" || r.status.kind === "update";
   const hs = r.sides?.map((x) => x.headline);
-  const result =
-    r.kind === "comparison" ? (
+  const result = live ? (
+    <span className="text-muted">{live.posts > 0 ? `${live.posts} posts so far` : "Starting…"}</span>
+  ) : r.kind === "comparison" ? (
       done && hs?.length === 2 && hs[0] && hs[1] ? (
         <span>
           {hs[0].counted} and {hs[1].counted} about them · <b className="font-semibold text-critical">{hs[0].negativePct}%</b> vs{" "}
@@ -132,7 +157,7 @@ function Row({ r, onNote }: { r: StudyRow; onNote: (s: string) => void }) {
       </div>
       <div className="col-start-1 text-sm md:col-start-auto">{result}</div>
       <div className="col-start-1 md:col-start-auto">
-        <Status s={r.status} posts={r.posts} />
+        <Status s={r.status} posts={r.posts} live={live?.status} />
       </div>
       <div className="col-start-2 row-start-1 md:col-start-auto md:row-start-auto">
         <Menu r={r} onNote={onNote} />
@@ -154,8 +179,8 @@ function Tag({ tone, children }: { tone: Tone; children: React.ReactNode }) {
  * A study's status: one word and why, in the same words as the study's own page (D47). Buttons that start work live
  * only in the study's bar, so nothing here spends money; the study's name opens it.
  */
-function Status({ s, posts }: { s: StudyStatus; posts: number }) {
-  const [tone, word, reason]: [Tone, string, string] = (() => {
+function Status({ s, posts, live }: { s: StudyStatus; posts: number; live?: [Tone, string, string] }) {
+  const [tone, word, reason]: [Tone, string, string] = live ?? (() => {
     switch (s.kind) {
       case "ready":
         return ["good", "Ready", "Results use every post"];
@@ -164,13 +189,15 @@ function Status({ s, posts }: { s: StudyStatus; posts: number }) {
       case "update":
         return ["warn", "Update ready", s.reason];
       case "collecting":
-        return ["info", "Collecting", "Keep its page open"];
+        return ["info", "Collecting", "Runs while Pulse is open"];
       case "reading":
-        return ["info", "Reading posts", "Keep its page open"];
+        return ["info", "Reading posts", "Runs while Pulse is open"];
       case "paused":
         return ["muted", "Paused", s.reason];
       case "waiting":
         return ["warn", "Waiting", s.reason];
+      case "not_started":
+        return ["muted", "Not started", "Nothing collected yet"];
       case "not_analyzed":
         return ["muted", "Not analyzed", `${posts.toLocaleString("en-US")} ${posts === 1 ? "post" : "posts"} collected, not read yet`];
       case "stopped":

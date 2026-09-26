@@ -25,38 +25,33 @@ export function validatePlan(candidate: unknown): { ok: true; plan: Plan } | { o
 const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const daysBefore = (today: Date, n: number) => day(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n));
 
+/**
+ * The study periods, the same in New study and Search settings: open-ended (a later "Collect new posts" still finds
+ * posts from after the study started), starting N days before the day it was set.
+ */
 export const PERIODS = [
-  { id: "all", label: "All time", days: null },
-  { id: "7d", label: "Last 7 days", days: 7 },
-  { id: "30d", label: "Last 30 days", days: 30 },
-  { id: "90d", label: "Last 3 months", days: 90 },
-  { id: "365d", label: "Last 12 months", days: 365 },
+  { id: "3m", label: "3 months", days: 91 },
+  { id: "6m", label: "6 months", days: 182 },
+  { id: "1y", label: "1 year", days: 365 },
+  { id: "2y", label: "2 years", days: 730 },
 ] as const;
 export type PeriodId = (typeof PERIODS)[number]["id"] | "custom";
 
-/** Sets the time window to a preset ending today (a 7-day window is today and the 6 days before it). */
+/** Sets the period to a preset: from N days before today, with no end. */
 export function applyPeriod(p: Plan, id: Exclude<PeriodId, "custom">, today = new Date()): Plan {
   const preset = PERIODS.find((x) => x.id === id)!;
-  const timeWindow =
-    preset.days === null
-      ? { from: null, to: null, label: "all time" }
-      : { from: daysBefore(today, preset.days - 1), to: day(today), label: preset.label.toLowerCase() };
-  return { ...p, timeWindow };
+  return { ...p, timeWindow: { from: daysBefore(today, preset.days - 1), to: null, label: preset.label } };
 }
 
 /**
- * Which preset a plan's window matches; anything else (including the planner's "last month") is custom.
- * A preset only counts while it still ends today: a "last 7 days" saved weeks ago is custom, so the old dates show.
+ * Which preset a plan's period is (by its name, with no end date, as New study and Search settings save it); any
+ * other window (the planner's "last month", fixed dates, all time) is custom and shows its dates.
  */
-export function activePeriod(p: Plan, today = new Date()): PeriodId {
-  const { from, to, label } = p.timeWindow;
-  if (!from && !to) return "all";
-  const match = PERIODS.find((x) => x.days !== null && x.label.toLowerCase() === label.trim().toLowerCase());
-  if (match && from && to === day(today)) {
-    const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
-    if (span === match.days) return match.id;
-  }
-  return "custom";
+export function activePeriod(p: Plan): PeriodId {
+  const { to, label } = p.timeWindow;
+  const name = label.trim().toLowerCase().replace(/^last /, "");
+  const match = PERIODS.find((x) => x.label === name || (x.id === "1y" && name === "12 months"));
+  return match && !to ? match.id : "custom";
 }
 
 export const DEPTHS = [

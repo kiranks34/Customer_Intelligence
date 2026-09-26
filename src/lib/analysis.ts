@@ -36,7 +36,7 @@ import {
 import { claudeModel, tokenCostUsd } from "./ai";
 import { AutoCheckError, claudeCheck } from "./auto-check";
 import { CodebookError, draftCodebook, type Mistake } from "./codebook-drafter";
-import { loadPlan } from "./collect";
+import { isStopped, loadPlan } from "./collect";
 import { paidWorkBlockedReason, recordCost } from "./cost";
 import { removeDuplicatePosts } from "./posts";
 import { storedFactsFor } from "./product-knowledge";
@@ -294,6 +294,7 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
     .set({ status: "queued" })
     .where(and(eq(jobs.searchId, searchId), eq(jobs.step, STEP), eq(jobs.status, "running"), sql`${jobs.updatedAt} < now() - make_interval(secs => ${STALE_RUNNING_SECONDS})`));
 
+  if (await isStopped(searchId)) return analysisState(searchId);
   const job = await claim(searchId);
   if (!job) return analysisState(searchId);
 
@@ -331,6 +332,8 @@ export async function advanceAnalysis(searchId: number, budgetMs = 20_000): Prom
   const heartbeat = (patch: Partial<typeof jobs.$inferInsert> = {}) => db.update(jobs).set({ updatedAt: new Date(), ...patch }).where(eq(jobs.id, job.id));
   try {
     while (Date.now() - started < budgetMs) {
+      // Stop (D49): the batch under way is saved, then the run waits for Resume (queued, not failed).
+      if (await isStopped(searchId)) break;
       const batch = await pendingBatch(searchId, version);
       if (batch.length === 0) {
         await finish(job.id, "done", null);

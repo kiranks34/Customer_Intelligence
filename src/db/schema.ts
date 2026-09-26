@@ -36,6 +36,14 @@ export const searches = pgTable("searches", {
   hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   /** The shared product catalog for this search's family (docs/DECISIONS.md D29). */
   catalogId: integer("catalog_id").references((): AnyPgColumn => catalogs.id, { onDelete: "set null" }),
+  /**
+   * The study's run (D49): any open Pulse tab drives it. `drivenAt` is the last time a tab worked on it (a run with
+   * open work and no recent driving was left when every Pulse tab closed: Paused); `stoppedAt` is set by Stop and
+   * cleared by Resume; `autoRead` reads the new posts once collecting finishes.
+   */
+  drivenAt: timestamp("driven_at", { withTimezone: true }),
+  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+  autoRead: boolean("auto_read").notNull().default(false),
   createdAt: createdAt(),
 });
 

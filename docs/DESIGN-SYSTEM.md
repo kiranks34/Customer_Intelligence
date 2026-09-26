@@ -85,7 +85,8 @@ Every page starts the same way:
 
 1. Breadcrumb (pages below Studies or Products), with "← Back to …" above it when you came from the other section.
 2. One row: the **page title on the left** (with its detail lines under it), and on the **right, level with the
-   title**, the page's status and main action: status word and reason, the button (its cost under it), then ⋯. Pages
+   title**, the page's status and main action: the status word (never a line under it), the button (its cost under
+   it), then ⋯. Pages
    without a status put their main action there alone (Products: "+ Add a product family"; a family: "Check for new
    models", "Start a study →").
 3. Anything else (a question, tabs, the study bar) comes below that row, never between the title and its action.
@@ -95,9 +96,23 @@ takes over the status and action only once the title has scrolled out of view, s
 
 ### Status
 
-One short word and why, the same in All studies and in a study's bar: Collecting, Reading posts (blue); Paused,
-Not analyzed (grey); Waiting, Update ready, To review (amber); Ready (green); Stopped (red). A study's one next step
-sits next to its status, in its bar, the only place that starts paid work.
+One short word, the same in All studies and in a study's header: Collecting, Reading posts, Stopping… (blue); Paused,
+Not started, Not analyzed (grey); Waiting, Update ready, To review (amber); Ready (green); Stopped (red). A study's
+one next step sits next to its status, the only place that starts paid work.
+
+- **Header: the word only.** The reason is shown once, where it belongs: in Progress (Not started, No posts found,
+  Paused: you stopped it) or in the Improve row it comes from (new product facts, answers to check). A problem (a
+  step that failed) is the one line shown under the word, in red.
+- **All studies** keeps the short reason under each status: a list has no Progress card to carry it.
+- **Stopping…** replaces both the word and the button while a stopped step finishes; nothing to click.
+- A cost sits under a paid button only when the click starts new paid work (not under Resume).
+
+### Toasts and "running"
+
+Work runs in any open Pulse tab (D49). The top bar shows "● 2 running" (`running`) while studies are worked on; it
+opens All studies. When one is done, a toast (`toastStack`, `toast`) says "X is ready", one line of result, and
+"Open results →"; it closes by itself after a few seconds or with ×. Toasts are for news from elsewhere only, never
+for the result of a click on the same page (that shows where you clicked).
 
 ### Other pieces
 

@@ -56,6 +56,11 @@ export const ui = {
   noticeWarn: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-warning/50 bg-warning/10 px-4 py-3 text-sm",
   noticeBad: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-critical/50 bg-critical/10 px-4 py-3 text-sm",
   noticeInfo: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-accent/50 bg-accent/10 px-4 py-3 text-sm",
+  /** Toasts: bottom right, over the page, for news from work running elsewhere (a study is ready). */
+  toastStack: "fixed right-4 bottom-4 z-50 flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2",
+  toast: "flex items-start gap-3 rounded-xl border border-border border-l-[3px] border-l-good bg-surface px-3.5 py-3 shadow-[0_16px_48px_rgba(0,0,0,.45)]",
+  /** "2 running" in the top bar: work under way somewhere in Pulse. */
+  running: "inline-flex items-center gap-2 whitespace-nowrap text-[13px] font-semibold hover:text-accent",
 } as const;
 
 export type Tone = "good" | "warn" | "bad" | "info" | "muted";

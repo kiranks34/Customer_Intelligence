@@ -234,7 +234,15 @@ export function PlanWorkspace({ searchId, plan, version, usdPerCredit, locked }:
         <button type="button" onClick={() => setDraft(saved.plan)} disabled={!dirty || disabled} className={ui.plainSm}>
           Undo changes
         </button>
-        <span className="text-xs text-muted">{dirty ? "Unsaved changes" : `Version ${saved.version}`} · used by the next Collect new posts</span>
+        <span className="text-xs text-muted">
+          {dirty ? (
+            "Unsaved changes · used by the next collect"
+          ) : (
+            <>
+              <b className="font-semibold text-foreground">No changes to save.</b> To run these same settings again, use Collect at the top of the page.
+            </>
+          )}
+        </span>
       </div>
 
       {note && (

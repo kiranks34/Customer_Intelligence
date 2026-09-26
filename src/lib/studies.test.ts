@@ -3,18 +3,21 @@ import { describe, expect, it } from "vitest";
 import { periodText, statusOf } from "./studies";
 import type { Plan } from "./plan";
 
-const base = { posts: 100, coll_open: 0, coll_waiting: 0, coll_stale: false, wait_reason: null, coll_jobs: 5, analysis: null, analyzed: true, headline: null };
+const base = { posts: 100, coll_open: 0, coll_waiting: 0, stopped: false, driven: true, read_next: false, wait_reason: null, coll_jobs: 5, analysis: null, analyzed: true, headline: null };
 
 describe("statusOf", () => {
   it("names what's happening and what to do", () => {
     expect(statusOf({ ...base, coll_open: 3 })).toEqual({ kind: "collecting" });
-    expect(statusOf({ ...base, coll_open: 3, coll_stale: true })).toEqual({ kind: "paused", reason: "You stopped it, or the page was closed" });
+    expect(statusOf({ ...base, coll_open: 3, driven: false })).toEqual({ kind: "paused", reason: "No Pulse tab was open" });
+    expect(statusOf({ ...base, coll_open: 3, stopped: true })).toEqual({ kind: "paused", reason: "You stopped it" });
+    expect(statusOf({ ...base, analyzed: false, read_next: true })).toEqual({ kind: "reading" });
+    expect(statusOf({ ...base, posts: 0, coll_jobs: 0, analyzed: false })).toEqual({ kind: "not_started" });
     expect(statusOf({ ...base, coll_waiting: 1, wait_reason: "Paused: monthly budget reached." })).toEqual({ kind: "waiting", reason: "monthly budget reached" });
-    expect(statusOf({ ...base, analysis: { status: "running", stale: false, error: null } })).toEqual({ kind: "reading" });
-    expect(statusOf({ ...base, analysis: { status: "queued", stale: true, error: null } })).toEqual({ kind: "paused", reason: "You stopped it, or the page was closed" });
-    expect(statusOf({ ...base, analysis: { status: "failed", stale: false, error: "Jev failed 3 times", version: 2 } })).toEqual({ kind: "paused", reason: "Jev failed 3 times" });
-    expect(statusOf({ ...base, analyzed: false, analysis: { status: "failed", stale: false, error: "Claude is down", version: 0 } })).toEqual({ kind: "not_analyzed" });
-    expect(statusOf({ ...base, analysis: { status: "waiting", stale: false, error: "Monthly budget reached" } })).toEqual({ kind: "paused", reason: "Monthly budget reached" });
+    expect(statusOf({ ...base, analysis: { status: "running", error: null } })).toEqual({ kind: "reading" });
+    expect(statusOf({ ...base, driven: false, analysis: { status: "queued", error: null } })).toEqual({ kind: "paused", reason: "No Pulse tab was open" });
+    expect(statusOf({ ...base, analysis: { status: "failed", error: "Jev failed 3 times", version: 2 } })).toEqual({ kind: "paused", reason: "Jev failed 3 times" });
+    expect(statusOf({ ...base, analyzed: false, analysis: { status: "failed", error: "Claude is down", version: 0 } })).toEqual({ kind: "not_analyzed" });
+    expect(statusOf({ ...base, analysis: { status: "waiting", error: "Monthly budget reached" } })).toEqual({ kind: "paused", reason: "Monthly budget reached" });
     expect(statusOf({ ...base, posts: 0, analyzed: false })).toEqual({ kind: "stopped", reason: "No posts found" });
     expect(statusOf({ ...base, analyzed: false })).toEqual({ kind: "not_analyzed" });
     expect(statusOf({ ...base, headline: { counted: 1, negativePct: 0, positivePct: 0, topPain: null, toReview: 2 } })).toEqual({ kind: "review", answers: 2 });

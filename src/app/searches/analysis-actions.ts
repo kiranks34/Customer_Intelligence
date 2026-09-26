@@ -4,21 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import { authed, budgetBlock, errorText, type ActionState } from "@/lib/action-guards";
 import {
-  advanceAnalysis,
   analysisBusy,
   analysisState,
   latestCodebook,
   proposeCodebook,
-  resumeAnalysis,
   runAutoCheck,
   saveCodebook,
   saveReview,
   saveSpotCheck,
-  startAnalysis,
-  type AnalysisState,
 } from "@/lib/analysis";
 import { validateCodebook, type Codebook } from "@/lib/codebook";
-import { comparisonOf, getComparison, shareCategories, syncOtherSide } from "@/lib/compare";
+import { comparisonOf, syncOtherSide } from "@/lib/compare";
+import { startReading } from "@/lib/runs";
 import { factsNotUsed, notesFor } from "@/lib/knowledge";
 import { codebookKnowledge, knowledgeForSearch } from "@/lib/product-knowledge";
 
@@ -30,40 +27,12 @@ export async function startAnalysisAction(searchId: number): Promise<ActionState
   if (denied) return denied;
   if (!validId(searchId)) return { ok: false, message: "Unknown search." };
   try {
-    // A side of a comparison (D48) is read with the categories both sides share, drafted once from both.
-    const link = await comparisonOf(searchId);
-    const pair = link ? await getComparison(link.id) : null;
-    // A side with no posts yet has nothing to read; the shared draft waits until it (or the other side) is read.
-    const shared = pair && (await analysisState(searchId)).totalPosts > 0 ? await shareCategories(pair) : null;
-    const r = await startAnalysis(searchId);
+    const r = await startReading(searchId, true);
     if (!r.started) return { ok: false, message: r.reason };
-    if (shared?.drafted) return { ok: true, message: "Drafted the categories both products share. Jev is reading the posts…" };
+    if (r.shared) return { ok: true, message: "Drafted the categories both products share. Jev is reading the posts…" };
     return { ok: true, message: r.drafted ? "Drafted the themes and stages from a sample. Jev is reading the posts…" : "Jev is reading the posts…" };
   } catch (err) {
     return { ok: false, message: `Couldn't start the analysis: ${errorText(err)}` };
-  }
-}
-
-export async function advanceAnalysisAction(searchId: number): Promise<AnalysisState | ActionState> {
-  const denied = await authed();
-  if (denied) return denied;
-  if (!validId(searchId)) return { ok: false, message: "Unknown search." };
-  try {
-    return await advanceAnalysis(searchId);
-  } catch (err) {
-    return { ok: false, message: `Analysis step failed: ${errorText(err)}` };
-  }
-}
-
-export async function resumeAnalysisAction(searchId: number): Promise<ActionState> {
-  const denied = (await authed()) ?? (await budgetBlock());
-  if (denied) return denied;
-  if (!validId(searchId)) return { ok: false, message: "Unknown search." };
-  try {
-    await resumeAnalysis(searchId);
-    return { ok: true, message: "Resumed." };
-  } catch (err) {
-    return { ok: false, message: `Couldn't resume: ${errorText(err)}` };
   }
 }
 
@@ -183,7 +152,7 @@ export async function reanalyzeWithKnowledgeAction(searchId: number): Promise<Ac
     const checked = validateCodebook(next);
     if (!checked.ok) return { ok: false, message: checked.error };
     await saveCodebook(searchId, checked.codebook);
-    const r = await startAnalysis(searchId);
+    const r = await startReading(searchId, true);
     revalidatePath(`/searches/${searchId}`);
     return r.started ? { ok: true, message: "Reading the posts again with the latest product knowledge…" } : { ok: false, message: r.reason };
   } catch (err) {
